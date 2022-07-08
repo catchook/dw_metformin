@@ -19,9 +19,9 @@ con = pg.connect(database='omop',
                 port=5432)
 c= con.cursor()
 
-# 1st PS matching: Drug Grouping
+# input_file reading
 input_file = sys.argv[1]
-output_file= sys.argv[2]
+
 
 t1 = pd.read_csv(input_file)
 t1= t1[['Id', 'Name','type1','type2','ingredient_count']]
@@ -29,7 +29,7 @@ t1= t1[['Id', 'Name','type1','type2','ingredient_count']]
 print(t1.head())
 print("input_file reading done")
 print('')
-# 1st PS matching: create basic table (ID/DRUG/DATE/TYPE (after index date ))
+# create basic table (ID/DRUG/DATE/TYPE (after index date ))
 c.execute(""" 
     select distinct a.cohort_definition_id,(case when a.cohort_definition_id = 2479 then 'T'
                          when a.cohort_definition_id = 2480 then 'C' else '' end) as cohort_type
@@ -39,7 +39,8 @@ c.execute("""
                   ,b.drug_concept_id
                   ,b.drug_exposure_start_date
                   ,b.drug_exposure_end_date
-
+                  ,b.quantity
+                  ,b.days_supply
     from cdm_hira_2017_results_fnet_v276.cohort a
         left join  cdm_hira_2017.drug_exposure b
         on a.subject_id = b.person_id
@@ -62,7 +63,7 @@ for row in rows:
         row_lists_output.append(str(row[column_index]))
     t2.append(row_lists_output)
 t3= pd.DataFrame.from_records(t2, columns=['cohort_definition_id,','cohort_type','subject_id','cohort_start_date',
-'cohort_end_date','Id','drug_exposure_start_date','drug_exposure_end_date'])
+'cohort_end_date','Id','drug_exposure_start_date','drug_exposure_end_date', 'quantity', 'days_supply'])
 
 print(t3.tail())
 print('sql success')
@@ -77,30 +78,55 @@ print(t4.head(10))
 print('join success')
 print('')
 
-t5= t4[['cohort_type','subject_id','drug_concept_id','type1','type2','ingredient_count']]
-t5.drop_duplicates()
-print(t5.head(10))
+t51= t4[['cohort_type','subject_id','drug_concept_id','type1','ingredient_count']]
+t52= t4[['cohort_type','subject_id','drug_concept_id','type2','ingredient_count']]
+t51.drop_duplicates(inplace=True)
+t52.drop_duplicates(inplace=True)
+print(' type1')
+print(t51.head(10))
+print(" ")
+print("type2")
+print(t52.head(10))
 print('drop duplicates')
-print("")
+print(" ")
 
-##1st PS matching: check error and nan 
-double_nan = t5[t5['type1'].isnull() & t5['type2'].isnull()]
-print(double_nan.head())
-print(" check double Nan of type")
-print("")
+# ##1st PS matching: check error and nan 
+# nan1 = t51[t51['type1'].isnull()]
+# print(double_nan.head())
+# print(" check double Nan of type")
+# print("")
 
-## extract drug conept_id list of nan 
-drug_list =double_nan['drug_concept_id'].drop_duplicates()
-drug_list.to_csv(output_file, index=False)
+# ## extract drug conept_id list of nan 
+# drug_list =double_nan['drug_concept_id'].drop_duplicates()
+# for i in drug_list:
+#     print(i)
 
-print("extract drug conept_id list of nan")
+# print("extract drug conept_id list of nan")
 
+# long to wide
+t51 =t51.pivot_table(index=['subject_id'], columns ='type1', aggfunc= 'size', fill_value =0)
+t52 =t52.pivot_table(index=['subject_id'], columns ='type2', aggfunc= 'size', fill_value =0)
+t51
+t51= t51.rename(columns ={'type1':'type'}) #nan값은 꼭 채우기, 합치게되면 nan이 됨. 
+t52= t52.rename(columns={'type2':'type'})
 
+t52.fillna(0)
+t52['SU']=0
+t52['sglt2']=0
 
-# t5= t5[~t5['type1'].isin('error')]
-# t5= t5[~t5['type2'].isin('error')]
-# print(t5.head(10))
-# print("remove error")
+print("total t5")
+t5= pd.concat([t51, t52], axis=0)
+#t5=t5.reset_index()
+print(t5.head())
+
+print("start group by ")
+
+t5=t5.groupby(['subject_id']).agg({"alpha": sum, "dpp4i": sum,"error": sum,"gnd": sum,"metformin": sum,"tzd": sum,"SU": sum,"sglt2": sum})
+print(t5.head(10))
+print(
+     " T5: FOR 1st PS matching: co-drug classification done"
+ )
+ 
 
 
 
