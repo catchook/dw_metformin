@@ -336,7 +336,8 @@ del dm_table
 # 3-1. merge drug_type file 
 measure_in_drug_exposure = pd.merge(measure_in_drug_exposure, t1[['Id','Name','type1','type2']], how = 'left', on="Id")
 measure_in_drug_exposure.rename(columns={'Id':'drug_concept_id'}, inplace=True)
-measure_in_drug_exposure = measure_in_drug_exposure.drop(columns=['drug_exposure_start_date', 'drug_exposure_end_date','measurement_date'], axis=1)
+measure_in_drug_exposure = measure_in_drug_exposure.drop(columns=['drug_exposure_start_date', 'drug_exposure_end_date','measurement_date_crp',
+'measurement_date_esr'], axis=1)
 measure_in_drug_exposure.drop_duplicates(inplace=True)
 #del t1
 # 3-2. new column  = drug_group
