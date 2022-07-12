@@ -40,7 +40,7 @@ t1= t1[['Id', 'Name','type1','type2','ingredient_count']]
 cohort_info= pd.read_csv(cohort_inform)
 condition = cohort_info['host'] == HOST
 cohort_info =cohort_info.loc[condition,:]
-cohort_hospital= cohort_info['hospital ']
+cohort_hospital= cohort_info['hospital']
 cohort_target= cohort_info['T'].iloc[0].astype(str)
 cohort_control= cohort_info['C1'].iloc[0].astype(str)
 
@@ -51,6 +51,10 @@ del input_file
 del cohort_inform
 #####################################################################################################################
 # CREATE measurement TABLE : CRP, ESR (before, after) id/cohort_type/CRP_b/CRP_a/ESR_b/ESR_a/measurement_date(ONLY_AFTER)
+# output : m, d ('what else measruement? make file')
+#       print("who got all CRP, ESR  DATE ?, N is {}".format(all_crp_esr_n))
+#       print("who got every before, after esr data? N is {}".format(m_esr_n))
+#       print("who got every before, after CRP data?, N is {}".format(m_crp_n))
 #####################################################################################################################
  ## m1 BEFORE: FIND LASTEST CRP, ESR  
 sql="""   select distinct a.cohort_definition_id,(case when a.cohort_definition_id = target then 'T'
@@ -187,8 +191,8 @@ print(" ")
 before_crp= p.loc[p['CRP'].notnull(),['subject_id', 'CRP'] ]
 after_crp= p2.loc[p2['CRP'].notnull(),['subject_id', 'CRP'] ]
 m2_crp = filter_m2.loc[filter_m2['measurement_type']=='CRP',['cohort_type','subject_id','measurement_date']]
-after_crp = after_crp.merge(m2_crp, on='subject_id')
-crp= before_crp.merge(after_crp, on='subject_id', suffixes=('_before', '_after'))
+after_crp = after_crp.merge(m2_crp, on='subject_id') #id, type, date, crp
+crp= before_crp.merge(after_crp, on='subject_id', suffixes=('_before', '_after')) #crp, before, after, id, type, date
 m_crp_n=crp['subject_id'].nunique()
 print("who got every before, after CRP data?, N is {}".format(m_crp_n))
 print(crp.head(3))
@@ -199,10 +203,15 @@ del after_crp
 ##before/after esr 자료가 있는 사람 
 before_esr= p.loc[p['ESR'].notnull(),['subject_id', 'ESR'] ]
 after_esr= p2.loc[p2['ESR'].notnull(),['subject_id', 'ESR'] ]
-m2_esr = filter_m2.loc[filter_m2['measurement_type']=='ESR',['cohort_type','subject_id','measurement_date']]
+m2_esr = filter_m2.loc[filter_m2['measurement_type']=='ESR',['subject_id','measurement_date']]
 after_esr = after_esr.merge(m2_esr, on='subject_id')
 esr= before_esr.merge(after_esr, on='subject_id', suffixes=('_before', '_after'))
 m_esr_n=esr['subject_id'].nunique()
+
+print("//////////////////////////////////////////////////////////////////")
+print("show me crp.columns = {}".format(crp.columns))
+print("show me esr.columns = {}".format(esr.columns))
+print("/////////////////////////////////////////////////////////////")
 print("who got every before, after esr data? N is {}".format(m_esr_n))
 print(esr.head(3))
 del m2_esr
@@ -211,29 +220,44 @@ del after_esr
 del p
 del p2
 # who got every before, after data?
-m  = pd.merge(crp, esr, how='outer', on='subject_id')
-print("who got every before, after data?")
-all = m.dropna()
-all_crp_esr_n = all['subject_id'].nunique()
+m  = pd.merge(left=crp, right=esr, how='outer', on='subject_id', suffixes=('_crp','_esr'))
+
+## measurement_date, change dtype (Str-> date), if nan, replace 9999-12-31 
+m_all = pd.merge(left=crp, right=esr, how='inner', on='subject_id', suffixes=('_crp','_esr'))
+all_crp_esr_n = m_all['subject_id'].nunique()
+
+m['measurement_date_crp'] = m['measurement_date_crp'].replace(np.nan, '9999-12-31')
+m['measurement_date_esr'] = m['measurement_date_esr'].replace(np.nan, '9999-12-31')
+m['measurement_date_crp'] = m['measurement_date_crp'].map(lambda x:datetime.strptime(x, '%Y-%m-%d'))
+m['measurement_date_esr'] = m['measurement_date_esr'].map(lambda x:datetime.strptime(x, '%Y-%m-%d'))
+del m_all
+print("measurement_table, check mesurement_Date suffixes, replace 9999-12-31")
+print(m.head(5))
 print("who got all CRP, ESR  DATE ?, N is {}".format(all_crp_esr_n))
 print("who got every before, after esr data? N is {}".format(m_esr_n))
 print("who got every before, after CRP data?, N is {}".format(m_crp_n))
 del crp
 del esr
-del all 
 #####################################################################################################################
 # CREATE DRUG TABLE (after index) : Define drug group, dose group, 1st PS matching ; id/cohort_type/Drug_group/Dose_group/1st PS matching(adm 7 type) 
+# dm_table
+# print("First total N is {}".format(total_all_subject_n))
+# print("First T is {},First C is {}".format(total_T_subject_n,total_C_subject_n))
+# print("measure_in_drug_exposure_n , N is {}".format(measure_in_drug_exposure_n))
+# print("measure_in_non_drug_exposure_n , N is {}".format(measure_in_non_drug_exposure_n))
+#print("how many who got measure data in no error drug exposrue, N is {}".format(measurement_in_no_error_drug_exposure_n))
+#print("how many who got measure data in error drug exposrue, N is {}".format(measurement_in_error_drug_exposure_n))
 #####################################################################################################################
-# SQL : COUNT N
-# select only who got MEASUREMENT data
-# SELECT ONLY DRUG EXPOSURE SUBJECT
-# merge drug_type file 
-# drug grouping: long to wide 
-# GROUPING DRUG_GROUP
-# DEFINE DOSE_GROUP
-# 1st PS matching 
+# 1. SQL : COUNT N
+# 2. SELECT ONLY WHO GOT MESURE_DATA IN DRUG_EXPOSURE 
+# 3. merge drug_type file 
+# 4. 1st PS matching 
+# 5. DEFINE DRUG_GROUP 
+# 6. drug grouping: long to wide 
+# 7. DEFINE DOSE_GROUP
 
-# SQL :  COUNT N
+
+# 1. SQL : COUNT N
 sql=""" 
     select distinct (case when a.cohort_definition_id = target then 'T'
                          when a.cohort_definition_id = control then 'C' else '' end) as cohort_type
@@ -285,29 +309,107 @@ print("First total N is {}".format(total_all_subject_n))
 print("First T is {},First C is {}".format(total_T_subject_n,total_C_subject_n))
 print('')
 
-# select only who got MEASUREMENT data
-subject_list = m['subject_id'].drop_duplicates()
-subject_list= subject_list.to_frame()
-
-d2 =pd.merge(subject_list, d1, on ='subject_id', how= 'left')
-print('select only who got MEASUREMENT data')
-print(d2.head(3))
-del subject_list
-del d1
-# SELECT ONLY DRUG EXPOSURE SUBJECT
-
-
-
-
-# merge drug_type file 
-d3 = pd.merge(d2, t1, how='left', on='Id')
-d3.rename(columns={'Id':'drug_concept_id'}, inplace=True)
-
-print('merge drug_type file  ')
-print(d3.head(10))
+# change drug_exposure_end_date and dtype (str -> date)
+d1['drug_exposure_end_date']=d1['drug_exposure_end_date'].map(lambda x:datetime.strptime(x, '%Y-%m-%d')+ timedelta(days=30))
+d1['drug_exposure_start_date'] = d1['drug_exposure_start_date'].map(lambda x:datetime.strptime(x, '%Y-%m-%d'))
+dm_table = pd.merge(left= m, right= d1, on=['subject_id', 'cohort_type'])
+dm_table['measure_in_drug_exposure'] = dm_table.apply(lambda x:  1 if ((x['drug_exposure_start_date'] <= x['measurement_date_esr']) & (x['measurement_date_esr'] <= x['drug_exposure_end_date'])) |
+((x['drug_exposure_start_date'] <= x['measurement_date_crp']) & (x['measurement_date_crp'] <= x['drug_exposure_end_date'])) else 0, axis=1 ) #axis=1 column, compare columns
+print('drug_measurement_Table, check measure_in_drug_exposure column;  1 or 0')
+print(dm_table.head(3))
+# 2. SELECT ONLY WHO GOT MESURE_DATA IN DRUG_EXPOSURE : measure_in_drug_exposure
+measure_in_drug_exposure= dm_table.loc[dm_table['measure_in_drug_exposure']==1,:]
+if measure_in_drug_exposure is None:
+    measure_in_drug_exposure = pd.DataFrame()
+measure_in_drug_exposure_n =measure_in_drug_exposure['subject_id'].drop_duplicates()
+measure_in_drug_exposure_n = measure_in_drug_exposure_n.count()
+print("measure_in_drug_exposure_n , N is {}".format(measure_in_drug_exposure_n))
+print("measure_in_drug_exposure , total columns are {}".format(measure_in_drug_exposure.columns))
+print(measure_in_drug_exposure.head(3))
+measure_in_non_drug_exposure = dm_table.loc[dm_table['measure_in_drug_exposure']==0, 'subject_id']
+if measure_in_non_drug_exposure is None:
+    measure_in_non_drug_exposure = pd.DataFrame()
+measure_in_non_drug_exposure= measure_in_non_drug_exposure.drop_duplicates()
+measure_in_non_drug_exposure_n = measure_in_non_drug_exposure.count()
+print("measure_in_non_drug_exposure_n , N is {}".format(measure_in_non_drug_exposure_n))
 print('')
-del d2
+ 
+del d1
+del m
+del measure_in_non_drug_exposure
+del dm_table
+
+# 3. merge drug_type file 
+measure_in_drug_exposure = pd.merge(measure_in_drug_exposure, t1[['Id','Name','type1','type2']], how = 'left', on="Id")
+measure_in_drug_exposure.rename(columns={'Id':'drug_concept_id'}, inplace=True)
+measure_in_drug_exposure = measure_in_drug_exposure.drop(columns=['drug_exposure_start_date', 'drug_exposure_end_date','measurement_date'], axis=1)
+measure_in_drug_exposure.drop_duplicates(inplace=True)
 del t1
+# 4. 1st PS matching table; (all_drug_Type after index date)
+
+drug_set = measure_in_drug_exposure[['subject_id', 'type1','type2']]
+drug_set = pd.melt(drug_set, id_vars=['subject_id'], value_vars=['type1', 'type2'], value_name='type') 
+drug_set = drug_set.drop_duplicates()
+drug_set = drug_set.pivot_table(index=['subject_id'], columns ='type', aggfunc= 'size', fill_value =0)
+drug_set['subject_id']=drug_set.index
+drug_set=drug_set.reset_index(drop=True)
+
+## making drug_Type table 
+drug_type_table = pd.DataFrame(columns=['subject_id','SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error'])
+columns =['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']
+for column_index in drug_set.columns:
+    if column_index in columns:
+        drug_type_table[column_index]= drug_set[column_index]
+    else: 
+        drug_type_table[column_index]=0
+drug_type_table['subject_id']=drug_set['subject_id']
+##convert to 1 or 0 
+drug_type_table[['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']] =drug_type_table[['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']].where(drug_type_table[['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']] !=0, 1,0)
+print("making drug_Type table for 1st matching")
+print(drug_type_table.head(3))
+del drug_set
+
+# 5. DEFINE DRUG_GROUP 
+
+
+# ## join only no error_type
+# dm_table = dm_table.drop(['type1','type2'], axis=1)
+# dm_table = pd.merge(dm_table, drug_type_table, on ='subject_id', how='inner' )
+# no_error_type_measuremnt_n = dm_table['subject_id'].count()
+# print("join only no error_type on dm_table,  column are {}, total N  is {}".format(dm_table.columns, no_error_type_measuremnt_n))
+# print(dm_table.head(3))
+# print("final dm_table columns are {}".format(dm_table.columns))
+
+# del drug_type_table
+
+
+# 6. DEFINE DOSE_GROUP
 
 
 
+
+
+print ("////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////")
+print("First total N is {}".format(total_all_subject_n))
+print("First T is {},First C is {}".format(total_T_subject_n,total_C_subject_n))
+print("who got all CRP, ESR  DATE ?, N is {}".format(all_crp_esr_n))
+print("who got every before, after esr data? N is {}".format(m_esr_n))
+print("who got every before, after CRP data?, N is {}".format(m_crp_n))
+print("measure_in_drug_exposure_n , N is {}".format(measure_in_drug_exposure_n))
+print("measure_in_non_drug_exposure_n , N is {}".format(measure_in_non_drug_exposure_n))
+# print("how many who got measure data in no error drug exposrue, N is {}".format(measurement_in_no_error_drug_exposure_n))
+# print("how many who got measure data in error drug exposrue, N is {}".format(measurement_in_error_drug_exposure_n))
+print ("////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////")
+
+# if error exist, remove row, insulin 투여하거나, 3제 요법..
+### type1에서 error가 없는 거, 그 이후 type2에서도 error가 없는걸로. 
+# measurement_in_no_error_drug_exposure = measure_in_drug_exposure[~measure_in_drug_exposure['type1'].str.contains('error', na=False, case=False)]
+# measurement_in_no_error_drug_exposure = measurement_in_no_error_drug_exposure[~measurement_in_no_error_drug_exposure['type2'].str.contains('error', na=False, case=False)]
+# measurement_in_no_error_drug_exposure_n= measurement_in_no_error_drug_exposure['subject_id'].drop_duplicates()
+# measurement_in_no_error_drug_exposure_n= measurement_in_no_error_drug_exposure_n.count()
+# print("measure_in_drug_exposure_n , N is {}".format(measure_in_drug_exposure_n))
+# print("how many who got measure data in no error drug exposrue, N is {}".format(measurement_in_no_error_drug_exposure_n))
+# print('measurement_in_no_error_drug_exposure')
+# print(measurement_in_no_error_drug_exposure.head())
+# measurement_in_error_drug_exposure_n= measure_in_drug_exposure_n - measurement_in_no_error_drug_exposure_n
+# print("how many who got measure data in error drug exposrue, N is {}".format(measurement_in_error_drug_exposure_n))
