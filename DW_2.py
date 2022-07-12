@@ -376,14 +376,17 @@ for name in name_list:
     elif len(number_in_name)==2:
         for number in number_in_name:
             convert_num = int(number)
-            if convert_num >= 170:
+            if convert_num >= 170: #663mg이면 삭제  rosiglitazone 663mg
+                dose_list.append(number)
+            elif convert_num == 0.75:
                 dose_list.append(number)
             else: dose_list.append('delete')
     else: dose_list.append(name)
-while 'delete' in dose_list:
-    dose_list.remove('delete')
+remove_set= {'delete', '663'}
+dose_list2 =[i for i in dose_list if i not in remove_set]
 print("how many dose_list? {} rows".format(len(dose_list)))
-for i in dose_list:
+print("how many dose_list2? {} rows".format(len(dose_list2)))
+for i in dose_list2:
     print(i)
 print("/////////////////////////////////////////////////////////////////////////////////////////")
 
