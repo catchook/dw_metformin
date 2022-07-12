@@ -207,11 +207,6 @@ m2_esr = filter_m2.loc[filter_m2['measurement_type']=='ESR',['subject_id','measu
 after_esr = after_esr.merge(m2_esr, on='subject_id')
 esr= before_esr.merge(after_esr, on='subject_id', suffixes=('_before', '_after'))
 m_esr_n=esr['subject_id'].nunique()
-
-print("//////////////////////////////////////////////////////////////////")
-print("show me crp.columns = {}".format(crp.columns))
-print("show me esr.columns = {}".format(esr.columns))
-print("/////////////////////////////////////////////////////////////")
 print("who got every before, after esr data? N is {}".format(m_esr_n))
 print(esr.head(3))
 del m2_esr
@@ -240,21 +235,20 @@ del crp
 del esr
 #####################################################################################################################
 # CREATE DRUG TABLE (after index) : Define drug group, dose group, 1st PS matching ; id/cohort_type/Drug_group/Dose_group/1st PS matching(adm 7 type) 
-# dm_table
+#ouput:
+#  dm_table, drug_type_table (1st ps matching)
 # print("First total N is {}".format(total_all_subject_n))
 # print("First T is {},First C is {}".format(total_T_subject_n,total_C_subject_n))
 # print("measure_in_drug_exposure_n , N is {}".format(measure_in_drug_exposure_n))
 # print("measure_in_non_drug_exposure_n , N is {}".format(measure_in_non_drug_exposure_n))
-#print("how many who got measure data in no error drug exposrue, N is {}".format(measurement_in_no_error_drug_exposure_n))
-#print("how many who got measure data in error drug exposrue, N is {}".format(measurement_in_error_drug_exposure_n))
+# print("how many who got measure data in no error drug exposrue, N is {}".format(measurement_in_no_error_drug_exposure_n))
+# print("how many who got measure data in error drug exposrue, N is {}".format(measurement_in_error_drug_exposure_n))
 #####################################################################################################################
 # 1. SQL : COUNT N
 # 2. SELECT ONLY WHO GOT MESURE_DATA IN DRUG_EXPOSURE 
-# 3. merge drug_type file 
-# 4. 1st PS matching 
-# 5. DEFINE DRUG_GROUP 
-# 6. drug grouping: long to wide 
-# 7. DEFINE DOSE_GROUP
+# 3. DEFINE DRUG_GROUP
+# 4. 1st PS matching(drug_type_table) ; merge drug_type file , drug grouping: long to wide
+# 6. DEFINE DOSE_GROUP
 
 
 # 1. SQL : COUNT N
@@ -338,39 +332,91 @@ del d1
 del m
 del measure_in_non_drug_exposure
 del dm_table
-
-# 3. merge drug_type file 
+# 3. DEFINE DRUG_GROUP  ; merge drug_type file , new column  = drug_group, filter error type 
+# 3-1. merge drug_type file 
 measure_in_drug_exposure = pd.merge(measure_in_drug_exposure, t1[['Id','Name','type1','type2']], how = 'left', on="Id")
 measure_in_drug_exposure.rename(columns={'Id':'drug_concept_id'}, inplace=True)
 measure_in_drug_exposure = measure_in_drug_exposure.drop(columns=['drug_exposure_start_date', 'drug_exposure_end_date','measurement_date'], axis=1)
 measure_in_drug_exposure.drop_duplicates(inplace=True)
-del t1
-# 4. 1st PS matching table; (all_drug_Type after index date)
+#del t1
+# 3-2. new column  = drug_group
+measure_in_drug_exposure= measure_in_drug_exposure.fillna('')
+measure_in_drug_exposure['drug_group'] = measure_in_drug_exposure['type1'].astype(str)+'/'+measure_in_drug_exposure['type2'].astype(str)
+#3-3 filter error type ; measurement_in_no_error_drug_exposure
+measurement_in_no_error_drug_exposure = measure_in_drug_exposure[~measure_in_drug_exposure['drug_group'].str.contains('error', na=False, case=False)]
+measurement_in_no_error_drug_exposure_n= measurement_in_no_error_drug_exposure['subject_id'].drop_duplicates()
+measurement_in_no_error_drug_exposure_n= measurement_in_no_error_drug_exposure_n.count()
+print("measure_in_drug_exposure_n , N is {}".format(measure_in_drug_exposure_n))
+print("how many who got measure data in no error drug exposrue, N is {}".format(measurement_in_no_error_drug_exposure_n))
+print('measurement_in_no_error_drug_exposure')
+print(measurement_in_no_error_drug_exposure.head())
+measurement_in_error_drug_exposure= measure_in_drug_exposure[measure_in_drug_exposure['drug_group'].str.contains('error', na=False, case=False)]
+measurement_in_error_drug_exposure_n= measurement_in_error_drug_exposure['subject_id'].drop_duplicates()
+measurement_in_error_drug_exposure_n= measurement_in_error_drug_exposure_n.count()
+print("how many who got measure data in error drug exposrue, N is {}".format(measurement_in_error_drug_exposure_n))
 
-drug_set = measure_in_drug_exposure[['subject_id', 'type1','type2']]
-drug_set = pd.melt(drug_set, id_vars=['subject_id'], value_vars=['type1', 'type2'], value_name='type') 
-drug_set = drug_set.drop_duplicates()
-drug_set = drug_set.pivot_table(index=['subject_id'], columns ='type', aggfunc= 'size', fill_value =0)
-drug_set['subject_id']=drug_set.index
-drug_set=drug_set.reset_index(drop=True)
+del measurement_in_error_drug_exposure
 
-## making drug_Type table 
-drug_type_table = pd.DataFrame(columns=['subject_id','SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error'])
-columns =['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']
-for column_index in drug_set.columns:
-    if column_index in columns:
-        drug_type_table[column_index]= drug_set[column_index]
-    else: 
-        drug_type_table[column_index]=0
-drug_type_table['subject_id']=drug_set['subject_id']
-##convert to 1 or 0 
-drug_type_table[['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']] =drug_type_table[['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']].where(drug_type_table[['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']] !=0, 1,0)
-print("making drug_Type table for 1st matching")
-print(drug_type_table.head(3))
-del drug_set
+# 4. DEFINE DOSE_GROUP: Only Treatment Group; 
+#name에서 숫자만 추출,컬럼 생성, 컬럼별로 계싼해서 새로운 dose group 생성 
 
-# 5. DEFINE DRUG_GROUP 
+drug_set = measurement_in_no_error_drug_exposure[['subject_id',"cohort_type", "drug_concept_id", "Name",'quantity', 'days_supply' ]]
+drug_set = drug_set.loc[drug_set['cohort_type']=='T', :]
+name_list=drug_set['Name'].to_list()
 
+print("/////////////////////////////////////////////////////////////////////////////////////////")
+print("how many name_list ? {} row".format(len(name_list)))
+dose_list=[]
+for name in name_list:
+    number_in_name = re.findall(r'\d+', name)
+    if len(number_in_name)==0:
+        dose_list.append(name)
+    elif len(number_in_name)==1:
+        dose_list.append(number_in_name)
+    elif len(number_in_name)==2:
+        for number in number_in_name:
+            convert_num = int(number)
+            if convert_num >= 170:
+                dose_list.append(number)
+            else: dose_list.append('delete')
+    else: dose_list.append(name)
+while 'delete' in dose_list:
+    dose_list.remove('delete')
+print("how many dose_list? {} rows".format(len(dose_list)))
+for i in dose_list:
+    print(i)
+print("/////////////////////////////////////////////////////////////////////////////////////////")
+
+
+
+
+
+
+# drug_set = measure_in_drug_exposure[['subject_id', 'type1','type2']]
+# drug_set = pd.melt(drug_set, id_vars=['subject_id'], value_vars=['type1', 'type2'], value_name='type') 
+# drug_set = drug_set.drop_duplicates()
+# drug_set = drug_set.pivot_table(index=['subject_id'], columns ='type', aggfunc= 'size', fill_value =0)
+# drug_set['subject_id']=drug_set.index
+# drug_set=drug_set.reset_index(drop=True)
+
+# ## making drug_Type table 
+# drug_type_table = pd.DataFrame(columns=['subject_id','SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error'])
+# columns =['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']
+# for column_index in drug_set.columns:
+#     if column_index in columns:
+#         drug_type_table[column_index]= drug_set[column_index]
+#     else: 
+#         drug_type_table[column_index]=0
+# drug_type_table['subject_id']=drug_set['subject_id']
+# ## convert to 1 or 0 
+# drug_type_table[['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']] =drug_type_table[['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']].where(drug_type_table[['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd','error']] !=0, 1,0)
+# print("making drug_Type table for 1st matching")
+# print(drug_type_table.head(3))
+# del drug_set
+
+# # 4. DEFINE DRUG_GROUP 
+
+# drug_set 
 
 # ## join only no error_type
 # dm_table = dm_table.drop(['type1','type2'], axis=1)
@@ -389,17 +435,17 @@ del drug_set
 
 
 
-print ("////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////")
-print("First total N is {}".format(total_all_subject_n))
-print("First T is {},First C is {}".format(total_T_subject_n,total_C_subject_n))
-print("who got all CRP, ESR  DATE ?, N is {}".format(all_crp_esr_n))
-print("who got every before, after esr data? N is {}".format(m_esr_n))
-print("who got every before, after CRP data?, N is {}".format(m_crp_n))
-print("measure_in_drug_exposure_n , N is {}".format(measure_in_drug_exposure_n))
-print("measure_in_non_drug_exposure_n , N is {}".format(measure_in_non_drug_exposure_n))
-# print("how many who got measure data in no error drug exposrue, N is {}".format(measurement_in_no_error_drug_exposure_n))
-# print("how many who got measure data in error drug exposrue, N is {}".format(measurement_in_error_drug_exposure_n))
-print ("////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////")
+# print ("////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////")
+# print("First total N is {}".format(total_all_subject_n))
+# print("First T is {},First C is {}".format(total_T_subject_n,total_C_subject_n))
+# print("who got all CRP, ESR  DATE ?, N is {}".format(all_crp_esr_n))
+# print("who got every before, after esr data? N is {}".format(m_esr_n))
+# print("who got every before, after CRP data?, N is {}".format(m_crp_n))
+# print("measure_in_drug_exposure_n , N is {}".format(measure_in_drug_exposure_n))
+# print("measure_in_non_drug_exposure_n , N is {}".format(measure_in_non_drug_exposure_n))
+# # print("how many who got measure data in no error drug exposrue, N is {}".format(measurement_in_no_error_drug_exposure_n))
+# # print("how many who got measure data in error drug exposrue, N is {}".format(measurement_in_error_drug_exposure_n))
+# print ("////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////")
 
 # if error exist, remove row, insulin 투여하거나, 3제 요법..
 ### type1에서 error가 없는 거, 그 이후 type2에서도 error가 없는걸로. 
