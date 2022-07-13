@@ -424,7 +424,8 @@ print("extract number in name_list, name_list N is {}".format(a))
 print("create name_list group by id, columns are {}".format(who_target.columns))
 print(who_target.head(3))
 #3) create number_list include decimal point--nested list
-who_target['number_list'] = who_target['Name'].apply(lambda x: [re.findall(r'\d*\.\d+|\d+', x[i]) for i in range(0,len(who_target))] for i  )
+who_target['number_list'] = who_target['Name'].apply(lambda x: [re.findall(r'\d*\.\d+|\d+', x[i]) 
+for i in range(0,len(who_target))]   )
 del target
 print("//////////////////////////////////////////////////////////////")
 print("check N")
