@@ -40,7 +40,7 @@ t1= t1[['Id', 'Name','type1','type2','ingredient_count']]
 cohort_info= pd.read_csv(cohort_inform)
 condition = cohort_info['host'] == HOST
 cohort_info =cohort_info.loc[condition,:]
-cohort_hospital= cohort_info['hospital']
+cohort_hospital= cohort_info['hospital'].iloc[0]
 cohort_target= cohort_info['T'].iloc[0].astype(str)
 cohort_control= cohort_info['C1'].iloc[0].astype(str)
 
@@ -77,15 +77,12 @@ sql=""" with temp as(  select distinct a.cohort_definition_id,(case when a.cohor
                   when b.measurement_concept_id in (3015183, 3013707) then 'ESR' else '' end) as measurement_type
                   ,b.measurement_date
                   ,b.value_as_number
-
     from cdm_hira_2017_results_fnet_v276.cohort a
         left join  cdm_hira_2017.measurement b
         on a.subject_id = b.person_id
     where a.cohort_definition_id in (target, control)
         and b.measurement_date <= a.cohort_start_date /*measurement  before cohort start*/
-        ) 
-        select *, ROW_NUMBER() OVER (PARTITION BY subject_id, measurement_type ORDER BY measurement_date DESC) AS ROW
-        from temp 
+        ) select *, ROW_NUMBER() OVER (PARTITION BY subject_id, measurement_type ORDER BY measurement_date DESC) AS ROW from temp 
 """
 #change data schema 
 sql=re.sub('cdm_hira_2017_results_fnet_v276',SCHEMA+'_results_dq_v276', sql)
@@ -114,24 +111,30 @@ print(" measurement table of index date before , total N is {}".format(d))
 # What else measurement?--for 2nd ps matching 
 d=m1['measurement_concept_id'].value_counts(ascending=False)
 d= pd.DataFrame(d)
-# file_dir= "/data/results/"+cohort_hospital+"_what_else_measurement.csv"
-# d.to_csv(file_dir)
+d.to_csv( "/data/results/what_else_measurement_"+ cohort_hospital +'.csv')
 print('what else measruement? make file')
 print('')
 # m1: select only crp, esr of latest
-condition = (m1['cohort_type'].isin(['CRP','ESR'])) & (m1['ROW'] ==1)
-filter_m1 = m1.loc[condition, :]
+condition = m1['measurement_type'].isin(['CRP','ESR'])
+m1 = m1.loc[condition, :]
+print('check m1 table')
+print(m1.head(5))
+condition =  (m1['ROW'] == '1')
+filter_m1= m1.loc[condition, :]
 e=filter_m1['subject_id'].nunique()
 print("latest before measurement table , total N is {}".format(e))
+print(filter_m1.head(20))
 del e
 #pivot m1: before_crp, before_esr --> function 
-p=filter_m1.pivot(index='subject_id', columns='measurement_type', values='value_as_number')
-p['subject_id']=p.index
-p=p.reset_index(drop= True)
+p=filter_m1.pivot(index='subject_id', columns='measurement_type', values='value_as_number').reset_index().rename(columns={'index':'subject_id'})
 print('pivot: before measurement ')
 print(p.columns)
 e=p['subject_id'].nunique()
 print('after pivot of before measurement table, total N is still {}?'.format(e))
+print("pivot table check")
+
+print(p.head(20))
+
 print(" ")
 del d
 del rows
@@ -186,15 +189,19 @@ e=p['subject_id'].nunique()
 print("latest before measurement table , total N is {}".format(e))
 e=filter_m2['subject_id'].nunique()
 print("latest after measurement table , total N is {}".format(e))
-
+print("data check ")
+print("filter_m2")
+print(filter_m2.head(10))
 #pivot m2: after_crp, after_esr --> function 
-p2=filter_m2.pivot(index='subject_id', columns='measurement_type', values='value_as_number')
-p2['subject_id']=p2.index
-p2=p2.reset_index(drop= True)
+p2=filter_m2.pivot(index='subject_id', columns='measurement_type', values='value_as_number').reset_index().rename(columns={'index':'subject_id'})
+
 print('pivot : after measurement')
 print(p2.columns)
 e=p2['subject_id'].nunique()
 print('after pivot of after measurement table, total N is still {}?'.format(e))
+print("pivot table check 2")
+
+print(p2.head(20))
 print(" ")
 
 
@@ -202,15 +209,15 @@ print(" ")
 before_crp= p.loc[p['CRP'].notnull(),['subject_id', 'CRP'] ]
 after_crp= p2.loc[p2['CRP'].notnull(),['subject_id', 'CRP'] ]
 m2_crp = filter_m2.loc[filter_m2['measurement_type']=='CRP',['cohort_type','subject_id','measurement_date']]
-after_crp = after_crp.merge(m2_crp, on=['subject_id','cohort_type']) #id, type, date, crp
+after_crp = after_crp.merge(m2_crp, on='subject_id') #id, type, date, crp
 crp= before_crp.merge(after_crp, on='subject_id', suffixes=('_before', '_after')) #crp, before, after, id, type, date
 m_crp_n=crp['subject_id'].nunique()
 print("who got every before, after CRP data?, total N is {}".format(m_crp_n))
 print(crp.head(3))
 ## how many target, control in crp?
-crp_t = crp.loc[crp['cohort_type']=='T', 'subject_id']
+crp_t = crp.loc[crp['cohort_type']=='T', ['subject_id']]
 crp_t_n =crp_t['subject_id'].nunique()
-crp_c = crp.loc[crp['cohort_type']=='C', 'subject_id']
+crp_c = crp.loc[crp['cohort_type']=='C', ['subject_id']]
 crp_c_n =crp_t['subject_id'].nunique()
 print("who got every before, after CRP data & Target, N is  {}".format(crp_t_n))
 print("who got every before, after CRP data & Control, N is  {}".format(crp_c_n))
@@ -222,16 +229,16 @@ del after_crp
 ##before/after esr 자료가 있는 사람 
 before_esr= p.loc[p['ESR'].notnull(),['subject_id', 'ESR'] ]
 after_esr= p2.loc[p2['ESR'].notnull(),['subject_id', 'ESR'] ]
-m2_esr = filter_m2.loc[filter_m2['measurement_type']=='ESR',['subject_id','measurement_date']]
-after_esr = after_esr.merge(m2_esr, on=['subject_id','cohort_type'])
+m2_esr = filter_m2.loc[filter_m2['measurement_type']=='ESR',['cohort_type','subject_id','measurement_date']]
+after_esr = after_esr.merge(m2_esr, on='subject_id')
 esr= before_esr.merge(after_esr, on='subject_id', suffixes=('_before', '_after'))
 m_esr_n=esr['subject_id'].nunique()
 print("who got every before, after esr data? N is {}".format(m_esr_n))
 print(esr.head(3))
 ## how many target, control in esr?
-esr_t = esr.loc[esr['cohort_type']=='T', 'subject_id']
+esr_t = esr.loc[esr['cohort_type']=='T', ['subject_id']]
 esr_t_n =esr_t['subject_id'].nunique()
-esr_c = esr.loc[esr['cohort_type']=='C', 'subject_id']
+esr_c = esr.loc[esr['cohort_type']=='C', ['subject_id']]
 esr_c_n =esr_t['subject_id'].nunique()
 print("who got every before, after ESR data & Target, N is  {}".format(esr_t_n))
 print("who got every before, after ESR data & Control, N is  {}".format(esr_c_n))
@@ -247,13 +254,8 @@ m  = pd.merge(left=crp, right=esr, how='outer', on='subject_id', suffixes=('_crp
 ## measurement_date, change dtype (Str-> date), if nan, replace 9999-12-31 
 m_all = pd.merge(left=crp, right=esr, how='inner', on='subject_id', suffixes=('_crp','_esr'))
 all_crp_esr_n = m_all['subject_id'].nunique()
-m_all_t = m_all.loc[m_all['cohort_type']=='T',"subject_id"]
-m_all_t_n = m_all_t.nunique()
-m_all_c = m_all.loc[m_all['cohort_type']=='C',"subject_id"]
-m_all_c_n = m_all_c.nunique()
-del m_all_t
-del m_all_c
-del m_all
+
+
 ## convert string to date
 m['measurement_date_crp'] = m['measurement_date_crp'].replace(np.nan, '9999-12-31')
 m['measurement_date_esr'] = m['measurement_date_esr'].replace(np.nan, '9999-12-31')
@@ -326,9 +328,9 @@ d1= pd.DataFrame.from_records(d1, columns=['cohort_type','subject_id','Id','drug
 d1['Id']=d1['Id'].astype(int)
 # count N  --> Function
 total_all_subject_n=d1['subject_id'].nunique()
-total_T_subject_n=d1.loc[d1['cohort_type']=='T', 'subject_id']
+total_T_subject_n=d1.loc[d1['cohort_type']=='T', ['subject_id']]
 total_T_subject_n=total_T_subject_n.nunique()
-total_C_subject_n= d1.loc[d1['cohort_type']=='C', 'subject_id']
+total_C_subject_n= d1.loc[d1['cohort_type']=='C', ['subject_id']]
 total_C_subject_n=total_C_subject_n.nunique()
 print("First total N is {}".format(total_all_subject_n))
 print("First T is {},First C is {}".format(total_T_subject_n,total_C_subject_n))
@@ -337,7 +339,7 @@ print('')
 # change drug_exposure_end_date and dtype (str -> date)
 d1['drug_exposure_end_date']=d1['drug_exposure_end_date'].map(lambda x:datetime.strptime(x, '%Y-%m-%d')+ timedelta(days=30))
 d1['drug_exposure_start_date'] = d1['drug_exposure_start_date'].map(lambda x:datetime.strptime(x, '%Y-%m-%d'))
-dm_table = pd.merge(left= m, right= d1, on=['subject_id', 'cohort_type'])
+dm_table = pd.merge(left= m, right= d1, on='subject_id')
 dm_table['measure_in_drug_exposure'] = dm_table.apply(lambda x:  1 if ((x['drug_exposure_start_date'] <= x['measurement_date_esr']) & (x['measurement_date_esr'] <= x['drug_exposure_end_date'])) |
 ((x['drug_exposure_start_date'] <= x['measurement_date_crp']) & (x['measurement_date_crp'] <= x['drug_exposure_end_date'])) else 0, axis=1 ) #axis=1 column, compare columns
 print('drug_measurement_Table, check measure_in_drug_exposure column;  1 or 0')
@@ -353,8 +355,8 @@ except:
     print("it could be no measurement data in drug exposure ")
 
 try:
-    measure_in_non_drug_exposure = dm_table.loc[dm_table['measure_in_drug_exposure']==0, 'subject_id']
-    measure_in_non_drug_exposure= measure_in_non_drug_exposure.nunique()    
+    measure_in_non_drug_exposure = dm_table.loc[dm_table['measure_in_drug_exposure']==0, ['subject_id']]
+    measure_in_non_drug_exposure_n= measure_in_non_drug_exposure.nunique()    
     print("measure_in_non_drug_exposure_n , N is {}".format(measure_in_non_drug_exposure_n))
     print("measure_in_non_drug_exposure , total columns are {}".format(measure_in_non_drug_exposure.columns))
 except:
@@ -365,15 +367,15 @@ del d1
 del m
 del measure_in_non_drug_exposure
 del dm_table
-# 3. DEFINE DRUG_GROUP  ; only target 
-# on measurement date, it could be someone who 1) took 3 more ingredients, 2) multiple metformin, or 3) not took metformin
-#1) create drug list group by [subject_id],
-#2) how many metformin ingredeint? [metformin_count]
-#3) how many ingredient? [ingredient_count]
-#4) define drug group [drug_group]
+# # 3. DEFINE DRUG_GROUP  ; only target 
+# # on measurement date, it could be someone who 1) took 3 more ingredients, 2) multiple metformin, or 3) not took metformin
+# #1) create drug list group by [subject_id],
+# #2) how many metformin ingredeint? [metformin_count]
+# #3) how many ingredient? [ingredient_count]
+# #4) define drug group [drug_group]
 
-#0)select only target 
-target = measure_in_drug_exposure[['cohort_type']=='T',['subject_id', "Id",'quantity', 'days_supply']]
+# #0)select only target 
+target = measure_in_drug_exposure.loc[measure_in_drug_exposure['cohort_type']=='T',['subject_id', "Id",'quantity', 'days_supply']]
 target_n =target.nunique()
 print("select only target for defining drug group, target N is {}".format(target_n))
 target = pd.merge(target, t1[['Id','Name','type1','type2']], how = 'left', on="Id")
@@ -381,24 +383,23 @@ target.drop_duplicates(inplace=True)
 
 #1)create drug set group by subject_id
 drug_set = pd.melt(target, id_vars=['subject_id'], value_vars=['type1', 'type2'], value_name='type') 
-drug_set['subject_id']=drug_set.index
-drug_set =drug_set.groupby('subject_id')['type'].apply(list).reset_index(name='subject_id')
+drug_set =drug_set.groupby('subject_id')['type'].apply(list).reset_index().rename(columns={'index':'subject_id'})
 #2) COUNT metformin 
 drug_set['metformin_count'] = drug_set['type'].apply(lambda x: x.count("metformin"))
 #3) COUNT ingredent_number 
 drug_set['ingredient_count'] =drug_set['type'].apply(lambda x: len(set(x)))
 #4) define group group 
-drug_set['drug_group'] =drug_set['type'].apply(lambda x:'/'.join(x))
+drug_set['drug_group'] =drug_set['type'].apply(lambda x:'/'.join(map(str, x)))
 
 try:
-    a=drug_set.loc[drug_set['ingredient_count']>2,'subject_id']
+    a=drug_set.loc[drug_set['ingredient_count']>2,['subject_id']]
     over_2_n= a.nunique()
     print('how many ingredient over 2? N is {}'.format(over_2_n))
 except:
     print("there are no one took more than 2 ingredent, wow!")
 
 try:
-    a=drug_set.loc[drug_set['metformin_count']==0, 'subject_id']
+    a=drug_set.loc[drug_set['metformin_count']==0, ['subject_id']]
     no_metformin_in_measurement_date_n = a.nunique()
     print('who did not took metformin at measurement_date?, N is {}'.format(no_metformin_in_measurement_date_n))
 except:
@@ -415,17 +416,18 @@ print("")
 #6) define Dose_Group 
 
 #1) select subject_id who [Metformin_count] != 0 
-who = drug_set.loc[drug_set['metformin_count']!=0, 'subject_id'].drop_duplicates()
+who = drug_set.loc[drug_set['metformin_count']!=0, ['subject_id']]
+who = who.drop_duplicates()
 #2) create name_list group by [subject_id]
 who_target = pd.merge(target[['subject_id','Name']], who, on= 'subject_id', how='right')
-who_target =who_target.groupby('subject_id')['Name'].apply(list).reset_index(name='subject_id')
+who_target =who_target.groupby('subject_id')['Name'].apply(list).reset_index().rename(columns={'index':'subject_id'})
 a= who_target['subject_id'].nunique()
 print("extract number in name_list, name_list N is {}".format(a))
 print("create name_list group by id, columns are {}".format(who_target.columns))
 print(who_target.head(3))
-#3) create number_list include decimal point--nested list
-who_target['number_list'] = who_target['Name'].apply(lambda x: [re.findall(r'\d*\.\d+|\d+', x[i]) 
-for i in range(0,len(who_target))]   )
+# #3) create number_list include decimal point--nested list
+# who_target['number_list'] = who_target['Name'].apply(lambda x: [re.findall(r'\d*\.\d+|\d+', x[i]) 
+# for i in range(0,len(who_target))] )
 del target
 print("//////////////////////////////////////////////////////////////")
 print("check N")
@@ -439,8 +441,6 @@ print("who got every before, after CRP data & Control, N is  {}".format(crp_c_n)
 print("who got every before, after ESR data & Target, N is  {}".format(esr_t_n))
 print("who got every before, after ESR data & Control, N is  {}".format(esr_c_n))
 print("who got all CRP, ESR  DATE ?, total N is {}".format(all_crp_esr_n))
-print("who got all CRP, ESR  DATE & TARGET?,  N is {}".format(m_all_t_n))
-print("who got all CRP, ESR  DATE & CONTRL?,  N is {}".format(m_all_c_n))
 print("measure_in_drug_exposure_n , N is {}".format(measure_in_drug_exposure_n))
 print("measure_in_non_drug_exposure_n , N is {}".format(measure_in_non_drug_exposure_n))
 print('how many ingredient over 2? N is {}'.format(over_2_n))
@@ -448,8 +448,8 @@ print('who did not took metformin at measurement_date?, N is {}'.format(no_metfo
 print("///////////////////////////////////////////////////////////////////////////////////////////////////////////")
 "check error"
 print("//////////////////////////////////////////////////////////////")
-for i in who_target['number_list']:
-    print(i)
+# for i in who_target['number_list']:
+#     print(i)
 
 
 
