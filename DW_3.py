@@ -262,6 +262,7 @@ d1['Id']=d1['Id'].astype(int)
 dm= pd.merge(left=M_after,right=d1, on= ['subject_id','cohort_type'], how='left')
 del d1
 ## [M_after]-- cohort_type, subject_id, meausuremnet_type, measurement_date , value 
+##[ d1]--cohort_Type, subject)id, Id, drug_start, end, quantity, days_Supply
 # output 1: 1st PS matching table
     # join input file[1] 
 drug_classification = pd.merge(dm, t1[['Id','Name','type1','type2']], how = 'left', on="Id")
@@ -296,10 +297,9 @@ print("dm_table columns are {}".format(dm.columns))
 # Simplify N: only who had outcome data where [measurement_in_drug_exposure]=1
 condition = dm['measure_in_drug_exposure']==1
 dm=dm.loc[condition, :]
-# Fix Outcome data(ESR, CRP); Which one is first? --group by subject_id, measurement_type,  select which measurement_data is first?
+# Fix Outcome data(ESR, CRP); Which one is first? --group by subject_id, measurement_type
 dm['ROW'] = dm.sort_values(by='measurement_data', ascending= True).groupby(['subject_id','measurement_type']).cumcount()+1
-condition = dm['ROW']==1
-dm=dm.loc[condition,:]
+
 # Count N : WHO GOT PAIRED DATA IN DRUG_EXPOSURE? - BY T/C
 condition= dm['cohort_type'] =='T'& dm['measure_in_drug_exposure']==1 & dm['meausuremnet_type']=='CRP' 
 CRP_in_drugexposure_T_n=dm.loc[condition, ['subject_id']].nunique()
@@ -314,21 +314,38 @@ print("ESR in no exposure, T: {}, C: {}".format(ESR_in_drugexposure_T_n, ESR_in_
 
 # output 2: Define sub group (only target);
     # select only target
-condition = dm['cohort_type']=='T'
-dm_T = dm.loc[condition, :]
-subgroup = pd.merge(dm_T[['subject_id', '']], t1[['Id','Name','type1','type2']], how = 'left', left_on="drug_concept_id", right_on='Id')
-subgroup = p.rename(columns={'Id':'drug_concept_id'}, inplace=True)
-drug_classification = drug_classification.drop(columns=['drug_exposure_start_date', 'drug_exposure_end_date',
-'quantity', 'days_supply','meausuremnet_type', 'measurement_date' , 'value_as_number','Name','drug_concept_id' ], axis=1)
-drug_classification.drop_duplicates(inplace=True)
-
-    # Join input file[1] 
-    # melt type1, type2
+condition = (dm['cohort_type']=='T')
+    # Join input file[1]
+dm_T = dm.loc[ condition, ['subject_id', 'ROW','measurement_type','Id','quantity', 'days_supply']]
+dm_T = pd.merge(dm_T, t1[['Id','Name','type1','type2']], how = 'left', on='Id')
+dm_T = dm_T.rename(columns={'Id':'drug_concept_id'}, inplace=True)
+dm_T.drop_duplicates(inplace=True)
+    #create drug set group by subject_id, measurement_type, ROW, get type list 
+subgroup=dm_T.melt(id_vars=['subject_id','measurement_type','ROW'], value_vars=['type1','type2'], value_name ='type') 
+subgroup= subgroup.groupby(['subject_id','measurement_type','ROW'])['type'].agg( lambda x:list(x)).reset_index()
     # new column: metformin_count
-    # new column: ingredient_count; count type ( after drop_duplicates)
-    # new column: subgroup; only targe, control-null 
+subgroup['metformin_count'] = subgroup['type'].apply(lambda x: x.count("metformin"))
+    # new column: ingredient_count; count type
+subgroup['ingredient_count'] =subgroup['type'].apply(lambda x: len(set(x)))
+    # new column : subgroup (only target, control -null)
+subgroup['drug_group'] =subgroup['type'].apply(lambda x:'/'.join(map(str, x)))
+ ## subgroup columns = id, row, m-type,  type(LIST) , m-count, i-count, d-group
+
 # output 3: Define Dose group (only target)
+dosegroup = pd.merge(dm_T[['subject_id','ROW','measurement_type','Name','quantity','days_supply']],
+ subgroup, on=['subject_id','ROW','measurement_type'], how='inner')
+condition=(dosegroup['ingredient_count'] < 3) & (dosegroup['metformin_count']!=0)
+dosegroup= dosegroup.loc[condition, :]
     # new column: metformin_dose_lists (using regx); select only metformin dose
+# met = 1 --
+# met = 2 --high
+# who_target['number_list'] = who_target['Name'].apply(lambda x: [re.findall(r'\d*\.\d+|\d+', x[i]) 
+# for i in range(0,len(who_target))] )
+try:
+    if dosegroup['metformin_count']== 1:
+        dosegroup['dose'] = dosegroup['Name'].apply(lambda x: [re.findall(r'\d*\.\d+', x)])
+except:
+
     # new column: metformin_dose; add metformin doses; multiply (quality/ days of supply) 
     # new column: dose_group: high(over 1,000 mg/day) / low  
 # output 4: DM TABLE
