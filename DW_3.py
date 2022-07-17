@@ -124,7 +124,7 @@ select distinct a.cohort_definition_id,(case when a.cohort_definition_id = targe
                   END) as measurement_type
                   ,b.measurement_date
                   ,b.value_as_number
-                  ,null as ROW
+                  ,CAST('0' AS INTEGER) as ROW
     from cdm_hira_2017_results_fnet_v276.cohort a
         left join  cdm_hira_2017.measurement b
         on a.subject_id = b.person_id
@@ -134,7 +134,7 @@ select distinct a.cohort_definition_id,(case when a.cohort_definition_id = targe
         3007070,3027114,3038553,3013721,3024561,3006923)
 """
 #change data schema 
-sql=re.sub('cdm_hira_2017_results_fnet_v276'+SCHEMA+'_results_dq_v276', sql)
+sql=re.sub('cdm_hira_2017_results_fnet_v276',SCHEMA+'_results_dq_v276', sql)
 sql= re.sub('cdm_hira_2017', SCHEMA, sql)
 sql= re.sub('target', cohort_target, sql)
 sql = re.sub('control',cohort_control,sql)
@@ -150,20 +150,29 @@ m1= pd.DataFrame.from_records(m1, columns=['cohort_definition_id,','cohort_type'
 'cohort_end_date','measurement_concept_id','measurement_type','measurement_date','value_as_number', 'ROW'])
 print('check m data, columns are {}'.format(m1.columns))
 # drop NULL on'value_as_number'
-m1= m1['value_as_number'].dropna()
-print(m1.head(3))
+m1.dropna(subset=['value_as_number'], inplace=True)
+print('drop NULL on value_as_number')
 ## Filter only latest before data(ROW =1 ) & after data (ROW=Null)
-before = m1.loc[m1['ROW']=='1',[['cohort_type', 'subject_id','measurement_date','measurement_type', 'value_as_number']]]
-after = m1.loc[m1['ROW'].isnull(),[['cohort_type', 'subject_id','measurement_date','measurement_type','value_as_number']]]
+before = m1.loc[m1['ROW']=='1',['cohort_type', 'subject_id','measurement_date','measurement_type', 'value_as_number']]
+after = m1.loc[m1['ROW']=='0',['cohort_type', 'subject_id','measurement_date','measurement_type','value_as_number']]
+print('Filter only latest before data(ROW =1 ) & after data (ROW=Null)')
+print('before')
+print(before.head(2))
+print('after')
+print(after.head(2))
 ## extract  paired data  
 condition = before['measurement_type'].isin(['CRP','ESR'])
-before_ESR_CRP = before.loc[condition, [['cohort_type',"subject_id",'measurement_type']]]
+before_ESR_CRP = before.loc[condition, ['cohort_type',"subject_id",'measurement_type']]
 condition = after['measurement_type'].isin(['CRP','ESR'])
-after_ESR_CRP = after.loc[condition,[['cohort_type',"subject_id",'measurement_type']]]
+after_ESR_CRP = after.loc[condition,['cohort_type',"subject_id",'measurement_type']]
 ESR_CRP = pd.merge(before_ESR_CRP,after_ESR_CRP, on=['subject_id', 'cohort_type','measurement_type'], how='inner')
 ESR_CRP_n= ESR_CRP.nunique()
+print('ESR_CRP')
+print(ESR_CRP.head())
+
 del before_ESR_CRP
 del after_ESR_CRP 
+print('extract  paired data ')
 ## Count N ;WHO GOT PAIRED DATA? - BY T/C
 print("who got paired data of CRP, ESR, N is {}".format(ESR_CRP_n))
 condition= (ESR_CRP['cohort_type']=='T') & (ESR_CRP['measurement_type']=='CRP')
@@ -179,6 +188,11 @@ print("ESR: Target {} , Control {} subject".format(ESR_t_n,ESR_c_n))
 ## simplify N : simplify N only who had ESR, CRP Data (before / after)
 M_before = pd.merge(left =ESR_CRP['subject_id'].to_frame(),right= before, on = 'subject_id' , how='left')
 M_after = pd.merge(left =ESR_CRP['subject_id'].to_frame(),right= after, on = 'subject_id' , how='left')
+print(' simplify N : simplify N only who had ESR, CRP Data (before / after)')
+print('M_before')
+print(M_after.head(3))
+
+
 ## [M_after]-- cohort_type, subject_id, meausuremnet_type, measurement_date , value 
         ## But M_before table need to be join finally   
 
@@ -243,7 +257,7 @@ sql="""
                                     44785829,1594973,19033498,43526465,43008991,43013884,44816332,1530014,1529331) )
 """
 #change data schema 
-sql=re.sub('cdm_hira_2017_results_fnet_v276'+SCHEMA+'_results_dq_v276', sql)
+sql=re.sub('cdm_hira_2017_results_fnet_v276', SCHEMA+'_results_dq_v276', sql)
 sql= re.sub('cdm_hira_2017', SCHEMA, sql)
 sql= re.sub('target', cohort_target, sql)
 sql = re.sub('control',cohort_control,sql)
@@ -255,12 +269,16 @@ for row in rows:
     for column_index in range(len(row)):
         row_lists_output.append(str(row[column_index]))
     d1.append(row_lists_output)
-d1= pd.DataFrame.from_records(m1, columns=['cohort_type','subject_id','Id','drug_exposure_start_date',
+d1= pd.DataFrame.from_records(d1, columns=['cohort_type','subject_id','Id','drug_exposure_start_date',
                             'drug_exposure_end_date', 'quantity', 'days_supply'])
 d1['Id']=d1['Id'].astype(int)
+print('#change data schema ')
 # Simplify N : Join [M_after] table -- simplify only who had ESR, CRP data
 dm= pd.merge(left=M_after,right=d1, on= ['subject_id','cohort_type'], how='left')
+print('dm table 1')
+print(dm.head(3))
 del d1
+print('# Simplify N : Join [M_after] table -- simplify only who had ESR, CRP data')
 ## [M_after]-- cohort_type, subject_id, meausuremnet_type, measurement_date , value 
 ##[ d1]--cohort_Type, subject)id, Id, drug_start, end, quantity, days_Supply
 # output 1: 1st PS matching table
@@ -268,12 +286,16 @@ del d1
 drug_classification = pd.merge(dm, t1[['Id','Name','type1','type2']], how = 'left', on="Id")
 drug_classification.rename(columns={'Id':'drug_concept_id'}, inplace=True)
 drug_classification = drug_classification.drop(columns=['drug_exposure_start_date', 'drug_exposure_end_date',
-'quantity', 'days_supply','meausuremnet_type', 'measurement_date' , 'value_as_number','Name','drug_concept_id' ], axis=1)
+'quantity', 'days_supply','measurement_type', 'measurement_date' , 'value_as_number','Name','drug_concept_id' ], axis=1)
 drug_classification.drop_duplicates(inplace=True)
+print('# output 1: 1st PS matching table # join input file[1] ')
     # melt type1, type2
-drug_classification =drug_classification.groupby('subject_id')['type'].apply(list).reset_index().rename(columns={'index':'subject_id'})
+drug_classification = drug_classification.melt(id_vars=['subject_id'], value_vars=['type1','type2'], value_name='type')
+#drug_classification = drug_classification.groupby('subject_id')['type'].agg(lambda x: list(set(x))).reset_index()
+print('# output 1: 1st PS matching table # melt type1, type2')
     # classify drug_type  
-drug_classification = drug_classification.pivot_table(index=['subject_id'], columns ='type', aggfunc= 'size', fill_value =0)
+drug_classification = drug_classification.pivot_table(index=['subject_id'], columns ='type', aggfunc= 'size', fill_value =0).reset_index()
+print('# output 1: 1st PS matching table   # classify drug_type')
     # convert to 1 or 0 
 PS_1st = pd.DataFrame(columns=['subject_id','SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd'])
 columns =['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd']
@@ -285,73 +307,103 @@ for column_index in drug_classification.columns:
         PS_1st[column_index]=0
 PS_1st['subject_id']=drug_classification['subject_id']
 del drug_classification
+print('# output 1: 1st PS matching table   # convert to 1 or 0 ')
+print(PS_1st.head(3))
+
 # New column : measurement_in_drug_exposure
 ## change drug_exposure_end_date and dtype (str -> date)
 dm['drug_exposure_end_date']=dm['drug_exposure_end_date'].map(lambda x:datetime.strptime(x, '%Y-%m-%d'))
 dm['drug_exposure_start_date'] = dm['drug_exposure_start_date'].map(lambda x:datetime.strptime(x, '%Y-%m-%d'))
-dm['measure_in_drug_exposure'] = dm.apply(lambda x:  1 if ((x['drug_exposure_start_date'] <= x['measurement_date']) & 
+dm['measurement_date'] = dm['measurement_date'].map(lambda x:datetime.strptime(x, '%Y-%m-%d'))
+dm['measure_in_drug_exposure'] = dm.apply(lambda x:  1 if ( (x['drug_exposure_start_date'] <= x['measurement_date']) and 
 (x['measurement_date'] <= x['drug_exposure_end_date'])) else 0, axis=1 ) #axis=1 column, compare columns
 print('drug_measurement_Table, check measure_in_drug_exposure column;  1 or 0')
-print("dm_table columns are {}".format(dm.columns))
-
+print("dm  columns are {}".format(dm.columns))
+print(dm.head(10))
 # Simplify N: only who had outcome data where [measurement_in_drug_exposure]=1
-condition = dm['measure_in_drug_exposure']==1
+condition = dm['measure_in_drug_exposure']== 1
 dm=dm.loc[condition, :]
+print('only measurement in durg exposure')
+print(dm.head(10))
+print('# Simplify N: only who had outcome data where [measurement_in_drug_exposure]=1')
 # Fix Outcome data(ESR, CRP); Which one is first? --group by subject_id, measurement_type
-dm['ROW'] = dm.sort_values(by='measurement_data', ascending= True).groupby(['subject_id','measurement_type']).cumcount()+1
-
+dm['ROW'] = dm.sort_values(by='measurement_date', ascending= True).groupby(['subject_id','measurement_type']).cumcount()+1
+print('# Fix Outcome data(ESR, CRP); Which one is first? --group by subject_id, measurement_type')
 # Count N : WHO GOT PAIRED DATA IN DRUG_EXPOSURE? - BY T/C
-condition= dm['cohort_type'] =='T'& dm['measure_in_drug_exposure']==1 & dm['meausuremnet_type']=='CRP' 
+condition= (dm['cohort_type'] =='T')& (dm['measure_in_drug_exposure']==1) & (dm['measurement_type']=='CRP') 
 CRP_in_drugexposure_T_n=dm.loc[condition, ['subject_id']].nunique()
-condition= dm['cohort_type'] =='C'& dm['measure_in_drug_exposure']==1 & dm['meausuremnet_type']=='CRP' 
+condition= (dm['cohort_type'] =='C')& (dm['measure_in_drug_exposure']==1) &( dm['measurement_type']=='CRP') 
 CRP_in_drugexposure_C_n=dm.loc[condition, ['subject_id']].nunique()
-condition= dm['cohort_type'] =='T'& dm['measure_in_drug_exposure']==1 & dm['meausuremnet_type']=='ESR' 
+condition= (dm['cohort_type'] =='T')& (dm['measure_in_drug_exposure']==1 )& (dm['measurement_type']=='ESR' )
 ESR_in_drugexposure_T_n=dm.loc[condition, ['subject_id']].nunique()
-condition= dm['cohort_type'] =='C'& dm['measure_in_drug_exposure']==1 & dm['meausuremnet_type']=='ESR' 
+condition= (dm['cohort_type'] =='C')& (dm['measure_in_drug_exposure']==1) &( dm['measurement_type']=='ESR' )
 ESR_in_drugexposure_C_n=dm.loc[condition, ['subject_id']].nunique()
 print("CRP in drug exposure, T: {}, C: {}".format(CRP_in_drugexposure_T_n,CRP_in_drugexposure_C_n))
 print("ESR in no exposure, T: {}, C: {}".format(ESR_in_drugexposure_T_n, ESR_in_drugexposure_C_n))
 
 # output 2: Define sub group (only target);
     # select only target
-condition = (dm['cohort_type']=='T')
+condition = dm['cohort_type']=='T'
     # Join input file[1]
-dm_T = dm.loc[ condition, ['subject_id', 'ROW','measurement_type','Id','quantity', 'days_supply']]
+dm_T = dm.loc[ condition, :]
+print('dm_T first')
+print(dm_T.head())
 dm_T = pd.merge(dm_T, t1[['Id','Name','type1','type2']], how = 'left', on='Id')
-dm_T = dm_T.rename(columns={'Id':'drug_concept_id'}, inplace=True)
+print('dm_T AND T1 MERGE')
+print(dm_T.head())
+dm_T.rename(columns={'Id':'drug_concept_id'}, inplace=True)
+print('dm_T')
+print(dm_T.head())
 dm_T.drop_duplicates(inplace=True)
+print('# output 2: Define sub group (only target);    # Join input file[1]')
     #create drug set group by subject_id, measurement_type, ROW, get type list 
 subgroup=dm_T.melt(id_vars=['subject_id','measurement_type','ROW'], value_vars=['type1','type2'], value_name ='type') 
 subgroup= subgroup.groupby(['subject_id','measurement_type','ROW'])['type'].agg( lambda x:list(x)).reset_index()
+print(' #create drug set group by subject_id, measurement_type, ROW, get type list ')
     # new column: metformin_count
 subgroup['metformin_count'] = subgroup['type'].apply(lambda x: x.count("metformin"))
+print(' # new column: metformin_count')
     # new column: ingredient_count; count type
 subgroup['ingredient_count'] =subgroup['type'].apply(lambda x: len(set(x)))
+print(' # new column: ingredient_count; count type')
     # new column : subgroup (only target, control -null)
 subgroup['drug_group'] =subgroup['type'].apply(lambda x:'/'.join(map(str, x)))
+print('# new column : subgroup (only target, control -null)')
  ## subgroup columns = id, row, m-type,  type(LIST) , m-count, i-count, d-group
 
 # output 3: Define Dose group (only target)
 dosegroup = pd.merge(dm_T[['subject_id','ROW','measurement_type','Name','quantity','days_supply']],
- subgroup, on=['subject_id','ROW','measurement_type'], how='inner')
+                    subgroup, on=['subject_id','ROW','measurement_type'], how='inner')
 condition=(dosegroup['ingredient_count'] < 3) & (dosegroup['metformin_count']!=0)
 dosegroup= dosegroup.loc[condition, :]
-    # new column: metformin_dose_lists (using regx); select only metformin dose
-# met = 1 --
-# met = 2 --high
-# who_target['number_list'] = who_target['Name'].apply(lambda x: [re.findall(r'\d*\.\d+|\d+', x[i]) 
-# for i in range(0,len(who_target))] )
-try:
-    if dosegroup['metformin_count']== 1:
-        dosegroup['dose'] = dosegroup['Name'].apply(lambda x: [re.findall(r'\d*\.\d+', x)])
-except:
-
-    # new column: metformin_dose; add metformin doses; multiply (quality/ days of supply) 
-    # new column: dose_group: high(over 1,000 mg/day) / low  
+print('# output 3: Define Dose group (only target)')
+    # new column: metformin_dose (using regx); select only metformin dose
+dosegroup['doselist']= dosegroup['Name'].apply(lambda x: [re.findall(r'\d*\.\d+|\d+', x)])
+for i in dosegroup['doselist']:
+    print(i)
+# metformin_dose=[]
+# for i in dosegroup['doselist']:
+#     if len(i)==1:
+#         x=i[0]
+#         metformin_dose.append(float(x))
+#     elif len(i)==2:
+#         x=i[0]
+#         y=i[1]
+#         if float(x) >= float(y):
+#             metformin_dose.append(float(x))
+#         else: metformin_dose.append(float(y))
+#     else: metformin_dose.append(0)
+# dosegroup['metformin_dose']=metformin_dose
+# print('# new column: metformin_dose (using regx); select only metformin dose')
+#     # new column: dose_group: high(over 1,000 mg/day) / low  
+# dosegroup['metformin_dose_type']= dosegroup.apply(lambda x:'high' if x['metformin_dose']* x['quantity']/x['days_supply']>=1000 else 'low')
+# print('  # new column: dose_group: high(over 1,000 mg/day) / low ')
 # output 4: DM TABLE
     # Join M table;  subject_id, cohort_type /1st PS matching; 7 group, binary columns/ 
     #                measurement_type; CRP_before, after ..etc/ value_as_number  /
-    #                dose_group / subgroup
+    #                dosegroup / subgroup
+
+
 # Count N : WHO GOT PAIRED DATA IN METFORMIN_EXPOSURE(TARGET) & ADM_EXPOSURE (CONTROL)? 
 # output 5: 2nd PS matching ; extract before index drug data
 
