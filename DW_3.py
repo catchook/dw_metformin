@@ -378,26 +378,27 @@ condition=(dosegroup['ingredient_count'] < 3) & (dosegroup['metformin_count']!=0
 dosegroup= dosegroup.loc[condition, :]
 print('# output 3: Define Dose group (only target)')
     # new column: metformin_dose (using regx); select only metformin dose
-dosegroup['doselist']= dosegroup['Name'].apply(lambda x: [re.findall(r'\d*\.\d+|\d+', x)])
+dosegroup['doselist']= dosegroup['Name'].apply(lambda x: re.findall(r'\d*\.\d+|\d+', x))
+metformin_dose=[]
 for i in dosegroup['doselist']:
-    print(i)
-# metformin_dose=[]
-# for i in dosegroup['doselist']:
-#     if len(i)==1:
-#         x=i[0]
-#         metformin_dose.append(float(x))
-#     elif len(i)==2:
-#         x=i[0]
-#         y=i[1]
-#         if float(x) >= float(y):
-#             metformin_dose.append(float(x))
-#         else: metformin_dose.append(float(y))
-#     else: metformin_dose.append(0)
-# dosegroup['metformin_dose']=metformin_dose
-# print('# new column: metformin_dose (using regx); select only metformin dose')
-#     # new column: dose_group: high(over 1,000 mg/day) / low  
-# dosegroup['metformin_dose_type']= dosegroup.apply(lambda x:'high' if x['metformin_dose']* x['quantity']/x['days_supply']>=1000 else 'low')
-# print('  # new column: dose_group: high(over 1,000 mg/day) / low ')
+    if len(i)==1:
+        x=i[0]
+        metformin_dose.append(float(x))
+    elif len(i)==2:
+        x=i[0]
+        y=i[1]
+        if float(x) >= float(y):
+            metformin_dose.append(float(x))
+        else: metformin_dose.append(float(y))
+    else: metformin_dose.append(0)
+dosegroup['metformin_dose']=metformin_dose
+print('# new column: metformin_dose (using regx); select only metformin dose')
+print(dosegroup.head(10))
+dosegroup = dosegroup.astype({'quantity':'float', 'days_supply':'float'})
+    # new column: dose_group: high(over 1,000 mg/day) / low  
+dosegroup['metformin_dose_type']=dosegroup.apply(lambda x:'high' if (x['metformin_dose']* x['quantity']/x['days_supply']>=1000.0) else 'low', axis=1)
+print(dosegroup.head())
+print('  # new column: dose_group: high(over 1,000 mg/day) / low ')
 # output 4: DM TABLE
     # Join M table;  subject_id, cohort_type /1st PS matching; 7 group, binary columns/ 
     #                measurement_type; CRP_before, after ..etc/ value_as_number  /
