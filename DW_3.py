@@ -175,7 +175,7 @@ Before_BUN_Cr = Before_BUN_Cr.pivot(index=['subject_id'], columns ='measurement_
 ESR_CRP =pd.merge(left= ESR_CRP, right= Before_BUN_Cr, on= "subject_id", how='left' )
 print('ESR_CRP; paired outcomes data, and add BUN, Cr before data for 1st ps matching')
 print(ESR_CRP.head(10))
-#ESR_CRP.to_csv("/data/results/"+cohort_hospital+'_paired_measurement_data.csv')
+ESR_CRP.to_csv("/data/results/"+cohort_hospital+'_paired_measurement_data.csv')
 del before_ESR_CRP
 del after_ESR_CRP 
 print('extract  paired data ')
@@ -205,6 +205,8 @@ M_after = pd.merge(left =ESR_CRP[['subject_id','BUN','Cr']].to_frame(),right= af
 print(' simplify N : simplify N  who had all outcomes include ESR, CRP Data (before / after)')
 print('M_before')
 print(M_after.head(3))
+M_before.to_csv("/data/results/"+cohort_hospital+'_M_before.csv')
+M_after.to_csv("/data/results/"+cohort_hospital+'_M_after.csv')
 del before 
 del after 
 del m1
@@ -293,6 +295,7 @@ print('#change data schema ')
 condition= M_after['measurement_type'].isin(['ESR','CRP']) 
 M_after_CRPESR= M_after.loc[condition, :] 
 dm= pd.merge(left=M_after_CRPESR,right=d1, on= ['subject_id','cohort_type'], how='left')
+dm.to_csv("/data/results/"+cohort_hospital+'_dm.csv')
 print('dm table 1')
 print(dm.head(3))
 del d1
@@ -326,6 +329,7 @@ for column_index in drug_classification.columns:
 PS_1st['subject_id']=drug_classification['subject_id']
 del drug_classification
 print('# output 1: 1st PS matching table   # convert to 1 or 0 ')
+PS_1st.to_csv("/data/results/"+cohort_hospital+'_PS_1st.csv')
 print(PS_1st.head(3))
 
 # New column : measurement_in_drug_exposure
@@ -344,11 +348,8 @@ dm=dm.loc[condition, :]
 print('only measurement in durg exposure')
 print(dm.head(10))
 print('# Simplify N: only who had outcome data where [measurement_in_drug_exposure]=1')
-# dm은 인덱스 이후, 약물 정보, m-after(esr, crp 검사 수치 결과를 가짐. --약물 정보가 있는 것만 추출)
-# Fix Outcome data(ESR, CRP); Which one is first? --group by subject_id, measurement_type
-# dm['ROW'] = dm.sort_values(by='measurement_date', ascending= True).groupby(['subject_id','measurement_type']).cumcount()+1
-# print('# Fix Outcome data(ESR, CRP); Which one is first? --group by subject_id, measurement_type')
-# 이후, target군에서는 metformin이 있으면서 row =1인 것만 추출, control군에서도 row=1 index date에 가까운 걸 추출  
+# new columns: ROWS
+dm['ROW'] = dm.sort_values(by='measurement_date', ascending= True).groupby(['subject_id','measurement_type']).cumcount()+1
 
 # Count N : WHO GOT PAIRED DATA IN DRUG_EXPOSURE? - BY T/C
 condition= (dm['cohort_type'] =='T')& (dm['measure_in_drug_exposure']==1) & (dm['measurement_type']=='CRP') 
@@ -391,7 +392,8 @@ print(' # new column: ingredient_count; count type')
 subgroup['drug_group'] =subgroup['type'].apply(lambda x:'/'.join(map(str, x)))
 print('# new column : subgroup (only target, control -null)')
  ## subgroup columns = id, row, m-type,  type(LIST) , m-count, i-count, d-group
-
+subgroup.to_csv("/data/results/"+cohort_hospital+'_subgroup.csv')
+del subgroup
 # output 3: Define Dose group (only target)
 dosegroup = pd.merge(dm_T[['subject_id','measurement_type','measurement_date','Name','quantity','days_supply']],
                     subgroup, on=['subject_id','measurement_date','measurement_type'], how='inner')
@@ -413,13 +415,11 @@ for i in dosegroup['doselist']:
         else: metformin_dose.append(float(y))
     else: metformin_dose.append(0)
 dosegroup['metformin_dose']=metformin_dose
+del metformin_dose
 print('# new column: metformin_dose (using regx); select only metformin dose')
 print(dosegroup.head(10))
 dosegroup = dosegroup.astype({'quantity':'float', 'days_supply':'float'})
     # new column: dose_group: high(over 1,000 mg/day) / low  
-    # metformin count >=2 이면 high dose
-    # metformin count =1 이면 lambda 사용 
- print("여기서 부터 하시면 됩니다 7/18")   
 dosegroup['metformin_dose_type']=dosegroup.apply(lambda x:'high' if (x['metformin_dose']* x['quantity']/x['days_supply']>=1000.0) else 'low', axis=1)
 print(dosegroup.head())
 print('  # new column: dose_group: high(over 1,000 mg/day) / low ')
@@ -431,38 +431,47 @@ print(dosegroup.head(5))
 print('# Fix Outcome data(ESR, CRP); Which one is first? --group by subject_id, measurement_type')
 condition = dosegroup['ROW']==1
 dosegroup= dosegroup.loc[condition,:]
+dosegroup.to_csv("/data/results/"+cohort_hospital+'_dosegroup.csv')
 # 이후, target군에서는 metformin이 있으면서 row =1인 것만 추출, control군에서도 row=1 index date에 가까운 걸 추출  
 # output 4: DM TABLE
-    # Join M table;  subject_id, cohort_type /1st PS matching; 7 group, binary columns/ 
-    #                measurement_type; CRP_before, after ..etc/ value_as_number  /
-    #                dosegroup / subgroup
-dm_total = pd.merge(left= M_before[['subject_id', 'cohort_type', 'measurement_type','value_as_number']],
-            right= dm[['subject_id', 'cohort_type', 'measurement_type','value_as_number', 'ROW']], how='inner',
-            on=['subject_id', 'cohort_type'],
-            suffixes=('_before',"_after"))
-dm_total.drop_duplicates(inplace=True)
-del M_before
-del dm
-print("what is dm_Total, columns are  {}".format(dm_total.columns))
-print(dm_total.head())
-dm_total.to_csv("/data/results/"+cohort_hospital+'_DM_C1.csv')
-# drug information ; subgroup, dosegroup only target, PS_1st include control, target
-drug = pd.merge(left=subgroup[['subject_id', 'drug_group']],
-                 right= PS_1st, on= 'subject_id', how='right')
-drug.drop_duplicates(inplace=True)
-print("what is drug, columns are  {}".format(drug.columns))
-print(drug.head())
-drug2 = pd.merge(left =drug, right=dosegroup[['subject_id','metformin_dose_type']], 
-                    on= 'subject_id', how='left' )
-drug2.drop_duplicates(inplace=True)
-del drug
-print("drug2, colums are {}".format(drug2.columns))
-print(drug2.head())
-final = pd.merge(left= dm_total, right= drug2, on='subject_id', how= 'inner')
-final.to_csv("/data/results/"+cohort_hospital+'_FINAL_C1.csv')
+## split dm table, target, control; control  (row=1), but target..yet  
+## join dm_Target_table (except row) on dose group (row =1) how = left
+## join M_before
+## join PS_1st 
+## JOIN DOSE, SUBGROUP (ONLY TARGET)
 
-# Count N : WHO GOT PAIRED DATA IN METFORMIN_EXPOSURE(TARGET) & ADM_EXPOSURE (CONTROL)? 
+## split dm table, target, control; control  (row=1), but target..yet  
+condition= (dm['cohort_type']=='C') & (dm['ROW']==1)
+dm_control = dm.loc[condition,['subject_id', 'cohort_type', 'measurement_type','value_as_number', 'measurement_date','ROW','BUN','Cr'] ]
+condition= (dm['cohort_type']=='T') 
+dm_target = dm.loc[condition,['subject_id', 'cohort_type', 'measurement_type','value_as_number', 'measurement_date','BUN','Cr'] ]
+## join dm_Target_table (except row) on dose group (row =1) how = left
+Target_dosegroup = pd.merge(right= dm_target , left =dosegroup[['subject_id','measurement_date','ROW']], 
+                            on= ['subject_id', 'measurement_date'], how='left')
+Target_dosegroup.drop('measurement_date', inplace=True, axis=1)
+#concat dm_control, dm_target
+dm_after= pd.concat([dm_control, Target_dosegroup], axis =0 )
+dm_after.to_csv("/data/results/"+cohort_hospital+'_dm_after.csv')
+del dm_control
+del dm_target
+dm_after.drop('ROW', inplace=True, axis=1)
+#simplify m_before
+M_before = pd.merge(left= dm_after[['subject_id','measurement_type']], right= M_before, how='left',
+                    on= ['subject_id', 'measurement_type']) 
+## concat  M_before
+dm_total = pd.concat([dm_after,M_before], axis=0)
+dm_total.to_csv("/data/results/"+cohort_hospital+'_dm_total.csv')
+del dm_after
+del M_before
+## join 1st_PS MATCHING 
+dm_1stPS = pd.merge(left=dm_total, right= PS_1st, on ='subject_id', how='left')
 del dm_total
+#  join dose group, subgroup
+final = pd.merge(left= dm_1stPS, right= dosegroup[['drug_group','metformin_dose_type']], on='subject_id', how='left')
+final.to_csv("/data/results/"+cohort_hospital+'_final_C1.csv')
+del final 
+# Count N : WHO GOT PAIRED DATA IN METFORMIN_EXPOSURE(TARGET) & ADM_EXPOSURE (CONTROL)? 
+
 
 # output 5: 2nd PS matching ; extract before index drug data
 
