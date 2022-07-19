@@ -164,20 +164,19 @@ print('after')
 print(after.head(2))
 ## extract  paired data : all measurement type
 condition = before['measurement_type'].isin(['CRP','ESR','BUN','Cr','TG','SBP','Hb','Glucose','DBP','LDL','HDL', 'Cholesterol','BMI','AST','ALT','Albumin'])
-before_ESR_CRP = before.loc[condition, ['cohort_type',"subject_id",'measurement_type','value_as_number']]
+before_ESR_CRP = before.loc[condition, ['cohort_type',"subject_id",'measurement_type','value_as_number','measurement_date']]
 condition = after['measurement_type'].isin(['CRP','ESR','BUN','Cr','TG','SBP','Hb','Glucose','DBP','LDL','HDL', 'Cholesterol','BMI','AST','ALT','Albumin'])
-after_ESR_CRP = after.loc[condition,['cohort_type',"subject_id",'measurement_type','value_as_number']]
+after_ESR_CRP = after.loc[condition,['cohort_type',"subject_id",'measurement_type','value_as_number','measurement_date']]
 ESR_CRP = pd.merge(before_ESR_CRP,after_ESR_CRP, on=['subject_id', 'cohort_type','measurement_type'], how='inner')
 ESR_CRP_n= ESR_CRP.nunique()
 condition = before['measurement_type'].isin(['BUN','Cr'])
 Before_BUN_Cr = before.loc[condition, ["subject_id",'measurement_type','value_as_number']]
-Before_BUN_Cr = Before_BUN_Cr.pivot(index=['subject_id'], columns ='measurement_type', values= 'value_as_number', fill_value =0).reset_index()
+Before_BUN_Cr = Before_BUN_Cr.pivot_table(index=['subject_id'], columns =['measurement_type'], values= 'value_as_number', fill_value =0).reset_index()
 ESR_CRP =pd.merge(left= ESR_CRP, right= Before_BUN_Cr, on= "subject_id", how='left' )
 print('ESR_CRP; paired outcomes data, and add BUN, Cr before data for 1st ps matching')
 print(ESR_CRP.head(10))
 ESR_CRP.to_csv("/data/results/"+cohort_hospital+'_paired_measurement_data.csv')
-del before_ESR_CRP
-del after_ESR_CRP 
+ 
 print('extract  paired data ')
 ## Count N ;WHO GOT PAIRED DATA? - BY T/C
 print("who got paired data of ALL OUTCOMES include ESR, CRP , N is {}".format(ESR_CRP_n))
@@ -190,7 +189,7 @@ CRP_c_n= ESR_CRP.loc[ condition,['subject_id']].nunique()
 condition= (ESR_CRP['cohort_type']=='C') & (ESR_CRP['measurement_type']=='ESR')
 ESR_c_n= ESR_CRP.loc[ condition,['subject_id']].nunique()
 all_n = ESR_CRP['subject_id'].nunique()
-print("who got all data before, after, N is {}".foramt(all_n))
+print("who got all data before, after, N is {}".format(all_n))
 condition= ESR_CRP['cohort_type']=='T'
 all_t_n = ESR_CRP.loc[condition, ['subject_id']].nunique()
 print("who got all data before, after among Target, N is {}".format(all_t_n))
@@ -200,8 +199,8 @@ print("who got all data before, after among Control, N is {}".format(all_c_n))
 print("CRP: Target {} , Control {} subject".format(CRP_t_n,CRP_c_n))
 print("ESR: Target {} , Control {} subject".format(ESR_t_n,ESR_c_n))
 ## simplify N : simplify N only who had ESR, CRP Data (before / after)
-M_before = pd.merge(left =ESR_CRP[['subject_id','BUN','Cr']].to_frame(),right= before_ESR_CRP, on = 'subject_id' , how='left')
-M_after = pd.merge(left =ESR_CRP[['subject_id','BUN','Cr']].to_frame(),right= after_ESR_CRP, on = 'subject_id' , how='left')
+M_before = pd.merge(left =ESR_CRP[['subject_id','BUN','Cr']],right= before_ESR_CRP, on = 'subject_id' , how='left')
+M_after = pd.merge(left =ESR_CRP[['subject_id','BUN','Cr']] ,right= after_ESR_CRP, on = 'subject_id' , how='left')
 print(' simplify N : simplify N  who had all outcomes include ESR, CRP Data (before / after)')
 print('M_before')
 print(M_after.head(3))
@@ -211,6 +210,8 @@ del before
 del after 
 del m1
 del ESR_CRP
+del before_ESR_CRP
+del after_ESR_CRP
 ## [M_after]-- cohort_type, subject_id, meausuremnet_type, measurement_date , value 
         ## But M_before table need to be join finally   
 
@@ -307,7 +308,7 @@ print('# Simplify N : Join [M_after] table -- simplify only who had ESR, CRP dat
 drug_classification = pd.merge(dm, t1[['Id','Name','type1','type2']], how = 'left', on="Id")
 drug_classification.rename(columns={'Id':'drug_concept_id'}, inplace=True)
 drug_classification = drug_classification.drop(columns=['drug_exposure_start_date', 'drug_exposure_end_date',
-'quantity', 'days_supply','measurement_type', 'measurement_date' , 'value_as_number','Name','drug_concept_id' ], axis=1)
+'quantity', 'days_supply','measurement_type', 'value_as_number','Name','drug_concept_id','measurement_date' ], axis=1)
 drug_classification.drop_duplicates(inplace=True)
 print('# output 1: 1st PS matching table # join input file[1] ')
     # melt type1, type2
@@ -393,7 +394,7 @@ subgroup['drug_group'] =subgroup['type'].apply(lambda x:'/'.join(map(str, x)))
 print('# new column : subgroup (only target, control -null)')
  ## subgroup columns = id, row, m-type,  type(LIST) , m-count, i-count, d-group
 subgroup.to_csv("/data/results/"+cohort_hospital+'_subgroup.csv')
-del subgroup
+
 # output 3: Define Dose group (only target)
 dosegroup = pd.merge(dm_T[['subject_id','measurement_type','measurement_date','Name','quantity','days_supply']],
                     subgroup, on=['subject_id','measurement_date','measurement_type'], how='inner')
@@ -401,7 +402,7 @@ condition=(dosegroup['ingredient_count'] < 3) & (dosegroup['metformin_count']!=0
 dosegroup= dosegroup.loc[condition, :]
 print('# output 3: Define Dose group (only target)')
     # new column: metformin_dose (using regx); select only metformin dose
-dosegroup['doselist']= dosegroup['Name'].apply(lambda x: re.findall(r'\d*\.\d+|\d+', x))
+dosegroup['doselist']= dosegroup['Name'].apply(lambda x: re.findall(r'\d*\.\d+|\d+', str(x)))
 metformin_dose=[]
 for i in dosegroup['doselist']:
     if len(i)==1:
@@ -416,6 +417,7 @@ for i in dosegroup['doselist']:
     else: metformin_dose.append(0)
 dosegroup['metformin_dose']=metformin_dose
 del metformin_dose
+del subgroup
 print('# new column: metformin_dose (using regx); select only metformin dose')
 print(dosegroup.head(10))
 dosegroup = dosegroup.astype({'quantity':'float', 'days_supply':'float'})
@@ -467,9 +469,18 @@ del M_before
 dm_1stPS = pd.merge(left=dm_total, right= PS_1st, on ='subject_id', how='left')
 del dm_total
 #  join dose group, subgroup
-final = pd.merge(left= dm_1stPS, right= dosegroup[['drug_group','metformin_dose_type']], on='subject_id', how='left')
+final = pd.merge(left= dm_1stPS, right= dosegroup[['subject_id','drug_group','metformin_dose_type']], on='subject_id', how='left')
 final.to_csv("/data/results/"+cohort_hospital+'_final_C1.csv')
+
+# one line version: one line one id; long to wide 
+## long to wide: dm_total 
+
+
+##join PS_1st, dose group, subgroup  
 del final 
+
+
+
 # Count N : WHO GOT PAIRED DATA IN METFORMIN_EXPOSURE(TARGET) & ADM_EXPOSURE (CONTROL)? 
 
 
