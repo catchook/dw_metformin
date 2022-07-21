@@ -8,26 +8,26 @@ import logging
 from datetime import date, time, datetime, timedelta
 
 
-dictConfig({
-    'version': 1, #version에는 고정된 값 1로, 다른 값 입력시 value error  발생
-    'formatters':{
-        'default':{
-            'format':'[%(asctime)s] %(message)s',
-        }
-    },
-     'handler':{
-        'file':{
-            'level':'DEBUG',
-            'class': 'logging.logging.FileHandler',
-            'filename':'debug.log',
-            'formatter':'default',
-        },
-     },
-     'root': {
-        'level':'DEBUG',
-        'handlers':['file']
-     }
-})
+# dictConfig({
+#     'version': 1, #version에는 고정된 값 1로, 다른 값 입력시 value error  발생
+#     'formatters':{
+#         'default':{
+#             'format':'[%(asctime)s] %(message)s',
+#         }
+#     },
+#      'handler':{
+#         'file':{
+#             'level':'DEBUG',
+#             'class': 'logging.logging.FileHandler',
+#             'filename':'debug.log',
+#             'formatter':'default',
+#         },
+#      },
+#      'root': {
+#         'level':'DEBUG',
+#         'handlers':['file']
+#      }
+# })
 
 # environment variabels, connect 
 def connect():
@@ -38,9 +38,14 @@ def connect():
     HOST = URL.split(':')[0]
     PORT = URL.split(':')[1]
     SCHEMA= os.getenv('MEDICAL_RECORDS_SCHEMA')
-    print('DATABASE :', DATABASE, USER, PW, URL, HOST, PORT)
+    print('DATABASE :', DATABASE,'USER:', USER, 'PW:', PW, 'URL;', URL,"host:", HOST, "PORT :", PORT)
 
-    con = pg.connect(database =DATABASE, user=USER, password=PW, host=HOST, port=PORT)
+    #con = pg.connect(database =DATABASE, user=USER, password=PW, host=HOST, port=PORT)
+    con = pg.connect(database='omop',
+                user='dbadmin',
+                password = 'INIT@1234',
+                host='203.245.2.202',
+                port=5432)
     c= con.cursor()
     print("connect success")
     print("/////////////////////////////////////////////////////////////////////////")
@@ -48,7 +53,8 @@ def connect():
 
 # sql 불러오고 저장하기 
 def save_query( SCHEMA, cohort_target, cohort_control, sql, c):
-    sql=re.sub('cdm_hira_2017_results_fnet_v276',SCHEMA+'_results_dq_v276', sql)
+   # sql=re.sub('cdm_hira_2017_results_fnet_v276',SCHEMA+'_results_dq_v276', sql)
+    sql=re.sub('cdm_hira_2017_results_fnet_v276',SCHEMA+'_results_fnet_v276', sql)
     sql= re.sub('cdm_hira_2017', SCHEMA, sql)
     sql= re.sub('target', cohort_target, sql)
     sql = re.sub('control',cohort_control,sql)
