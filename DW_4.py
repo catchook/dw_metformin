@@ -30,6 +30,11 @@ if __name__=='__main__' :
     cohort_hospital= cohort_info['HOSPITAL'].iloc[0]
     cohort_target= cohort_info['T'].iloc[0].astype(str)
     cohort_control= cohort_info['C1'].iloc[0].astype(str)
+# healthscore 
+    model_name= 'linear'
+    results_root = 'model_info'
+
+## measurement data 
 
     sql=""" with before as ( select distinct a.cohort_definition_id,(case when a.cohort_definition_id = target then 'T'
                             when a.cohort_definition_id = control then 'C' else '' end) as cohort_type
@@ -59,12 +64,12 @@ if __name__=='__main__' :
                     ,b.measurement_date
                     ,b.value_as_number
         from cdm_hira_2017_results_fnet_v276.cohort a
-            left join  cdm_hira_2017.measurement b
+            left join  (select * from cdm_hira_2017.measurement  where measurement_concept_id in 
+            (3020460, 3015183,3010156,3013707,3013682,3022192,3004249,3027484,3040820,3012888,3016723,3028437,
+            3007070,3027114,3038553,3013721,3024561,3006923))  as b
             on a.subject_id = b.person_id
         where a.cohort_definition_id in (target, control)
             and b.measurement_date <= a.cohort_start_date /*measurement  before cohort start*/
-            and b.measurement_concept_id in (3020460, 3015183,3010156,3013707,3013682,3022192,3004249,3027484,3040820,3012888,3016723,3028437,
-            3007070,3027114,3038553,3013721,3024561,3006923)
             ) select *, ROW_NUMBER() OVER (PARTITION BY subject_id, measurement_type ORDER BY measurement_date DESC) AS ROW from before 
             UNION 
     select distinct a.cohort_definition_id,(case when a.cohort_definition_id = target then 'T'
@@ -96,12 +101,12 @@ if __name__=='__main__' :
                     ,b.value_as_number
                     ,CAST('0' AS INTEGER) as ROW
         from cdm_hira_2017_results_fnet_v276.cohort a
-            left join  cdm_hira_2017.measurement b
+            left join  (select * from cdm_hira_2017.measurement  where measurement_concept_id in 
+            (3020460, 3015183,3010156,3013707,3013682,3022192,3004249,3027484,3040820,3012888,3016723,3028437,
+            3007070,3027114,3038553,3013721,3024561,3006923))  as b 
             on a.subject_id = b.person_id
         where a.cohort_definition_id in (target, control)
             and b.measurement_date BETWEEN (a.cohort_start_date + 90) AND  (a.cohort_start_date + 455) /*measurement  AFTER cohort start 90~455DAYS*/
-            and b.measurement_concept_id in (3020460, 3015183,3010156,3013707,3013682,3022192,3004249,3027484,3040820,3012888,3016723,3028437,
-            3007070,3027114,3038553,3013721,3024561,3006923)
     """
     m1= ff.save_query(SCHEMA, cohort_target, cohort_control, sql, c)
     print(m1.head())
@@ -117,7 +122,7 @@ if __name__=='__main__' :
     after.dropna(subset=['value_as_number'], inplace=True)
     pair= pd.merge(left =before, right= after, on=['subject_id', 'cohort_type', 'measurement_type'], how ='inner', suffixes=('_before','_after'))
 
-    export = pair[:40]
+    export = pair[:100]
     export.to_csv("/data/results/"+cohort_hospital+'_paired_measurement_data.csv')
     print("pair-CRP, ESR ")
     del export 
@@ -127,7 +132,7 @@ if __name__=='__main__' :
     all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(pair)
     print("[1/3] Simplify N: WHO got all CRP, ESR are {} N, Target: CRP- {} N, ESR- {} N, Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
 
-    # drug table 
+    # drug table //left join 이나 inner join 이나 같음, 그러나 inner join 해야 데이터 크기가 작음.  
     sql=""" 
         select distinct (case when a.cohort_definition_id = target then 'T'
                             when a.cohort_definition_id = control then 'C' else '' end) as cohort_type
@@ -138,17 +143,16 @@ if __name__=='__main__' :
                     ,b.quantity
                     ,b.days_supply
         from cdm_hira_2017_results_fnet_v276.cohort a
-            left join  cdm_hira_2017.drug_exposure b
-            on a.subject_id = b.person_id
-        where a.cohort_definition_id in (target, control)
-            and b.drug_exposure_start_date Between a.cohort_start_date and  (a.cohort_start_date + 455)         /*drug exp after cohort start*/
-            and b.drug_concept_id in 
+            join  (select * from cdm_hira_2017.drug_exposure where drug_concept_id in 
             (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor
             where ancestor_concept_id in( 1503297, 43009032,19122137,35198118,1502855,1502809,43009070,1580747,
                                         793143,40166035,1547504,1516766,1525215,35197921,1502826,43009094,1510202,
                                         43009055,44506754,40170911,40239216,43009020,1559684,19097821,1560171,
                                         1597756,19059796,19001409,43009089,1583722,43009051, 793293,45774751,45774435,
-                                        44785829,1594973,19033498,43526465,43008991,43013884,44816332,1530014,1529331) )
+                                        44785829,1594973,19033498,43526465,43008991,43013884,44816332,1530014,1529331))) as b
+            on a.subject_id = b.person_id
+        where a.cohort_definition_id in (target, control)
+            and b.drug_exposure_start_date Between a.cohort_start_date and  (a.cohort_start_date + 455)         /*drug exp after cohort start*/
     """
 
     d1= ff.save_query(SCHEMA, cohort_target, cohort_control, sql, c)
@@ -156,10 +160,19 @@ if __name__=='__main__' :
     d1.columns= ['cohort_type','subject_id','Id','drug_exposure_start_date',
                                 'drug_exposure_end_date', 'quantity', 'days_supply']
     d1['Id']=d1['Id'].astype(int)
-
+    export = d1[:100]
+    export.to_csv("/data/results/"+cohort_hospital+'_d1.csv')
+    del export
     #[2/3] simplify N: measurement in drug_Exposure
     dm = pd.merge(left=pair, right = d1, on =['subject_id','cohort_type'], how= 'left')
-    ##change str to date
+    export = dm[:100]
+    export.to_csv("/data/results/"+cohort_hospital+'_dm.csv')
+    del export
+    all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(dm)
+    print("dm table test (left join ) is it N different?? total- {} N, Target: CRP- {} N, ESR- {} N, Control: CRP- {} N, ESR- {}N".format(all_n,
+     CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
+   
+    #change str to date
     ff.change_str_date(dm)
     dm['measure_in_drug_exposure'] = dm.apply(lambda x:  1 if ( (x['drug_exposure_start_date'] <= x['measurement_date']) and 
     (x['measurement_date'] <= x['drug_exposure_end_date'])) else 0, axis=1 ) #axis=1 column, compare columns
@@ -169,7 +182,7 @@ if __name__=='__main__' :
     all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(dm)
     print("[2/3] simplify N: WHO got measurement data in drug exposrue  are {} N, Target: CRP- {} N, ESR- {} N, Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
     #[3/3] simplify N: ALL: 3 ingredient out, target: not metformin out  
-    dc = pd.merge(dm[['subject_id', 'Id', 'measurement_date', 'measurement_type','quantity', 'days_supply']], 
+    dc = pd.merge(dm[['subject_id', 'Id', 'measurement_date', 'measurement_type','quantity', 'days_supply','cohort_type']], 
                 t1[['Id','Name','type1','type2']], how = 'left', on= "Id")
     dc.rename(columns={'Id':'drug_concept_id'}, inplace=True)
     dc.drop_duplicates(inplace=True)
@@ -180,8 +193,8 @@ if __name__=='__main__' :
         # new column: dose_group: high(over 1,000 mg/day) / low  
     dc['metformin_dose_type']=dc.apply(lambda x:'high' if (x['metformin_dose']* x['quantity']/x['days_supply']>=1000.0) else 'low', axis=1)
         # new column: ingredient_count; count type
-    dc2= dc.melt(id_vars=['subject_id','measurement_type','measurement_date'], value_vars=['type1','type2'], value_name ='type')
-    dc2= dc2.groupby(['subject_id','measurement_type','measurement_date'])['type'].agg( lambda x:list(x)).reset_index()
+    dc2= dc.melt(id_vars=['subject_id','measurement_type','measurement_date','cohort_type'], value_vars=['type1','type2'], value_name ='type')
+    dc2= dc2.groupby(['subject_id','measurement_type','measurement_date','cohort_type'])['type'].agg( lambda x:list(x)).reset_index()
     dc2['ingredient_count'] = dc2['type'].apply(lambda x: len(set(x)))
         # new column: metformin_count
     dc2['metformin_count'] = dc2['type'].apply(lambda x: x.count("metformin"))
@@ -194,14 +207,14 @@ if __name__=='__main__' :
     dc2['drug_group'] =dc2['type'].apply(lambda x:'/'.join(map(str, x)))
     all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(dc2)
     print("[3/3] simplify N: ALL: 3 ingredient out, target: not metformin out/ are {} N, Target: CRP- {} N, ESR- {} N, Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
-    export = dc2[:40]
+    export = dc2[:100]
     export.to_csv("/data/results/"+cohort_hospital+'_simplify_final.csv')
     del export
-    ## lets make data 
-    ## 1) 1st PS matching: drug classification --PS_1st 
-    ## 3) measure table: before, after ESR, CRP --dc2
-    ## 4) measure table 2: before all  for healthscore age --but it need add age, sex
-    ## 5) measure table 3: before BUN, Cr for 1st PS matching --dc2      
+#     ## lets make data 
+#     ## 1) 1st PS matching: drug classification --PS_1st 
+#     ## 3) measure table: before, after ESR, CRP --dc2
+#     ## 4) measure table 2: before all  for healthscore age --but it need add age, sex
+#     ## 5) measure table 3: before BUN, Cr for 1st PS matching --dc2      
 
     # 1st PS matching: drug classification 
     dc3 = dc2.melt(id_vars=['subject_id'], value_vars=['type1','type2'], value_name='type')
@@ -264,7 +277,7 @@ if __name__=='__main__' :
                     ,b.year_of_birth 
                     ,EXTRACT(YEAR FROM a.cohort_start_date) AS start_year
         from cdm_hira_2017_results_fnet_v276.cohort a
-            left join  cdm_hira_2017.person b
+            join  cdm_hira_2017.person b
             on a.subject_id = b.person_id
         where a.cohort_definition_id in (target, control)
         """
@@ -280,11 +293,22 @@ if __name__=='__main__' :
     hc_before =pd.merge(hc_before, p, on=['cohort_type','subject_id'], how= 'left')
     hc_after =pd.merge(hc_after, p, on=['cohort_type','subject_id'], how= 'left')
 
-    export = hc_before[:40]
+    export = hc_before[:100]
     export.to_csv("/data/results/"+cohort_hospital+'_hc_before.csv')
-    export = hc_after[:40]
+    export = hc_after[:100]
     export.to_csv("/data/results/"+cohort_hospital+'_hc_after.csv')
     print (hc_before.head(20))
     print (hc_after.head(20))
     del export
-print("end")
+    del p
+
+#healthcare score
+    score_data_before= ff.healthage_score(hc_before)
+    score_data_after = ff.healthage_score(hc_after)
+    export = score_data_before[:40]
+    export.to_csv("/data/results/"+cohort_hospital+'_score_data_before.csv')
+    export = score_data_after[:40]
+    export.to_csv("/data/results/"+cohort_hospital+'score_data_after.csv')
+    del export
+    del hc_before
+    del hc_after
