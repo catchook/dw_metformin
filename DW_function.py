@@ -110,18 +110,18 @@ def extract_number(df):
         else: metformin_dose.append(0)
     return metformin_dose 
 
-      # convert to 1 or 0 
-def drug_classification(df):
-    PS_1st = pd.DataFrame(columns=['subject_id','SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd'])
-    columns =['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd']
-    for column_index in df.columns:
-        if column_index in columns:
-            PS_1st[column_index]= df[column_index]
-            PS_1st[column_index] = np.where(df[column_index]>1, 1,0)
-        else: 
-            PS_1st[column_index]=0
-    PS_1st['subject_id']=df['subject_id']        
-    return PS_1st
+#       # convert to 1 or 0 
+# def drug_classification(df):
+#     PS_1st = pd.DataFrame(columns=['subject_id','SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd'])
+#     columns =['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd']
+#     for column_index in df.columns:
+#         if column_index in columns:
+#             PS_1st[column_index]= df[column_index]
+#             PS_1st[column_index] = np.where(df[column_index]>1, 1,0)
+#         else: 
+#             PS_1st[column_index]=0
+#     PS_1st['subject_id']=df['subject_id']        
+#     return PS_1st
 
 def transformation_abnormal(data, normal_df, default_concept):
     normal_df = pd.read_csv(os.path.join(results_root,'normal_information.csv'))
@@ -252,3 +252,10 @@ def healthage_score(hc_before):
         print('healthscore_complete')
         print(score_data.head())
 
+def make_row(df):
+        # new columns: ROWS
+    df['ROW'] = df.sort_values(['subject_id','measurement_type','measurement_date'], ascending= True).groupby(['subject_id','measurement_type']).cumcount()+1
+    ## pick only row =1 
+    condition = df['ROW']==1
+    df= df.loc[condition,:]
+    return df
