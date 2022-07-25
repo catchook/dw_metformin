@@ -78,13 +78,13 @@ def save_query( SCHEMA, cohort_target, cohort_control, sql, c):
 def count_crp_esr(df):
     all_n = df['subject_id'].nunique()
     condition= (df['cohort_type']=='T') & (df['measurement_type']=='CRP')
-    CRP_t_n= df.loc[ condition,['subject_id']].nunique()
+    CRP_t_n= len(df.loc[ condition,['subject_id']].drop_duplicates())
     condition= (df['cohort_type']=='T') & (df['measurement_type']=='ESR')
-    ESR_t_n= df.loc[ condition,['subject_id']].nunique()
+    ESR_t_n= len(df.loc[ condition,['subject_id']].drop_duplicates())
     condition= (df['cohort_type']=='C') & (df['measurement_type']=='CRP')
-    CRP_c_n= df.loc[ condition,['subject_id']].nunique()
+    CRP_c_n= len(df.loc[ condition,['subject_id']].drop_duplicates())
     condition= (df['cohort_type']=='C') & (df['measurement_type']=='ESR')
-    ESR_c_n= df.loc[ condition,['subject_id']].nunique()
+    ESR_c_n= len(df.loc[ condition,['subject_id']].drop_duplicates())
     return all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n
 
 def change_str_date(dm):
