@@ -78,14 +78,33 @@ def save_query( SCHEMA, cohort_target, cohort_control, sql, c):
 def count_crp_esr(df):
     all_n = df['subject_id'].nunique()
     condition= (df['cohort_type']=='T') & (df['measurement_type']=='CRP')
-    CRP_t_n= len(df.loc[ condition,['subject_id']].drop_duplicates())
+    CRP_t_n= df.loc[condition, 'subject_id'].nunique()
     condition= (df['cohort_type']=='T') & (df['measurement_type']=='ESR')
-    ESR_t_n= len(df.loc[ condition,['subject_id']].drop_duplicates())
+    ESR_t_n= df.loc[condition, 'subject_id'].nunique()
     condition= (df['cohort_type']=='C') & (df['measurement_type']=='CRP')
-    CRP_c_n= len(df.loc[ condition,['subject_id']].drop_duplicates())
+    CRP_c_n= df.loc[condition, 'subject_id'].nunique()
     condition= (df['cohort_type']=='C') & (df['measurement_type']=='ESR')
-    ESR_c_n= len(df.loc[ condition,['subject_id']].drop_duplicates())
+    ESR_c_n= df.loc[condition, 'subject_id'].nunique()
     return all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n
+
+def count_measurement(df):
+    lists = ['BUN' ,'TG','SBP','Hb', 'Glucose','DBP', 'Cr','LDL' ,'HDL','Cholesterol','BMI','AST','Albumin','ALT']
+    T_numbers=[]
+    C_numbers=[]
+    for  i in lists: 
+        condition= (df['cohort_type']=='T') & (df['measurement_type']== i )
+        n= df.loc[condition, 'subject_id'].nunique()
+        T_numbers.append(n)
+        condition= (df['cohort_type']=='C') & (df['measurement_type']== i )
+        n= df.loc[condition, 'subject_id'].nunique()
+        C_numbers.append(n)
+    T_count_N = pd.DataFrame(T_numbers, columns =['BUN' ,'TG','SBP','Hb', 'Glucose','DBP', 'Cr','LDL' ,'HDL','Cholesterol','BMI','AST','Albumin','ALT'])
+    T_count_N['cohort_type'] ='Target'
+    C_count_N = pd.DataFrame(C_numbers, columns =['BUN' ,'TG','SBP','Hb', 'Glucose','DBP', 'Cr','LDL' ,'HDL','Cholesterol','BMI','AST','Albumin','ALT'])
+    C_count_N['cohort_type'] ='Control'
+    count_N = pd.concat([T_count_N,C_count_N ])
+    return   count_N
+
 
 def change_str_date(dm):
     dm['drug_exposure_end_date']=dm['drug_exposure_end_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
@@ -259,3 +278,19 @@ def make_row(df):
     condition = df['ROW']==1
     df= df.loc[condition,:]
     return df
+
+def convert_size(size_bytes):
+  import math
+  if size_bytes==0:
+    return "0B"
+  size_name = ("B","KB","MB","GB", "TB", "PB","EB","ZB","YB")
+  i = int(math.floor(math.log(size_bytes,1024 )))
+  p= math.pow(1024, i)
+  s= round(size_bytes/ p,2)
+  return "%s %s"% (s, size_name[i])
+
+      # ## 코호트 기간 3개월 미만 인 것 추출. 
+    # m1['cohort_end_date'] = pd.to_datetime(m1['cohort_end_date'])
+    # m1['cohort_start_date'] = pd.to_datetime(m1['cohort_start_date'])
+    # m1['cohort_period'] = m1['cohort_end_date'] - m1['cohort_start_date']
+    # print(m1['cohort_period'].describe())

@@ -33,7 +33,9 @@ if __name__=='__main__' :
 # healthscore 
     model_name= 'linear'
     results_root = 'model_info'
-
+################################################################################################################################################
+# Lets simplify N 
+################################################################################################################################################
 ## measurement data 
 
     sql=""" with before as ( select distinct a.cohort_definition_id,(case when a.cohort_definition_id = target then 'T'
@@ -113,10 +115,12 @@ if __name__=='__main__' :
             and b.measurement_date BETWEEN (a.cohort_start_date + 90) AND  (a.cohort_start_date + 455) /*measurement  AFTER cohort start 90~455DAYS*/
     """
     m1= ff.save_query(SCHEMA, cohort_target, cohort_control, sql, c)
-    print(m1.head())
-    # column  지정
+    # column 
     m1.columns=['cohort_definition_id,','cohort_type','subject_id','cohort_start_date', 'cohort_end_date','measurement_concept_id','measurement_type','measurement_date','value_as_number', 'ROW']
-
+    # check file size
+    file_size = sys.getsizeof(m1)
+    print("m1 file size: ", ff.convert_size(file_size), "bytes")
+    
     #[1/3] Simplicy N: only who got ESR, CRP
     condition = (m1['ROW']== '1')  & (m1['measurement_type'].isin(['CRP','ESR']))
     before = m1.loc[condition, ['cohort_type', 'subject_id', 'measurement_type','value_as_number']]
@@ -126,12 +130,6 @@ if __name__=='__main__' :
     after.dropna(subset=['value_as_number'], inplace=True)
     pair= pd.merge(left =before, right= after, on=['subject_id', 'cohort_type', 'measurement_type'], how ='inner', suffixes=('_before','_after'))
 
-    export = pair[:100]
-    export.to_csv("/data/results/"+cohort_hospital+'_paired_measurement_data.csv')
-    print("pair-CRP, ESR ")
-    del export 
-    del before
-    del after 
     # who got paired data?
     all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(pair)
     print("[1/3] Simplify N: WHO got all CRP, ESR are {} N, Target: CRP- {} N, ESR- {} N, Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
@@ -158,20 +156,16 @@ if __name__=='__main__' :
         where a.cohort_definition_id in (target, control)
             and b.drug_exposure_start_date Between a.cohort_start_date and  (a.cohort_start_date + 455)         /*drug exp after cohort start*/
     """
-
     d1= ff.save_query(SCHEMA, cohort_target, cohort_control, sql, c)
     # set column 
     d1.columns= ['cohort_type','subject_id','Id','drug_exposure_start_date',
                                 'drug_exposure_end_date', 'quantity', 'days_supply']
     d1['Id']=d1['Id'].astype(int)
-    export = d1[:100]
-    export.to_csv("/data/results/"+cohort_hospital+'_d1.csv')
-    del export
+          # check file size
+    file_size = sys.getsizeof(d1)
+    print("d1 file size: ", ff.convert_size(file_size), "bytes")
     #[2/3] simplify N: measurement in drug_Exposure
     dm = pd.merge(left=pair, right = d1, on =['subject_id','cohort_type'], how= 'left')
-    export = dm[:100]
-    export.to_csv("/data/results/"+cohort_hospital+'_dm.csv')
-    del export
     all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(dm)
     print("dm table test (left join ) is it N different?? total- {} N, Target: CRP- {} N, ESR- {} N, Control: CRP- {} N, ESR- {}N".format(all_n,
      CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
@@ -182,6 +176,8 @@ if __name__=='__main__' :
     (x['measurement_date'] <= x['drug_exposure_end_date'])) else 0, axis=1 ) #axis=1 column, compare columns
     condition = dm['measure_in_drug_exposure']== 1
     dm=dm.loc[condition, :]
+    file_size = sys.getsizeof(dm)
+    print("dm file size: ", ff.convert_size(file_size), "bytes")
     # who got measurement in drug exposrue?
     all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(dm)
     print("[2/3] simplify N: WHO got measurement data in drug exposrue  are {} N, Target: CRP- {} N, ESR- {} N, Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
@@ -212,10 +208,49 @@ if __name__=='__main__' :
     dc2['drug_group'] =dc2['type'].apply(lambda x:'/'.join(map(str, x)))
     all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(dc2)
     print("[3/3] simplify N: ALL: 3 ingredient out, target: not metformin out/ are {} N, Target: CRP- {} N, ESR- {} N, Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
-    export = dc2[:100]
-    export.to_csv("/data/results/"+cohort_hospital+'_simplify_final.csv')
-    del export
 
+          # check file size
+    file_size = sys.getsizeof(dc)
+    print("dc file size: ", ff.convert_size(file_size), "bytes")
+    file_size = sys.getsizeof(dc2)
+    print("dc2 file size: ", ff.convert_size(file_size), "bytes")
+
+################################################################################################################################################
+# Lets add Data 
+################################################################################################################################################
+#     ## 1) 1st PS matching: drug classification --PS_1st 
+#     ## 2) measure table: before, after ESR, CRP --dc2
+#     ## 3) measure table 3: before BUN, Cr for 1st PS matching --dc2 
+#  
+#     ## 4) measure table 2: before all  for healthscore age and how many? --but it need add age, sex
+
+#    
+    #1) 1st PS matching: drug classification 
+    dc3 = dc.melt(id_vars=['subject_id'], value_vars=['type1','type2'], value_name='type')
+    dc3.dropna(inplace=True)
+    dc3 = dc3.groupby('subject_id')['type'].agg(lambda x: ",".join(list(set(x)))).reset_index()
+    PS_1st = pd.get_dummies(dc3.set_index('subject_id').type.str.split(',\s*', expand=True).stack()).groupby(level='subject_id').sum().astype(int).reset_index()
+    # condition= PS_1st['error']==0
+    # PS_1st= PS_1st.loc[condition,:].drop(columns='error')
+    print("PS_1st columns are {}".format(PS_1st.columns))
+    del dc3 
+
+    #2) measure table: before, after ESR, CRP  (after에서 index date에 가까운 것만 고르기)
+    dc2= ff.make_row(dc2)
+    dc2 = dc2.drop(columns=['measurement_date', 'type','ingredient_count','metformin_count'], axis=1)
+    dc2.merge(PS_1st, on='subject_id', how='left')
+    file_size = sys.getsizeof(dc2)
+    print("1st PS matchng add file size: ", ff.convert_size(file_size), "bytes")
+
+#   #3) measure table 2: before, AFTER  all  for healthscore age but it need add  age, sex columns 
+    condition = m1['ROW']== 1  
+    before = m1.loc[condition, ['subject_id', 'cohort_type','measurement_concept_id','measurement_type','value_as_number','measurement_date']]
+    before =ff.make_row(before)
+    condition = m1['ROW']== 0 
+    after = m1.loc[condition, ['subject_id','cohort_type', 'measurement_concept_id','measurement_type','value_as_number','measurement_date']]
+    after = ff.make_row(after)
+    del m1
+ 
 ### count N 
     all_n1, CRP_t_n1 , ESR_t_n1, CRP_c_n1, ESR_c_n1 = ff.count_crp_esr(pair)
     all_n2, CRP_t_n2 , ESR_t_n2, CRP_c_n2, ESR_c_n2 = ff.count_crp_esr(dm)
@@ -225,40 +260,26 @@ if __name__=='__main__' :
            ('3 ingredient out, target: not metformin out',all_n3, CRP_t_n3 , ESR_t_n3, CRP_c_n3, ESR_c_n3 )]
     count_N = pd.DataFrame(data, columns = ['Step', 'Total', 'Target_CRP','Target_ESR', 'Control_CRP','Control_ESR'])
     count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
-#     ## lets make data 
-#     ## 1) 1st PS matching: drug classification --PS_1st 
-#     ## 3) measure table: before, after ESR, CRP --dc2
-#     ## 4) measure table 2: before all  for healthscore age --but it need add age, sex
-#     ## 5) measure table 3: before BUN, Cr for 1st PS matching --dc2      
 
-#     # 1st PS matching: drug classification 
-#     dc3 = dc.melt(id_vars=['subject_id'], value_vars=['type1','type2'], value_name='type')
-#     dc3.dropna(inplace=True)
-#     dc3 = dc3.groupby('subject_id')['type'].agg(lambda x: ",".join(list(set(x)))).reset_index()
-#     PS_1st = pd.get_dummies(dc3.set_index('subject_id').type.str.split(',\s*', expand=True).stack()).groupby(level='subject_id').sum().astype(int).reset_index()
-#     condition= PS_1st['error']==0
-#     PS_1st= PS_1st.loc[condition,:].drop(columns='error')
-#     print("PS_1st columns are {}".format(PS_1st.columns))
-#     del dc3 
-
-#     #2) measure table: before, after ESR, CRP  (after에서 index date에 가까운 것만 고르기)
-#     dc2= ff.make_row(dc2)
-
-#     ## 4) measure table 2: before, AFTER  all  for healthscore age but it need add  age, sex columns 
-#     condition = m1['ROW']== 1  
-#     before = m1.loc[condition, ['subject_id', 'measurement_concept_id','measurement_type','value_as_number','measurement_date']]
-#     before =ff.make_row(before)
-
-#     condition = m1['ROW']== 0 
-#     after = m1.loc[condition, ['subject_id', 'measurement_concept_id','measurement_type','value_as_number','measurement_date']]
-#     del m1
-#     after = ff.make_row(after)
+    before_N =ff.count_measurement(before)
+    before_N['step'] ='before'
+    after_N=ff.count_measurement(after)
+    after_N['step'] ='after'
+    count_N= pd.concat([before_N, after_N ])
+    count_N.to_csv("/data/results/"+cohort_hospital+'_count_N_2.csv')
 
 
 # #     #before pre healthcare: pivot_Table 
-#     hc_before = before.pivot(index='subject_id', columns='measurement_concept_id', values='value_as_number')
-#     hc_after = after.pivot(index='subject_id', columns='measurement_concept_id', values='value_as_number')
-# # #healthcare score
+    hc_before = before.pivot(index=['subject_id', 'cohort_type'], columns='measurement_concept_id', values='value_as_number')
+    hc_after = after.pivot(index=['subject_id', 'cohort_type'], columns='measurement_concept_id', values='value_as_number')
+    del before
+    del after
+    del pair
+    del dm
+    del dc2 
+
+
+# #healthcare score
 #     score_data_before= ff.healthage_score(hc_before)
 #     score_data_after = ff.healthage_score(hc_after)
 #     export = score_data_before[:40]
@@ -279,48 +300,46 @@ if __name__=='__main__' :
 
 # #     del after 
 # #     del d1
-#     ## select sex, age 
-#     sql=""" 
-#         select distinct (case when a.cohort_definition_id = target then 'T'
-#                             when a.cohort_definition_id = control then 'C' else '' end) as cohort_type
-#                     ,a.subject_id
-#                     ,(case when b.gender_concept_id = '8507' then 'M'
-#                             when b.gender_concept_id = '8532' then 'F' else '' end) as gender
-#                     ,b.year_of_birth 
-#                     ,EXTRACT(YEAR FROM a.cohort_start_date) AS start_year
-#         from cdm_hira_2017_results_fnet_v276.cohort a
-#             join  cdm_hira_2017.person b
-#             on a.subject_id = b.person_id
-#         where a.cohort_definition_id in (target, control)
-#         """
-#     p= ff.save_query(SCHEMA, cohort_target, cohort_control, sql, c)
-#     # set column 
-#     p.columns= ['cohort_type','subject_id','gender','year_of_birth', 'start_year']
-#     p['age'] = p['start_year']- p['year_of_birth']
+    ## select sex, age 
+    sql=""" 
+        select distinct (case when a.cohort_definition_id = target then 'T'
+                            when a.cohort_definition_id = control then 'C' else '' end) as cohort_type
+                    ,a.subject_id
+                    ,(case when b.gender_concept_id = '8507' then 'M'
+                            when b.gender_concept_id = '8532' then 'F' else '' end) as gender
+                    ,b.year_of_birth 
+                    ,EXTRACT(YEAR FROM a.cohort_start_date) AS start_year
+        from cdm_hira_2017_results_fnet_v276.cohort a
+            join  cdm_hira_2017.person b
+            on a.subject_id = b.person_id
+        where a.cohort_definition_id in (target, control)
+        """
+    p= ff.save_query(SCHEMA, cohort_target, cohort_control, sql, c)
+    # set column 
+    p.columns= ['cohort_type','subject_id','gender','year_of_birth', 'start_year']
+    p['age'] = p['start_year']- p['year_of_birth']
 
-# #     # add dc2 & heathscore
-#     p = p.drop(columns=['year_of_birth', 'start_year'], axis=1)
+#     # add dc2 & heathscore
+    p = p.drop(columns=['year_of_birth', 'start_year'], axis=1)
+    file_size = sys.getsizeof(p)
+    print("p file size: ", ff.convert_size(file_size), "bytes")
 
-#     dc2= pd.merge(dc2, p, on=['cohort_type','subject_id'], how= 'left')
-#     hc_before =pd.merge(hc_before, p, on=['cohort_type','subject_id'], how= 'left')
-#     hc_after =pd.merge(hc_after, p, on=['cohort_type','subject_id'], how= 'left')
+    dc2= pd.merge(dc2, p, on=['cohort_type','subject_id'], how= 'left')
+    file_size = sys.getsizeof(dc2)
+    a= ff.convert_size(file_size)
+    print("dc2 add demographic information file size: ", ff.convert_size(file_size), "bytes")
+    if a < 50:
+        dc2.to_csv("/data/results/"+cohort_hospital+'_final.csv')
 
-#     export = hc_before[:100]
-#     export.to_csv("/data/results/"+cohort_hospital+'_hc_before.csv')
-#     export = hc_after[:100]
-#     export.to_csv("/data/results/"+cohort_hospital+'_hc_after.csv')
-#     print (hc_before.head(20))
-#     print (hc_after.head(20))
-#     del export
-#     del p
-
-# #healthcare score
-#     score_data_before= ff.healthage_score(hc_before)
-#     score_data_after = ff.healthage_score(hc_after)
-#     export = score_data_before[:40]
-#     export.to_csv("/data/results/"+cohort_hospital+'_score_data_before.csv')
-#     export = score_data_after[:40]
-#     export.to_csv("/data/results/"+cohort_hospital+'score_data_after.csv')
-#     del export
-#     del hc_before
-#     del hc_after
+    hc_before =pd.merge(hc_before, p, on=['cohort_type','subject_id'], how= 'left')
+    hc_after =pd.merge(hc_after, p, on=['cohort_type','subject_id'], how= 'left')
+    file_size = sys.getsizeof(hc_before)
+    a= ff.convert_size(file_size)
+    print("hc_before file size: ", ff.convert_size(file_size), "bytes")
+    if a < 50:
+        hc_before.to_csv("/data/results/"+cohort_hospital+'_hc_before.csv')
+    file_size = sys.getsizeof(hc_after)
+    a= ff.convert_size(file_size)
+    print("hc_after add file size: ", ff.convert_size(file_size), "bytes")
+    if a < 50:
+        hc_after.to_csv("/data/results/"+cohort_hospital+'_hc_after.csv')
