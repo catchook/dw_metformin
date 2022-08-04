@@ -22,7 +22,7 @@ class Simplify:
         before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','cohort_type','value_as_number']]
         before.dropna(inplace=True)
         before['row'] = before.sort_values(['measurement_date'], ascending =False).groupby(['subject_id', 'measurement_type']).cumcount()+1
-        condition = data['row']== 1
+        condition = before['row']== 1
         before = before.loc[condition,['subject_id','measurement_type','measurement_date','cohort_type','value_as_number']]
         condition= (data['measurement_type'].isin(['CRP','ESR'])) & (data['measurement_date'] >= data['cohort_start_date'] ) & (data['measurement_date'] >= data['drug_exposure_start_date']) & (data['measurement_date'] <= data['drug_exposure_end_date'])
         after = data.loc[condition,['subject_id','cohort_type','measurement_type','measurement_date','value_as_number','drug_concept_id','drug_exposure_start_date','drug_exposure_end_date','cohort_start_date']]
@@ -31,15 +31,16 @@ class Simplify:
         return pair 
     def Exposure(data):
         pair33 = Simplify.Pair(data)
-        pair33['drug_exposure_end_date']=pair33['drug_exposure_end_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d %H:%M:%S'))
-        pair33['drug_exposure_start_date'] = pair33['drug_exposure_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d %H:%M:%S'))
-        pair33['measurement_date_after'] = pair33['measurement_date_after'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d %H:%M:%S'))
+        pair33['drug_exposure_end_date']=pair33['drug_exposure_end_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
+        pair33['drug_exposure_start_date'] = pair33['drug_exposure_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
+        pair33['measurement_date_after'] = pair33['measurement_date_after'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
         condition = (pair33['drug_exposure_start_date'] <= pair33['measurement_date_after']) & (pair33['measurement_date_after'] <= pair33['drug_exposure_end_date'])
         exposure = pair33.loc[condition,:]
         return exposure 
     def Ingredient(data, t1):
         ## Step3 : 3 ingredient out (control, target 공통) &  target = metformin 포함 한 것만 추출 
         exposure=Simplify.Exposure(data)
+        exposure['drug_concept_id'] = exposure['drug_concept_id'].astype(int)
         dc = pd.merge(exposure,  t1[['drug_concept_id','Name','type1','type2']], on= 'drug_concept_id', how = 'left')
         dc.drop_duplicates(inplace=True)
         ## new column: ingredient_count; count typ
@@ -55,16 +56,22 @@ class Simplify:
         condition = dc2['row']==1
         dc2 = dc2.loc[condition,['subject_id', 'measurement_type', 'measurement_date_after', 'drug_group']]
         final = pd.merge(exposure[['subject_id','measurement_type','cohort_type','measurement_date_before', 'value_as_number_before',
-                'measurement_date_after','value_as_number_after']], dc2, on=['subject_id', 'measurement_type','measurement_date_after'])
-        final.drop_duplicaes(inplace=True)
+                'measurement_date_after','value_as_number_after','drug_concept_id','drug_exposure_start_date']], dc2, on=['subject_id', 'measurement_type','measurement_date_after'])
+        final.drop_duplicates(inplace=True)
         return final 
-    
+# 2. Add PS matching data
+# [1/3] 1st PS matching: drug history (adm drug group) 
+# [2/3] 1st PS matching: BUN, Creatinine
+# [3/3] 2nd PS matching: disease history --중간 보고 이후 작성. 
+
 class Drug:
     def __init__(self, data, t1):
         self.data = data
         self.t1 = t1
     def dose(data, t1):
-        dc = pd.merge(data[['subject_id', 'drug_concept_id', 'measurement_date', 'measurement_type','quantity', 'days_supply','cohort_type']], 
+        data['drug_concept_id'] = data['drug_concept_id'].astype(int)
+        t1['drug_concept_id'] = t1['drug_concept_id'].astype(int)
+        dc = pd.merge(data[['subject_id', 'drug_concept_id','quantity', 'days_supply','cohort_type']], 
             t1[['drug_concept_id','Name','type1','type2']], how = 'left', on= "drug_concept_id")
         dc.drop_duplicates(inplace=True)
     # dose group 
@@ -74,24 +81,36 @@ class Drug:
     # new column: dose_group: high(over 1,000 mg/day) / low  
         dc['dose_type']=dc.apply(lambda x:'high' if (x['metformin_dose']* x['quantity']/x['days_supply']>=1000.0) else 'low', axis=1)
         return dc
-# 2. Add PS matching data
-# [1/3] 1st PS matching: drug history (adm drug group) 
-# [2/3] 1st PS matching: BUN, Creatinine
-# [3/3] 2nd PS matching: disease history
-class PSmatch:
-    def __init__(self, final):
-        self.final = final 
-    def classification(final):
-     #1) 1st PS matching: drug classification 
-        dc3 = final.melt(id_vars=['subject_id'], value_vars=['type1','type2'], value_name='type')
-        dc3.dropna(inplace=True)
-        dc3 = dc3.groupby('subject_id')['type'].agg(lambda x: ",".join(list(set(x)))).reset_index()
-        PS_1st = pd.get_dummies(dc3.set_index('subject_id').type.str.split(',\s*', expand=True).stack()).groupby(level='subject_id').sum().astype(int).reset_index()
+    def psmatch1(data, t1):
+    # [1/3] 1st PS matching: drug history (adm drug group) 
+     #1) 1st PS matching: drug classification
+        dc = Drug.dose(data, t1)
+        dc2 = dc.melt(id_vars=['subject_id'], value_vars=['type1','type2'], value_name='type')
+        dc2.dropna(inplace=True)
+        dc2 = dc2.groupby('subject_id')['type'].agg(lambda x: ",".join(list(set(x)))).reset_index()
+        PS = pd.get_dummies(dc2.set_index('subject_id').type.str.split(',\s*', expand=True).stack()).groupby(level='subject_id').sum().astype(int).reset_index()
         # condition= PS_1st['error']==0
         # PS_1st= PS_1st.loc[condition,:].drop(columns='error')
+        PS_1st = pd.DataFrame(columns=['subject_id','SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd'])
+        columns = ['SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd']
+        for index in columns:
+            if index in PS.columns:
+                PS_1st[index] = PS[index]
+            else:
+                PS_1st[index] = 0
+        PS_1st['subject_id']= PS['subject_id']
         print("PS_1st columns are {}".format(PS_1st.columns))
-        del dc3 
-
+        return PS_1st     
+    def buncr(data):
+        # [2/3] 1st PS matching: BUN, Creatinine
+        condition= (data['measurement_date'] < data['cohort_start_date']) & (data['measurement_type'].isin(['Creatinine', 'BUN' ]))
+        before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','value_as_number']]
+        before.dropna(inplace=True)
+        before['row'] = before.sort_values(['measurement_date'], ascending =False).groupby(['subject_id', 'measurement_type']).cumcount()+1
+        condition = before['row']== 1
+        before = before.loc[condition,['subject_id','measurement_type','value_as_number']]
+        before= before.pivot_table(index=['subject_id'], columns =['measurement_type'], values= 'value_as_number', fill_value =0).reset_index()    
+        return before 
 
 
 

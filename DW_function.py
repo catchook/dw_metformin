@@ -74,7 +74,6 @@ def save_query( SCHEMA, cohort_target, cohort_control, sql, c):
     print('save sql success')
     return m1
 
-#count N--
 def count_crp_esr(df):
     all_n = df['subject_id'].nunique()
     condition= (df['cohort_type']=='T') & (df['measurement_type']=='CRP')
@@ -98,9 +97,9 @@ def count_measurement(df):
         condition= (df['cohort_type']=='C') & (df['measurement_type']== i )
         n= df.loc[condition, 'subject_id'].nunique()
         C_numbers.append(n)
-    T_count_N = pd.DataFrame(T_numbers, columns =['BUN' ,'TG','SBP','Hb', 'Glucose','DBP', 'Cr','LDL' ,'HDL','Cholesterol','BMI','AST','Albumin','ALT'])
+    T_count_N = pd.DataFrame(np.array([T_numbers]), columns =['BUN' ,'TG','SBP','Hb', 'Glucose','DBP', 'Cr','LDL' ,'HDL','Cholesterol','BMI','AST','Albumin','ALT'])
     T_count_N['cohort_type'] ='Target'
-    C_count_N = pd.DataFrame(C_numbers, columns =['BUN' ,'TG','SBP','Hb', 'Glucose','DBP', 'Cr','LDL' ,'HDL','Cholesterol','BMI','AST','Albumin','ALT'])
+    C_count_N = pd.DataFrame(np.array([C_numbers]), columns =['BUN' ,'TG','SBP','Hb', 'Glucose','DBP', 'Cr','LDL' ,'HDL','Cholesterol','BMI','AST','Albumin','ALT'])
     C_count_N['cohort_type'] ='Control'
     count_N = pd.concat([T_count_N,C_count_N ])
     return   count_N
@@ -273,10 +272,10 @@ def healthage_score(hc_before):
 
 def make_row(df):
         # new columns: ROWS
-    df['ROW'] = df.sort_values(['subject_id','measurement_type','measurement_date'], ascending= True).groupby(['subject_id','measurement_type']).cumcount()+1
+    df['ROW'] = df.sort_values(['subject_id','measurement_type','measurement_date_after'], ascending= True).groupby(['subject_id','measurement_type']).cumcount()+1
     ## pick only row =1 
     condition = df['ROW']==1
-    df= df.loc[condition,:]
+    df= df.loc[condition,:].drop(columns ='ROW')
     return df
 
 def convert_size(size_bytes):
