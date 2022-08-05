@@ -87,7 +87,7 @@ def count_crp_esr(df):
     return all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n
 
 def count_measurement(df):
-    lists = ['BUN' ,'TG','SBP','Hb', 'Glucose','DBP', 'Cr','LDL' ,'HDL','Cholesterol','BMI','AST','Albumin','ALT']
+    lists = ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
     T_numbers=[]
     C_numbers=[]
     for  i in lists: 
@@ -97,9 +97,9 @@ def count_measurement(df):
         condition= (df['cohort_type']=='C') & (df['measurement_type']== i )
         n= df.loc[condition, 'subject_id'].nunique()
         C_numbers.append(n)
-    T_count_N = pd.DataFrame(np.array([T_numbers]), columns =['BUN' ,'TG','SBP','Hb', 'Glucose','DBP', 'Cr','LDL' ,'HDL','Cholesterol','BMI','AST','Albumin','ALT'])
+    T_count_N = pd.DataFrame(np.array([T_numbers]), columns =['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin'])
     T_count_N['cohort_type'] ='Target'
-    C_count_N = pd.DataFrame(np.array([C_numbers]), columns =['BUN' ,'TG','SBP','Hb', 'Glucose','DBP', 'Cr','LDL' ,'HDL','Cholesterol','BMI','AST','Albumin','ALT'])
+    C_count_N = pd.DataFrame(np.array([C_numbers]), columns =['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin'])
     C_count_N['cohort_type'] ='Control'
     count_N = pd.concat([T_count_N,C_count_N ])
     return   count_N

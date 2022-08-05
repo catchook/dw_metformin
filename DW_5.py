@@ -46,7 +46,7 @@ if __name__=='__main__' :
     cohort_info =cohort_info.loc[condition,:]
     cohort_hospital= cohort_info['HOSPITAL'].iloc[0]
     cohort_target= cohort_info['T'].iloc[0].astype(str)
-    cohort_control= cohort_info['C1'].iloc[0].astype(str)
+    cohort_control= cohort_info['C2'].iloc[0].astype(str)
     print("hospital: ", cohort_hospital)
 # sql 
     sql = """ select distinct (case when cohort_definition_id = target then 'T'
@@ -79,7 +79,8 @@ if __name__=='__main__' :
               else ''
               END) as gender
       ,d.year_of_birth
-      , EXTRACT(YEAR FROM a.cohort_start_date) as start_year      
+      , EXTRACT(YEAR FROM a.cohort_start_date) as start_year     
+      , (EXTRACT(YEAR FROM a.cohort_start_date)-d.year_of_birth) as age
       from cdm_hira_2017_results_fnet_v276.cohort as a
 
       join
@@ -108,11 +109,10 @@ if __name__=='__main__' :
         # check file size
     m1.columns= ['cohort_type','subject_id','cohort_start_date','cohort_end_date','drug_concept_id','drug_exposure_start_date',
                                 'drug_exposure_end_date', 'quantity', 'days_supply','measurement_type','measurement_date', 'value_as_number','gender'
-                                ,'year_of_birth','start_year']
+                                ,'year_of_birth','start_year','age']
     file_size = sys.getsizeof(m1)
     print("m1 file size: ", ff.convert_size(file_size), "bytes")
-    m1['age'] = m1['start_year']-m1['start_year']
-    # m1= pd.read_csv("test_sejong_icn.csv")1
+    # m1= pd.read_csv("test_sejong_icn.csv")
     all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(m1)
     print("Whole cohort subject are {} N, \n Target: CRP- {} N, ESR- {} N,  \n Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
 # 1. Simpliyfy N 
@@ -149,7 +149,7 @@ if __name__=='__main__' :
     final2.drop_duplicates(inplace=True)
     file_size = sys.getsizeof(final2)
     print("final2 file size: ", ff.convert_size(file_size), "bytes")
-    final2.to_csv("/data/results/"+cohort_hospital+'_final.csv')
+    # final2.to_csv("/data/results/"+cohort_hospital+'_final.csv')
 # [3/] ps 1st matching
     all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(final2)
     print("[3/3] before 1st PS matching , total are {} N, \n Target: CRP- {} N, ESR- {} N, \n Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
@@ -159,5 +159,30 @@ if __name__=='__main__' :
     
 
 # 4. Add HealthScore data:
-# [1/3] healthscore variabels: before, after 
-# [2/3] calculate healthscore 
+# [1/] healthscore variabels: before, after 
+    h = cc.HealthScore
+    pair= h.Pair(m1)
+    pair=ff.count_measurement
+    pair.to_csv("/data/results/"+cohort_hospital+'_healthsocre_1.csv')
+# [2/] healthscore:  measurement in drug_Exposure
+    exposure= h.Exposure(m1)
+    exposure=ff.count_measurement
+    exposure.to_csv("/data/results/"+cohort_hospital+'_healthsocre_2.csv')
+# [3/] healthscore: ALL: 3 ingredient out, target: not metformin out
+    final= h.Ingredient(m1, t1)
+    final= ff.count_measurement
+    final.to_csv("/data/results/"+cohort_hospital+'_healthsocre_3.csv')
+# [4/] calculate healthscore 
+
+subject_id','measurement_type','cohort_type','measurement_date_before', 'value_as_number_before',
+                'measurement_date_after','value_as_number_after','drug_concept_id','drug_exposure_start_date'
+
+### count N 
+    all_n1, CRP_t_n1 , ESR_t_n1, CRP_c_n1, ESR_c_n1 = ff.count_crp_esr(pair)
+    all_n2, CRP_t_n2 , ESR_t_n2, CRP_c_n2, ESR_c_n2 = ff.count_crp_esr(exposure)
+    all_n3, CRP_t_n3 , ESR_t_n3, CRP_c_n3, ESR_c_n3 = ff.count_crp_esr(final2)
+    data= [('pair',all_n1, CRP_t_n1 , ESR_t_n1, CRP_c_n1, ESR_c_n1 ),
+           ('measure in drug_exposure',all_n2, CRP_t_n2 , ESR_t_n2, CRP_c_n2, ESR_c_n2),
+           ('3 ingredient out, target: not metformin out',all_n3, CRP_t_n3 , ESR_t_n3, CRP_c_n3, ESR_c_n3 )]
+    count_N = pd.DataFrame(data, columns = ['Step', 'Total', 'Target_CRP','Target_ESR', 'Control_CRP','Control_ESR'])
+    count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
