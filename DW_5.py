@@ -28,6 +28,7 @@ import pandas.io.sql as psql
 import psycopg2 as pg
 from collections import Counter
 import os
+from functools import reduce
 import DW_function as ff
 import DW_class as cc 
 
@@ -113,22 +114,24 @@ if __name__=='__main__' :
     file_size = sys.getsizeof(m1)
     print("m1 file size: ", ff.convert_size(file_size), "bytes")
     # m1= pd.read_csv("test_sejong_icn.csv")
-    all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(m1)
-    print("Whole cohort subject are {} N, \n Target: CRP- {} N, ESR- {} N,  \n Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
+   
 # 1. Simpliyfy N 
-#[1/3] Simplify N: only who got ESR, CRP
+# [1/3] Simplify N: only who got ESR, CRP
     s = cc.Simplify
-    pair= s.Pair(m1)
-    all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(pair)
-    print("[1/3] Simplify N: WHO got all CRP, ESR are {} N, \n Target: CRP- {} N, ESR- {} N, \n Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
+    lists= ['CRP','ESR']
+    pair= s.Pair(m1, lists)
 # [2/3] simplify N: measurement in drug_Exposure
-    exposure= s.Exposure(m1)
-    all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(exposure)
-    print("[2/3] Simplify N: measurement in drug exposure, total are {} N, \n Target: CRP- {} N, ESR- {} N, \n Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
+    exposure= s.Exposure(m1, lists)
 # [3/3] simplify N: ALL: 3 ingredient out, target: not metformin out
-    final= s.Ingredient(m1, t1)
-    all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(final)
-    print("[3/3] Simplify N: 3 ingredient out, target: not metformin out , total are {} N, \n Target: CRP- {} N, ESR- {} N, \n Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
+    final= s.Ingredient(m1, t1, lists)
+### count N 
+    n1 = ff.count_measurement(pair, lists)
+    n2 = ff.count_measurement(exposure, lists)
+    n3 = ff.count_measurement(final, lists)
+    n= [n1, n2, n3]
+    count_N = reduce(lambda left, right: pd.merge(left, right, on='cohort_type', how='inner'), n)
+    count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
+
 # 2. Add PS matching data
 # [1/3] 1st PS matching: drug history (adm drug group) --최종 대상자 말고도, 코호트 id잇으면 모두..?
     d=cc.Drug
@@ -136,6 +139,7 @@ if __name__=='__main__' :
 # [2/3] 1st PS matching: BUN, Creatinine
     buncr=d.buncr(m1)
 # # [3/3] 2nd PS matching: disease history
+
 # 3. Primary analysis (Add Subgroup analysis)
 # [1/] select earliest measurement data 
     final2= ff.make_row(final)
@@ -149,40 +153,27 @@ if __name__=='__main__' :
     final2.drop_duplicates(inplace=True)
     file_size = sys.getsizeof(final2)
     print("final2 file size: ", ff.convert_size(file_size), "bytes")
-    # final2.to_csv("/data/results/"+cohort_hospital+'_final.csv')
+    final2.to_csv("/data/results/"+cohort_hospital+'_final.csv')
 # [3/] ps 1st matching
-    all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n = ff.count_crp_esr(final2)
-    print("[3/3] before 1st PS matching , total are {} N, \n Target: CRP- {} N, ESR- {} N, \n Control: CRP- {} N, ESR- {}N".format(all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n))
-
 # [4/] t-test (t vs c )
 # [5/] paired t-test (in t )
     
 
 # 4. Add HealthScore data:
 # [1/] healthscore variabels: before, after 
-    h = cc.HealthScore
-    pair= h.Pair(m1)
-    pair=ff.count_measurement
-    pair.to_csv("/data/results/"+cohort_hospital+'_healthsocre_1.csv')
+    s = cc.Simplify
+    lists= ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
+    pair= s.Pair(m1, lists)
 # [2/] healthscore:  measurement in drug_Exposure
-    exposure= h.Exposure(m1)
-    exposure=ff.count_measurement
-    exposure.to_csv("/data/results/"+cohort_hospital+'_healthsocre_2.csv')
+    exposure= s.Exposure(m1, lists)
 # [3/] healthscore: ALL: 3 ingredient out, target: not metformin out
-    final= h.Ingredient(m1, t1)
-    final= ff.count_measurement
-    final.to_csv("/data/results/"+cohort_hospital+'_healthsocre_3.csv')
-# [4/] calculate healthscore 
-
-subject_id','measurement_type','cohort_type','measurement_date_before', 'value_as_number_before',
-                'measurement_date_after','value_as_number_after','drug_concept_id','drug_exposure_start_date'
-
+    final= s.Ingredient(m1, t1, lists)
+    final.to_csv("/data/results/"+cohort_hospital+'_healthsocre.csv')
 ### count N 
-    all_n1, CRP_t_n1 , ESR_t_n1, CRP_c_n1, ESR_c_n1 = ff.count_crp_esr(pair)
-    all_n2, CRP_t_n2 , ESR_t_n2, CRP_c_n2, ESR_c_n2 = ff.count_crp_esr(exposure)
-    all_n3, CRP_t_n3 , ESR_t_n3, CRP_c_n3, ESR_c_n3 = ff.count_crp_esr(final2)
-    data= [('pair',all_n1, CRP_t_n1 , ESR_t_n1, CRP_c_n1, ESR_c_n1 ),
-           ('measure in drug_exposure',all_n2, CRP_t_n2 , ESR_t_n2, CRP_c_n2, ESR_c_n2),
-           ('3 ingredient out, target: not metformin out',all_n3, CRP_t_n3 , ESR_t_n3, CRP_c_n3, ESR_c_n3 )]
-    count_N = pd.DataFrame(data, columns = ['Step', 'Total', 'Target_CRP','Target_ESR', 'Control_CRP','Control_ESR'])
-    count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
+    n1 = ff.count_measurement(pair, lists)
+    n2 = ff.count_measurement(exposure, lists)
+    n3 = ff.count_measurement(final, lists)
+    n= [n1, n2, n3]
+    count_N_hs = reduce(lambda left, right: pd.merge(left, right, on='cohort_type', how='inner'), n)
+    count_N_hs.to_csv("/data/results/"+cohort_hospital+'_count_N_hs.csv')
+# [4/] calculate healthscore 

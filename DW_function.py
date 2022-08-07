@@ -74,20 +74,20 @@ def save_query( SCHEMA, cohort_target, cohort_control, sql, c):
     print('save sql success')
     return m1
 
-def count_crp_esr(df):
-    all_n = df['subject_id'].nunique()
-    condition= (df['cohort_type']=='T') & (df['measurement_type']=='CRP')
-    CRP_t_n= df.loc[condition, 'subject_id'].nunique()
-    condition= (df['cohort_type']=='T') & (df['measurement_type']=='ESR')
-    ESR_t_n= df.loc[condition, 'subject_id'].nunique()
-    condition= (df['cohort_type']=='C') & (df['measurement_type']=='CRP')
-    CRP_c_n= df.loc[condition, 'subject_id'].nunique()
-    condition= (df['cohort_type']=='C') & (df['measurement_type']=='ESR')
-    ESR_c_n= df.loc[condition, 'subject_id'].nunique()
-    return all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n
+# def count_crp_esr(df):
+#     all_n = df['subject_id'].nunique()
+#     condition= (df['cohort_type']=='T') & (df['measurement_type']=='CRP')
+#     CRP_t_n= df.loc[condition, 'subject_id'].nunique()
+#     condition= (df['cohort_type']=='T') & (df['measurement_type']=='ESR')
+#     ESR_t_n= df.loc[condition, 'subject_id'].nunique()
+#     condition= (df['cohort_type']=='C') & (df['measurement_type']=='CRP')
+#     CRP_c_n= df.loc[condition, 'subject_id'].nunique()
+#     condition= (df['cohort_type']=='C') & (df['measurement_type']=='ESR')
+#     ESR_c_n= df.loc[condition, 'subject_id'].nunique()
+#     return all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n
 
-def count_measurement(df):
-    lists = ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
+def count_measurement(df, lists):
+ #   lists = ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
     T_numbers=[]
     C_numbers=[]
     for  i in lists: 
@@ -97,12 +97,17 @@ def count_measurement(df):
         condition= (df['cohort_type']=='C') & (df['measurement_type']== i )
         n= df.loc[condition, 'subject_id'].nunique()
         C_numbers.append(n)
-    T_count_N = pd.DataFrame(np.array([T_numbers]), columns =['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin'])
+    T_count_N = pd.DataFrame(np.array([T_numbers]), columns =lists)
     T_count_N['cohort_type'] ='Target'
-    C_count_N = pd.DataFrame(np.array([C_numbers]), columns =['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin'])
+    C_count_N = pd.DataFrame(np.array([C_numbers]), columns =lists)
     C_count_N['cohort_type'] ='Control'
     count_N = pd.concat([T_count_N,C_count_N ])
     return   count_N
+
+def delete_none(data):
+    condition = (data['value_as_number_before'].eq('None') | data['value_as_number_after'].eq('None'))
+    data = data.loc[~condition, :]
+    return(data)
 
 
 def change_str_date(dm):
