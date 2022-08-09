@@ -29,6 +29,14 @@ import psycopg2 as pg
 from collections import Counter
 import os
 from functools import reduce
+from psmpy import PsmPy
+from psmpy.functions import cohenD
+from psmpy.plotting import *
+import seaborn as sns
+import statsmodels.formula.api as smf
+import matplotlib.pyplot as plt
+import math
+from scipy import stats
 import DW_function as ff
 import DW_class as cc 
 
@@ -155,25 +163,46 @@ if __name__=='__main__' :
     print("final2 file size: ", ff.convert_size(file_size), "bytes")
     final2.to_csv("/data/results/"+cohort_hospital+'_final.csv')
 # [3/] ps 1st matching
+# psmatch 이전 
+    Stats = cc.Stats
+    data1=Stats.preprocess(final2)
+    before = Stats.ttest(data1)
+    before['type'] = 'before'
+    # psmatch 이후 
+    after_ps = Stats.psmatch(final2) 
+    after = Stats.ttest(after_ps)
+    after['type']='after'
+    # high
+    sub1, sub2= Stats.dose_preprocess(final2)
+    after_ps_high = Stats.psmatch(sub1)
+    high =  Stats.ttest(after_ps_high)
+    # low
+    after_ps_low = Stats.psmatch(sub2)
+    low =  Stats.ttest(after_ps_low)
+    high['type'] =' high'
+    low['type'] ='low'
 # [4/] t-test (t vs c )
+    ttest= pd.concat([before, after, high, low])
+    ttest.to_csv("/data/results/"+cohort_hospital+'_ttest.csv')
 # [5/] paired t-test (in t )
-    
+    paired_ttest = Stats.pairedttest(final2)
+    paired_ttest.to_csv("/data/results/"+cohort_hospital+'_paired_ttest.csv')
 
 # 4. Add HealthScore data:
 # [1/] healthscore variabels: before, after 
-    s = cc.Simplify
-    lists= ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
-    pair= s.Pair(m1, lists)
-# [2/] healthscore:  measurement in drug_Exposure
-    exposure= s.Exposure(m1, lists)
-# [3/] healthscore: ALL: 3 ingredient out, target: not metformin out
-    final= s.Ingredient(m1, t1, lists)
-    final.to_csv("/data/results/"+cohort_hospital+'_healthsocre.csv')
-### count N 
-    n1 = ff.count_measurement(pair, lists)
-    n2 = ff.count_measurement(exposure, lists)
-    n3 = ff.count_measurement(final, lists)
-    n= [n1, n2, n3]
-    count_N_hs = reduce(lambda left, right: pd.merge(left, right, on='cohort_type', how='inner'), n)
-    count_N_hs.to_csv("/data/results/"+cohort_hospital+'_count_N_hs.csv')
+#     s = cc.Simplify
+#     lists= ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
+#     pair= s.Pair(m1, lists)
+# # [2/] healthscore:  measurement in drug_Exposure
+#     exposure= s.Exposure(m1, lists)
+# # [3/] healthscore: ALL: 3 ingredient out, target: not metformin out
+#     final= s.Ingredient(m1, t1, lists)
+#     final.to_csv("/data/results/"+cohort_hospital+'_healthsocre.csv')
+# ### count N 
+#     n1 = ff.count_measurement(pair, lists)
+#     n2 = ff.count_measurement(exposure, lists)
+#     n3 = ff.count_measurement(final, lists)
+#     n= [n1, n2, n3]
+#     count_N_hs = reduce(lambda left, right: pd.merge(left, right, on='cohort_type', how='inner'), n)
+#     count_N_hs.to_csv("/data/results/"+cohort_hospital+'_count_N_hs.csv')
 # [4/] calculate healthscore 
