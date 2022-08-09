@@ -5,6 +5,9 @@ import re
 import psycopg2 as pg
 from logging.config import dictConfig
 import logging
+import seaborn as sns
+import math
+from scipy import stats
 from datetime import date, time, datetime, timedelta
 
 

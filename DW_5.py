@@ -29,6 +29,9 @@ import psycopg2 as pg
 from collections import Counter
 import os
 from functools import reduce
+from psmpy import PsmPy
+from psmpy.functions import cohenD
+from psmpy.plotting import *
 import DW_function as ff
 import DW_class as cc 
 
@@ -113,6 +116,7 @@ if __name__=='__main__' :
                                 ,'year_of_birth','start_year','age']
     file_size = sys.getsizeof(m1)
     print("m1 file size: ", ff.convert_size(file_size), "bytes")
+    # m1.to_csv("/data/results/"+cohort_hospital+'_m1.csv')
     # m1= pd.read_csv("test_sejong_icn.csv")
    
 # 1. Simpliyfy N 
@@ -124,6 +128,8 @@ if __name__=='__main__' :
     exposure= s.Exposure(m1, lists)
 # [3/3] simplify N: ALL: 3 ingredient out, target: not metformin out
     final= s.Ingredient(m1, t1, lists)
+    print("final")
+    print(final.head())
 ### count N 
     n1 = ff.count_measurement(pair, lists)
     n2 = ff.count_measurement(exposure, lists)
@@ -143,6 +149,8 @@ if __name__=='__main__' :
 # 3. Primary analysis (Add Subgroup analysis)
 # [1/] select earliest measurement data 
     final2= ff.make_row(final)
+    print('final2')
+    print(final2.head())
 # [2/] by dose group  
     dose=d.dose(m1, t1)
     final2= pd.merge(final2, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
@@ -155,25 +163,44 @@ if __name__=='__main__' :
     print("final2 file size: ", ff.convert_size(file_size), "bytes")
     final2.to_csv("/data/results/"+cohort_hospital+'_final.csv')
 # [3/] ps 1st matching
+    # s=cc.Stats
+# # before ps matching
+#     s.png(final2, 'CRP', 'before')
+#     s.png(final2, 'ESR', 'before')
+# # after ps matching 
+#     after_ps = s.psmatch(final2)
+#     s.png(after_ps, 'CRP', 'after')
+#     s.png(after_ps, 'ESR', 'after')
 # [4/] t-test (t vs c )
-# [5/] paired t-test (in t )
-    
+#     ttest1= s.ttest(final2)
+#     ttest1.to_csv("/data/results/"+cohort_hospital+'_ttest_all.csv')
+# #  용량별 층화 분석 
+# # 한 사람이 고용량, 저용량에 포함되는 경우 발생(8/9) : 고용량이 하나라도 있으면, 고용량군에 포함. 
+#     sub1, sub2 = s.dose_preprocess(final2)
+#     # T: high dose vs control  
+#     ttest2 = s.ttest(sub1)
+#     ttest3 = s.ttest(sub2)
+#     ttest2.to_csv("/data/results/"+cohort_hospital+'_ttest_high.csv')
+#     ttest3.to_csv("/data/results/"+cohort_hospital+'_ttest_dose.csv')
+# # [5/] paired t-test (in t )
+#     df = s.pairedttest(final2)
+#     df.to_csv("/data/results/"+cohort_hospital+'_paired_ttest.csv')
 
 # 4. Add HealthScore data:
 # [1/] healthscore variabels: before, after 
-    s = cc.Simplify
-    lists= ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
-    pair= s.Pair(m1, lists)
-# [2/] healthscore:  measurement in drug_Exposure
-    exposure= s.Exposure(m1, lists)
-# [3/] healthscore: ALL: 3 ingredient out, target: not metformin out
-    final= s.Ingredient(m1, t1, lists)
-    final.to_csv("/data/results/"+cohort_hospital+'_healthsocre.csv')
-### count N 
-    n1 = ff.count_measurement(pair, lists)
-    n2 = ff.count_measurement(exposure, lists)
-    n3 = ff.count_measurement(final, lists)
-    n= [n1, n2, n3]
-    count_N_hs = reduce(lambda left, right: pd.merge(left, right, on='cohort_type', how='inner'), n)
-    count_N_hs.to_csv("/data/results/"+cohort_hospital+'_count_N_hs.csv')
+#     s = cc.Simplify
+#     lists= ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
+#     pair= s.Pair(m1, lists)
+# # [2/] healthscore:  measurement in drug_Exposure
+#     exposure= s.Exposure(m1, lists)
+# # [3/] healthscore: ALL: 3 ingredient out, target: not metformin out
+#     final= s.Ingredient(m1, t1, lists)
+#     final.to_csv("/data/results/"+cohort_hospital+'_healthsocre.csv')
+# ### count N 
+#     n1 = ff.count_measurement(pair, lists)
+#     n2 = ff.count_measurement(exposure, lists)
+#     n3 = ff.count_measurement(final, lists)
+#     n= [n1, n2, n3]
+#     count_N_hs = reduce(lambda left, right: pd.merge(left, right, on='cohort_type', how='inner'), n)
+#     count_N_hs.to_csv("/data/results/"+cohort_hospital+'_count_N_hs.csv')
 # [4/] calculate healthscore 
