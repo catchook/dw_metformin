@@ -10,6 +10,10 @@ from psmpy import PsmPy
 from psmpy.functions import cohenD
 from psmpy.plotting import *
 import seaborn as sns
+<<<<<<< HEAD
+=======
+import statsmodels.formula.api as smf
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
 import matplotlib.pyplot as plt
 import math
 from scipy import stats
@@ -122,11 +126,19 @@ class Drug:
         before = before.loc[condition,['subject_id','measurement_type','value_as_number']]
         before= before.pivot_table(index=['subject_id'], columns =['measurement_type'], values= 'value_as_number', fill_value =0).reset_index()    
         return before 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
 class Stats:
     def __init__(self, data):
         self.data = data
     def preprocess(data):
+<<<<<<< HEAD
+=======
+        data= delete_none(data)
+        data=data.replace([np.inf, -np.inf], np.nan).dropna()
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
         data['cohort_type']=data['cohort_type'].replace('T',1)
         data['cohort_type']=data['cohort_type'].replace('C',0)
         data['gender']=data['gender'].replace('F',1)
@@ -136,6 +148,7 @@ class Stats:
         data['rate']= (data['value_as_number_after'] - data['value_as_number_before']) /data['value_as_number_before'] *100
         return data
     def psmatch(data):
+<<<<<<< HEAD
         data = Stats.preprocess(data)
         after_pss=[]
         lists=['CRP','ESR']
@@ -144,19 +157,74 @@ class Stats:
             data = data.loc[condition, ['subject_id', 'measurement_type', 'cohort_type',
 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd', 'BUN', 'Creatinine','gender', 'age']]
             psm = PsmPy(data, treatment='cohort_type', indx='subject_id', exclude=['measurement_type'])
+=======
+        dd = Stats.preprocess(data)
+        after_pss=[]
+        lists=['CRP','ESR']
+        for i in lists:         
+            condition = dd['measurement_type']== i
+            ddd = dd.loc[condition, ['subject_id', 'measurement_type', 'cohort_type','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd', 'BUN', 'Creatinine','gender', 'age']]
+            psm = PsmPy(ddd, treatment='cohort_type', indx='subject_id', exclude= ['measurement_type'])
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
             psm.logistic_ps(balance = False)
             # balance= True, This tells PsmPy to create balanced samples when fitting the logistic regression model. 
             psm.knn_matched(matcher= 'propensity_logit' , replacement=False, caliper=None)
             # replacement-false(default); determines whether macthing will happen with or without replacement, when replacement is false matching happens 1:1
             # caliper - None (default), user can specify caliper size relative to std. dev of the control sample, restricting neighbors eligible to match
+<<<<<<< HEAD
             psm.plot_match(Title='Matching Result', Ylabel='Number of patients', Xlabel= 'propensity_logit' ,names = ['target', 'control'],save=True)
             psm.effect_size_plot(save=True)
+=======
+            # psm.plot_match(Title='Matching Result', Ylabel='Number of patients', Xlabel= 'propensity_logit' ,names = ['target', 'control'],save=True)
+            # psm.effect_size_plot(save=True)
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
             after_ps = psm.df_matched
             after_ps['measurement_type'] = i
             after_pss.append(after_ps)
         after_ps = pd.concat([after_pss[0], after_pss[1]])
         after_ps= after_ps.drop_duplicates()
+<<<<<<< HEAD
         return after_ps 
+=======
+# #rate변수 합치기. !!!!!!!!!!!!!!!!!!!!!!!
+        after_ps = pd.merge(after_ps, dd[['subject_id','measurement_type','rate','value_as_number_before','value_as_number_after']], on=['subject_id', 'measurement_type'], how= 'left') 
+        after_ps=after_ps.replace([np.inf, -np.inf], np.nan).dropna()
+        return after_ps
+    def psmatch2(data):
+        dd = Stats.preprocess(data)
+        after_pss2=[]
+        lists=['CRP','ESR']
+        for i in lists:
+          condition = dd['measurement_type']== i
+          ddd = dd.loc[condition, ['subject_id', 'measurement_type', 'cohort_type','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd', 'BUN', 'Creatinine','gender', 'age']]
+          condition = ddd['cohort_type'] ==1
+          target = ddd.loc[condition, :]
+          condition = ddd['cohort_type'] ==0
+          control = ddd.loc[condition, :]
+          if (len(ddd)==0 )| (len(control) ==0) | (len(target)==0):
+            print("empty types: "+i)
+            after_ps2 = pd.DataFrame()
+            after_pss2.append(after_ps2)
+          else:
+            psm = PsmPy(ddd, treatment='cohort_type', indx='subject_id', exclude= ['measurement_type'])
+            psm.logistic_ps(balance = False)
+            # balance= True, This tells PsmPy to create balanced samples when fitting the logistic regression model. 
+            psm.knn_matched(matcher= 'propensity_logit' , replacement=False, caliper=None)
+            # replacement-false(default); determines whether macthing will happen with or without replacement, when replacement is false matching happens 1:1
+            # caliper - None (default), user can specify caliper size relative to std. dev of the control sample, restricting neighbors eligible to match
+            # psm.plot_match(Title='Matching Result', Ylabel='Number of patients', Xlabel= 'propensity_logit' ,names = ['target', 'control'],save=True)
+            # psm.effect_size_plot(save=True)
+            after_ps2 = psm.df_matched
+            after_ps2['measurement_type'] = i
+            after_ps2= after_ps2.drop_duplicates()
+            after_ps2 = pd.merge(after_ps2, dd[['subject_id','measurement_type','rate','value_as_number_before','value_as_number_after']], on=['subject_id', 'measurement_type'], how= 'left') 
+            after_pss2.append(after_ps2)
+
+        after_ps3= pd.concat([after_pss2[0], after_pss2[1]])
+        after_ps3= after_ps3.drop_duplicates()
+        after_ps3=after_ps3.replace([np.inf, -np.inf], np.nan).dropna()
+        return after_ps3
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
     # def png(data, variable, step):
     #     data = Stats.preprocess(data)
     #     condition = ((data['cohort_type']== 'T') | (data['cohort_type']== 1)) & (data['measurement_type']== variable)
@@ -174,15 +242,26 @@ class Stats:
     #     plt.savefig(step+'_ps.png', dpi=300)
     def ttest(data):
         ## all 
+<<<<<<< HEAD
         after_ps = Stats.psmatch(data)
+=======
+        #after_ps = Stats.psmatch(data)
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
         lists =['CRP','ESR']
         t_stats=[]
         p_vals=[]
         for i in lists:
+<<<<<<< HEAD
             condition = ((after_ps['cohort_type']== 'T') | (after_ps['cohort_type']== 1)) & (after_ps['measurement_type']== i)
             target = after_ps.loc[condition,'rate']
             condition = ((after_ps['cohort_type']== 'C') | (after_ps['cohort_type']== 0)) & (after_ps['measurement_type']== i)
             control = after_ps.loc[condition,'rate']
+=======
+            condition = ((data['cohort_type']== 'T') | (data['cohort_type']== 1)) & (data['measurement_type']== i)
+            target = data.loc[condition,'rate']
+            condition = ((data['cohort_type']== 'C') | (data['cohort_type']== 0)) & (data['measurement_type']== i)
+            control = data.loc[condition,'rate']
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
             t_stat, p_val= stats.ttest_ind(target, control, equal_var = True, alternative='two-sided')
             t_stats.append(t_stat)
             p_vals.append(p_val)
@@ -192,6 +271,7 @@ class Stats:
         return df
     def dose_preprocess(data):
         ## T (high dose) vs Control  
+<<<<<<< HEAD
         condition = (data['dose_type'] =='high') & (data['cohort_type']=='T')
         high_list = data.loc[condition, 'subject_id'].drop_duplicates()
         high = data.loc[condition, :].drop_duplicates()
@@ -203,10 +283,24 @@ class Stats:
         sub2 = pd.concat([low, control]).drop_duplicates()
         return sub1, sub2
     def pairedttest(data2):
+=======
+        condition = (data['dose_type'] =='high') & ((data['cohort_type']=='T') | (data['cohort_type']== 1) )
+        high_list = data.loc[condition, 'subject_id'].drop_duplicates()
+        high = data.loc[condition, :].drop_duplicates()
+        condition = (data['cohort_type']=='C') | (data['cohort_type']== 0)
+        control = data.loc[condition, :].drop_duplicates()
+        sub1 = pd.concat([high, control]).drop_duplicates()
+        condition = (data['subject_id'].isin(high_list)==False) & ((data['cohort_type']=='T') | (data['cohort_type']== 1) )
+        low = data.loc[condition,:].drop_duplicates()
+        sub2 = pd.concat([low, control]).drop_duplicates()
+        return sub1, sub2
+    def pairedttest(data):
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
         lists =['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
         results=[]
         for i in lists:
             if i =='metformin': 
+<<<<<<< HEAD
                 condition = (data2.cohort_type =='T') & (data2.drug_group.isin(['metformin']))
                 i = data2.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
                 i.drop_duplicates(inplace=True)
@@ -214,6 +308,15 @@ class Stats:
             else:   
                 condition = (data2.cohort_type =='T') & (data2['drug_group'].str.contains('metformin') )& (data2['drug_group'].str.contains(i) )
                 i = data2.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
+=======
+                condition = (data.cohort_type =='T') & (data.drug_group.isin(['metformin']))
+                i = data.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
+                i.drop_duplicates(inplace=True)
+                results.append(i)
+            else:   
+                condition = (data.cohort_type =='T') & (data['drug_group'].str.contains('metformin') )& (data['drug_group'].str.contains(i) )
+                i = data.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
                 i.drop_duplicates(inplace=True)
                 results.append(i)
         t_stats=[]
@@ -223,6 +326,12 @@ class Stats:
                 t_stats.append(0)
                 p_vals.append(0)
             else:
+<<<<<<< HEAD
+=======
+                i = ff.delete_none(i)
+                i['value_as_number_before'] = i['value_as_number_before'].astype(float)
+                i['value_as_number_after'] = i['value_as_number_after'].astype(float)
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
                 t_stat, p_val= stats.ttest_rel(i['value_as_number_before'],i['value_as_number_after']) 
                 t_stats.append(t_stat)
                 p_vals.append(p_val)
@@ -230,9 +339,12 @@ class Stats:
                             't_stat':t_stats,
                             'p_val': p_vals })
         return df 
+<<<<<<< HEAD
         
         
 
+=======
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
 # 5. Add HealthScore data:
 # [1/3] healthscore variabels: before, after 
 # [2/3] calculate healthscore 

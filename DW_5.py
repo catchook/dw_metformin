@@ -32,6 +32,14 @@ from functools import reduce
 from psmpy import PsmPy
 from psmpy.functions import cohenD
 from psmpy.plotting import *
+<<<<<<< HEAD
+=======
+import seaborn as sns
+import statsmodels.formula.api as smf
+import matplotlib.pyplot as plt
+import math
+from scipy import stats
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
 import DW_function as ff
 import DW_class as cc 
 
@@ -163,6 +171,7 @@ if __name__=='__main__' :
     print("final2 file size: ", ff.convert_size(file_size), "bytes")
     final2.to_csv("/data/results/"+cohort_hospital+'_final.csv')
 # [3/] ps 1st matching
+<<<<<<< HEAD
     # s=cc.Stats
 # # before ps matching
 #     s.png(final2, 'CRP', 'before')
@@ -185,6 +194,32 @@ if __name__=='__main__' :
 # # [5/] paired t-test (in t )
 #     df = s.pairedttest(final2)
 #     df.to_csv("/data/results/"+cohort_hospital+'_paired_ttest.csv')
+=======
+# psmatch 이전 
+    Stats = cc.Stats
+    data1=Stats.preprocess(final2)
+    before = Stats.ttest(data1)
+    before['type'] = 'before'
+    # psmatch 이후 
+    after_ps = Stats.psmatch(final2) 
+    after = Stats.ttest(after_ps)
+    after['type']='after'
+    # high
+    sub1, sub2= Stats.dose_preprocess(final2)
+    after_ps_high = Stats.psmatch(sub1)
+    high =  Stats.ttest(after_ps_high)
+    # low
+    after_ps_low = Stats.psmatch(sub2)
+    low =  Stats.ttest(after_ps_low)
+    high['type'] =' high'
+    low['type'] ='low'
+# [4/] t-test (t vs c )
+    ttest= pd.concat([before, after, high, low])
+    ttest.to_csv("/data/results/"+cohort_hospital+'_ttest.csv')
+# [5/] paired t-test (in t )
+    paired_ttest = Stats.pairedttest(final2)
+    paired_ttest.to_csv("/data/results/"+cohort_hospital+'_paired_ttest.csv')
+>>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
 
 # 4. Add HealthScore data:
 # [1/] healthscore variabels: before, after 
