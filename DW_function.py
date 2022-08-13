@@ -89,8 +89,9 @@ def save_query( SCHEMA, cohort_target, cohort_control, sql, c):
 #     ESR_c_n= df.loc[condition, 'subject_id'].nunique()
 #     return all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n
 
-def count_measurement(df, lists):
+def count_measurement(df):
  #   lists = ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
+    lists = list(df['measurement_type'].drop_duplicates())
     T_numbers=[]
     C_numbers=[]
     for  i in lists: 

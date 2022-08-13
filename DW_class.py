@@ -10,14 +10,30 @@ from psmpy import PsmPy
 from psmpy.functions import cohenD
 from psmpy.plotting import *
 import seaborn as sns
-<<<<<<< HEAD
-=======
 import statsmodels.formula.api as smf
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
 import matplotlib.pyplot as plt
 import math
 from scipy import stats
 import DW_function as ff
+##rpy2
+import rpy2
+from rpy2.robjects.packages import importr
+import rpy2.robjects as r
+import rpy2.robjects.pandas2ri as pandas2ri
+from rpy2.robjects import Formula
+pandas2ri.activate()
+# import rpy2's package module
+import rpy2.robjects.packages as rpackages
+from rpy2.robjects.conversion import localconverter
+# rpy2
+base = importr('base')
+utils = importr('utils')
+utils=rpackages.importr('utils')
+utils.install_packages('MatchIt')
+utils.install_packages('stats')
+statss= importr('stats')
+matchit=importr('MatchIt')
+
 
 # 1. Simpliyfy N 
 # [1/3] Simplify N: only who got ESR, CRP
@@ -126,105 +142,115 @@ class Drug:
         before = before.loc[condition,['subject_id','measurement_type','value_as_number']]
         before= before.pivot_table(index=['subject_id'], columns =['measurement_type'], values= 'value_as_number', fill_value =0).reset_index()    
         return before 
-<<<<<<< HEAD
-
-=======
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
 class Stats:
     def __init__(self, data):
         self.data = data
     def preprocess(data):
-<<<<<<< HEAD
-=======
-        data= delete_none(data)
+        data= ff.delete_none(data)
         data=data.replace([np.inf, -np.inf], np.nan).dropna()
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
-        data['cohort_type']=data['cohort_type'].replace('T',1)
-        data['cohort_type']=data['cohort_type'].replace('C',0)
-        data['gender']=data['gender'].replace('F',1)
-        data['gender']=data['gender'].replace('M',0)    
+        # data['cohort_type']=data['cohort_type'].replace('T',1)
+        # data['cohort_type']=data['cohort_type'].replace('C',0)
+        # data['gender']=data['gender'].replace('F',1)
+        # data['gender']=data['gender'].replace('M',0)    
         data['value_as_number_after'] = data['value_as_number_after'].astype(float)
         data['value_as_number_before'] = data['value_as_number_before'].astype(float)
         data['rate']= (data['value_as_number_after'] - data['value_as_number_before']) /data['value_as_number_before'] *100
         return data
-    def psmatch(data):
-<<<<<<< HEAD
-        data = Stats.preprocess(data)
-        after_pss=[]
-        lists=['CRP','ESR']
-        for i in lists:         
-            condition = data['measurement_type']== i
-            data = data.loc[condition, ['subject_id', 'measurement_type', 'cohort_type',
-'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd', 'BUN', 'Creatinine','gender', 'age']]
-            psm = PsmPy(data, treatment='cohort_type', indx='subject_id', exclude=['measurement_type'])
-=======
-        dd = Stats.preprocess(data)
-        after_pss=[]
-        lists=['CRP','ESR']
-        for i in lists:         
-            condition = dd['measurement_type']== i
-            ddd = dd.loc[condition, ['subject_id', 'measurement_type', 'cohort_type','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd', 'BUN', 'Creatinine','gender', 'age']]
-            psm = PsmPy(ddd, treatment='cohort_type', indx='subject_id', exclude= ['measurement_type'])
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
-            psm.logistic_ps(balance = False)
-            # balance= True, This tells PsmPy to create balanced samples when fitting the logistic regression model. 
-            psm.knn_matched(matcher= 'propensity_logit' , replacement=False, caliper=None)
-            # replacement-false(default); determines whether macthing will happen with or without replacement, when replacement is false matching happens 1:1
-            # caliper - None (default), user can specify caliper size relative to std. dev of the control sample, restricting neighbors eligible to match
-<<<<<<< HEAD
-            psm.plot_match(Title='Matching Result', Ylabel='Number of patients', Xlabel= 'propensity_logit' ,names = ['target', 'control'],save=True)
-            psm.effect_size_plot(save=True)
-=======
-            # psm.plot_match(Title='Matching Result', Ylabel='Number of patients', Xlabel= 'propensity_logit' ,names = ['target', 'control'],save=True)
-            # psm.effect_size_plot(save=True)
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
-            after_ps = psm.df_matched
-            after_ps['measurement_type'] = i
-            after_pss.append(after_ps)
-        after_ps = pd.concat([after_pss[0], after_pss[1]])
-        after_ps= after_ps.drop_duplicates()
-<<<<<<< HEAD
-        return after_ps 
-=======
-# #rate변수 합치기. !!!!!!!!!!!!!!!!!!!!!!!
-        after_ps = pd.merge(after_ps, dd[['subject_id','measurement_type','rate','value_as_number_before','value_as_number_after']], on=['subject_id', 'measurement_type'], how= 'left') 
-        after_ps=after_ps.replace([np.inf, -np.inf], np.nan).dropna()
-        return after_ps
-    def psmatch2(data):
-        dd = Stats.preprocess(data)
-        after_pss2=[]
-        lists=['CRP','ESR']
-        for i in lists:
-          condition = dd['measurement_type']== i
-          ddd = dd.loc[condition, ['subject_id', 'measurement_type', 'cohort_type','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd', 'BUN', 'Creatinine','gender', 'age']]
-          condition = ddd['cohort_type'] ==1
-          target = ddd.loc[condition, :]
-          condition = ddd['cohort_type'] ==0
-          control = ddd.loc[condition, :]
-          if (len(ddd)==0 )| (len(control) ==0) | (len(target)==0):
-            print("empty types: "+i)
-            after_ps2 = pd.DataFrame()
-            after_pss2.append(after_ps2)
-          else:
-            psm = PsmPy(ddd, treatment='cohort_type', indx='subject_id', exclude= ['measurement_type'])
-            psm.logistic_ps(balance = False)
-            # balance= True, This tells PsmPy to create balanced samples when fitting the logistic regression model. 
-            psm.knn_matched(matcher= 'propensity_logit' , replacement=False, caliper=None)
-            # replacement-false(default); determines whether macthing will happen with or without replacement, when replacement is false matching happens 1:1
-            # caliper - None (default), user can specify caliper size relative to std. dev of the control sample, restricting neighbors eligible to match
-            # psm.plot_match(Title='Matching Result', Ylabel='Number of patients', Xlabel= 'propensity_logit' ,names = ['target', 'control'],save=True)
-            # psm.effect_size_plot(save=True)
-            after_ps2 = psm.df_matched
-            after_ps2['measurement_type'] = i
-            after_ps2= after_ps2.drop_duplicates()
-            after_ps2 = pd.merge(after_ps2, dd[['subject_id','measurement_type','rate','value_as_number_before','value_as_number_after']], on=['subject_id', 'measurement_type'], how= 'left') 
-            after_pss2.append(after_ps2)
+    def psmatch(data):           
+        func_seed = r.r['set_seed']
+        func_matchit = r.r['matchit']
+        func_seed(1)
+        r_out1=func_matchit(formula = Formula('cohort_type ~BUN + Creatinine + gender + age'), data = data, method ='nearest', distance ='logit', replace =False, 
+        ratio =1)
+        func_match_data = r.r['match.data']
+        m_data = func_match_data(r_out1, data =data, distance ='prop.score')
+        return m_data
+    def normality(data):
+        condition = data['cohort_type']==0
+        target_rate = data.loc[condition, 'rate']
+        condition =data['cohort_type']==1
+        control_rate = data.loc[condition, 'rate']
+        func_shapiro = r.r['shapiro.test']
+        m_out2 = func_shapiro(target_rate)
+        m_out3 = func_shapiro(control_rate)
 
-        after_ps3= pd.concat([after_pss2[0], after_pss2[1]])
-        after_ps3= after_ps3.drop_duplicates()
-        after_ps3=after_ps3.replace([np.inf, -np.inf], np.nan).dropna()
-        return after_ps3
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
+#     def psmatch(data):
+# <<<<<<< HEAD
+#         data = Stats.preprocess(data)
+#         after_pss=[]
+#         lists=['CRP','ESR']
+#         for i in lists:         
+#             condition = data['measurement_type']== i
+#             data = data.loc[condition, ['subject_id', 'measurement_type', 'cohort_type',
+# 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd', 'BUN', 'Creatinine','gender', 'age']]
+#             psm = PsmPy(data, treatment='cohort_type', indx='subject_id', exclude=['measurement_type'])
+# =======
+#         dd = Stats.preprocess(data)
+#         after_pss=[]
+#         lists=['CRP','ESR']
+#         for i in lists:         
+#             condition = dd['measurement_type']== i
+#             ddd = dd.loc[condition, ['subject_id', 'measurement_type', 'cohort_type','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd', 'BUN', 'Creatinine','gender', 'age']]
+#             psm = PsmPy(ddd, treatment='cohort_type', indx='subject_id', exclude= ['measurement_type'])
+# >>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
+#             psm.logistic_ps(balance = False)
+#             # balance= True, This tells PsmPy to create balanced samples when fitting the logistic regression model. 
+#             psm.knn_matched(matcher= 'propensity_logit' , replacement=False, caliper=None)
+#             # replacement-false(default); determines whether macthing will happen with or without replacement, when replacement is false matching happens 1:1
+#             # caliper - None (default), user can specify caliper size relative to std. dev of the control sample, restricting neighbors eligible to match
+# <<<<<<< HEAD
+#             psm.plot_match(Title='Matching Result', Ylabel='Number of patients', Xlabel= 'propensity_logit' ,names = ['target', 'control'],save=True)
+#             psm.effect_size_plot(save=True)
+# =======
+#             # psm.plot_match(Title='Matching Result', Ylabel='Number of patients', Xlabel= 'propensity_logit' ,names = ['target', 'control'],save=True)
+#             # psm.effect_size_plot(save=True)
+# >>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
+#             after_ps = psm.df_matched
+#             after_ps['measurement_type'] = i
+#             after_pss.append(after_ps)
+#         after_ps = pd.concat([after_pss[0], after_pss[1]])
+#         after_ps= after_ps.drop_duplicates()
+# <<<<<<< HEAD
+#         return after_ps 
+# =======
+# # #rate변수 합치기. !!!!!!!!!!!!!!!!!!!!!!!
+#         after_ps = pd.merge(after_ps, dd[['subject_id','measurement_type','rate','value_as_number_before','value_as_number_after']], on=['subject_id', 'measurement_type'], how= 'left') 
+#         after_ps=after_ps.replace([np.inf, -np.inf], np.nan).dropna()
+#         return after_ps
+#     def psmatch2(data):
+#         dd = Stats.preprocess(data)
+#         after_pss2=[]
+#         lists=['CRP','ESR']
+#         for i in lists:
+#           condition = dd['measurement_type']== i
+#           ddd = dd.loc[condition, ['subject_id', 'measurement_type', 'cohort_type','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd', 'BUN', 'Creatinine','gender', 'age']]
+#           condition = ddd['cohort_type'] ==1
+#           target = ddd.loc[condition, :]
+#           condition = ddd['cohort_type'] ==0
+#           control = ddd.loc[condition, :]
+#           if (len(ddd)==0 )| (len(control) ==0) | (len(target)==0):
+#             print("empty types: "+i)
+#             after_ps2 = pd.DataFrame()
+#             after_pss2.append(after_ps2)
+#           else:
+#             psm = PsmPy(ddd, treatment='cohort_type', indx='subject_id', exclude= ['measurement_type'])
+#             psm.logistic_ps(balance = False)
+#             # balance= True, This tells PsmPy to create balanced samples when fitting the logistic regression model. 
+#             psm.knn_matched(matcher= 'propensity_logit' , replacement=False, caliper=None)
+#             # replacement-false(default); determines whether macthing will happen with or without replacement, when replacement is false matching happens 1:1
+#             # caliper - None (default), user can specify caliper size relative to std. dev of the control sample, restricting neighbors eligible to match
+#             # psm.plot_match(Title='Matching Result', Ylabel='Number of patients', Xlabel= 'propensity_logit' ,names = ['target', 'control'],save=True)
+#             # psm.effect_size_plot(save=True)
+#             after_ps2 = psm.df_matched
+#             after_ps2['measurement_type'] = i
+#             after_ps2= after_ps2.drop_duplicates()
+#             after_ps2 = pd.merge(after_ps2, dd[['subject_id','measurement_type','rate','value_as_number_before','value_as_number_after']], on=['subject_id', 'measurement_type'], how= 'left') 
+#             after_pss2.append(after_ps2)
+
+#         after_ps3= pd.concat([after_pss2[0], after_pss2[1]])
+#         after_ps3= after_ps3.drop_duplicates()
+#         after_ps3=after_ps3.replace([np.inf, -np.inf], np.nan).dropna()
+#         return after_ps3
     # def png(data, variable, step):
     #     data = Stats.preprocess(data)
     #     condition = ((data['cohort_type']== 'T') | (data['cohort_type']== 1)) & (data['measurement_type']== variable)
@@ -331,7 +357,7 @@ class Stats:
                 i = ff.delete_none(i)
                 i['value_as_number_before'] = i['value_as_number_before'].astype(float)
                 i['value_as_number_after'] = i['value_as_number_after'].astype(float)
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
+
                 t_stat, p_val= stats.ttest_rel(i['value_as_number_before'],i['value_as_number_after']) 
                 t_stats.append(t_stat)
                 p_vals.append(p_val)
@@ -339,12 +365,6 @@ class Stats:
                             't_stat':t_stats,
                             'p_val': p_vals })
         return df 
-<<<<<<< HEAD
-        
-        
-
-=======
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
 # 5. Add HealthScore data:
 # [1/3] healthscore variabels: before, after 
 # [2/3] calculate healthscore 

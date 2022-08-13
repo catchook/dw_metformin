@@ -38,6 +38,14 @@ pandas2ri.activate()
 # import rpy2's package module
 import rpy2.robjects.packages as rpackages
 from rpy2.robjects.conversion import localconverter
+# rpy2
+base = importr('base')
+utils = importr('utils')
+utils=rpackages.importr('utils')
+utils.install_packages('MatchIt')
+utils.install_packages('stats')
+statss= importr('stats')
+matchit=importr('MatchIt')
 
 # input_file reading 
 input_file = sys.argv[1]
@@ -132,8 +140,9 @@ if __name__=='__main__' :
     print("m1 file size: ", ff.convert_size(file_size), "bytes")
     #check N 
     n1 = ff.count_measurement(m1)
+    n1.to_csv('/data/results/'+cohort_hospital+'_n1.csv')
 
-    #  Add PS matching data
+    #  1. PS matching data
 # [1/3] 1st PS matching: drug history (adm drug group) 
     d=cc.Drug
     PS_1st = d.psmatch1(m1, t1)
@@ -143,4 +152,42 @@ if __name__=='__main__' :
     ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
     ps = pd.merge(ps, buncr,on='subject_id', how='left')
     ps.drop_duplicates(inplace=True)
-# BUN, CREATININE 수치가 없는 경우?
+    ps.fillna(0) # BUN, CREATININE 수치가 없는 경우?
+# [3/3] PS matching 
+    s= cc.Stats
+    m_data= s.psmatch(ps)
+    m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
+    file_size = sys.getsizeof(m2)
+    print("m1 file size: ", ff.convert_size(file_size), "bytes")
+    m2.to_csv('/data/results/'+cohort_hospital+'_n1.csv')
+    #check N 
+    n2 = ff.count_measurement(m2)
+    n2.to_csv('/data/results/'+cohort_hospital+'_n2.csv')
+# 2. Simpliyfy N 
+# [1/3] Simplify N: only who got ESR, CRP
+    s = cc.Simplify
+    lists = list(m2['measurement_type'].drop_duplicates())
+    pair= s.Pair(m2, lists)
+# [2/3] simplify N: measurement in drug_Exposure
+    exposure= s.Exposure(m2, lists)
+# [3/3] simplify N: ALL: 3 ingredient out, target: not metformin out
+    final= s.Ingredient(m2, t1, lists)
+    print("final")
+    print(final.head())
+### count N 
+    n1 = ff.count_measurement(pair )
+    n2 = ff.count_measurement(exposure)
+    n3 = ff.count_measurement(final )
+    n= [n1, n2, n3]
+    count_N = reduce(lambda left, right: pd.merge(left, right, on='cohort_type', how='inner'), n)
+    count_N.to_csv("/data/results/"+cohort_hospital+'_count_N .csv')
+# 3. Stat
+    
+
+
+
+
+    
+
+
+
