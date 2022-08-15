@@ -112,7 +112,8 @@ class Drug:
     # new column: dose_group: high(over 1,000 mg/day) / low  
         dc['dose_type']=dc.apply(lambda x:'high' if (x['metformin_dose']* x['quantity']/x['days_supply']>=1000.0) else 'low', axis=1)
         return dc
-    def psmatch1(data, t1):
+
+    def drug_history(data, t1):
     # [1/3] 1st PS matching: drug history (adm drug group) 
      #1) 1st PS matching: drug classification
         dc = Drug.dose(data, t1)
@@ -166,13 +167,134 @@ class Stats:
         m_data = func_match_data(r_out1, data =data, distance ='prop.score')
         return m_data
     def normality(data):
-        condition = data['cohort_type']==0
-        target_rate = data.loc[condition, 'rate']
-        condition =data['cohort_type']==1
-        control_rate = data.loc[condition, 'rate']
         func_shapiro = r.r['shapiro.test']
-        m_out2 = func_shapiro(target_rate)
-        m_out3 = func_shapiro(control_rate)
+        lists = list(data['measurement_type'].drop_duplicates())
+        T_stat =[]
+        C_stat=[]
+        T_pvalue=[]
+        C_pvalue=[]
+        for i in lists:
+            condition = (data['cohort_type']==0) & (data['measurement_type']== i )
+            target = data.loc[codition, 'rate']
+            condition = (data['cohort_type']==1) & (data['measurement_type']== i )
+            control = data.loc[codition, 'rate']
+            t_out = func_shapiro(target)
+            c_out = func_shapiro(control)
+            T_stat.append(t_out[0][0])
+            T_pvalue.append(t_out[1][0])
+            C_stat.append(c_out[0][0])
+            C_pvalue.append(c_out[1][0])
+        df = pd.DataFrame({'type': lists, 'T_stat' : T_stat, 'T_pvalue': T_pvalue, 'C_stat' : C_stat, 'C_pvalue': C_pvalue })
+        return df
+    def vartest(data):
+        func_vartest = r.r['var.test']
+        lists = list(data['measurement_type'].drop_duplicates())
+        F_stat =[]
+        P_value=[]
+        for i in lists:
+            condition = data['measurement_type']== i 
+            m_data = data.loc[condition, :]
+            m_data.drop_duplicates(inplace=True)
+            m_out= func_vartest(Formula('rate ~cohort_type'), m_data)
+            F_stat.append(m_out[0][0])
+            P_value.append(m_out[2][0])
+        df = pd.DataFrame({'type': lists, 'F_stat' : F_stat, 'P_value': P_value})
+        return df
+    def test(data):
+        func_ttest=r.r['t.test']
+        func_wilcox=r.r['wilcox.test']
+        lists = list(data['measurement_type'].drop_duplicates())
+        ttest_F_stat =[]
+        ttest_P_value=[]
+        wilcox_F_stat =[]
+        wilcox_P_value=[]
+        for i in lists:
+            condition = data['measurement_type']== i 
+            m_data = data.loc[condition, :]
+            m_data.drop_duplicates(inplace=True)
+            m_out1= func_ttest(Formula('rate ~cohort_type'), m_data)
+            m_out2= func_wilcox(Formula('rate ~cohort_type'), m_data)
+            ttest_F_stat.append(m_out1[0][0])
+            ttest_P_value.append(m_out1[2][0])
+            wilcox_F_stat.append(m_out2[0][0])
+            wilcox_P_value.append(m_out2[2][0])
+        df = pd.DataFrame({'type': lists, 'ttest_Fstat' : ttest_F_stat, 'ttest_P_value': ttest_P_value,'wilcox_F_stat':wilcox_F_stat, 'wilcox_P_value':wilcox_P_value})
+        return df 
+
+    def dose_preprocess(data):
+        ## T (high dose) vs Control  
+        condition = (data['dose_type'] =='high') & (data['cohort_type']==0)
+        high_list = data.loc[condition, 'subject_id'].drop_duplicates()
+        high = data.loc[condition, :].drop_duplicates()
+        condition = data['cohort_type']==1
+        control = data.loc[condition, :].drop_duplicates()
+        sub1 = pd.concat([high, control]).drop_duplicates()
+        condition = (data['subject_id'].isin(high_list)==False) & (data['cohort_type']==0)
+        low = data.loc[condition,:].drop_duplicates()
+        sub2 = pd.concat([low, control]).drop_duplicates()
+        return sub1, sub2
+    def drug_preprocess(data):
+        lists =['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+        results=[]
+        for i in lists:
+            if i =='metformin': 
+                condition = (data.cohort_type ==0) & (data.drug_group.isin(['metformin']))
+                i = data2.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
+                i.drop_duplicates(inplace=True)
+                results.append(i)
+            else:   
+                condition = (data.cohort_type ==0) & (data['drug_group'].str.contains(i))
+                i = data.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
+                i.drop_duplicates(inplace=True)
+                results.append(i)
+        return results 
+    def pairedtest (data):
+        data = ff.delete_none(data)
+        lists = list(data['measurement_type'].drop_duplicates())
+        func_shapiro = r.r['shapiro.test']
+        func_vartest = r.r['var.test']
+        func_ttest=r.r['t.test']
+        func_wilcox=r.r['wilcox.test']
+        
+        shapiro_stat =[]
+        shapiro_pvalue=[]
+        var_stat=[]
+        var_pvalue=[]
+
+        data['value_as_number_before'] = data['value_as_number_before'].astype(float)
+        data['value_as_number_after'] = data['value_as_number_after'].astype(float)
+        shapiro_pvalue_post=[]
+        shapiro_pvalue_pre=[]
+        var_pvalue=[]
+        ttest_F_stat =[]
+        ttest_P_value=[]
+        wilcox_F_stat =[]
+        wilcox_P_value=[]      
+        
+        for j in lists:
+            condition = data['measurement_type']== j
+            post = data.loc[codition, 'value_as_number_after']
+            pre = data.loc[codition, 'value_as_number_before']
+            shapiro_result_post= func_shapiro(post)
+            shapiro_result_pre= func_shapiro(pre)
+            var_result = func_vartest(post, pre)
+            ttest_result= func_ttest(post, pre)
+            wilcox_result= func_wilcox(post, pre)
+            shapiro_pvalue_post.append(shapiro_result_post[1][0])
+            shapiro_pvalue_pre.append(shapiro_result_pre[1][0])
+            var_pvalue.append(var_result[2][0])
+            ttest_F_stat.append(ttest_result[0][0])
+            ttest_P_value.append(ttest_result[2][0])
+            wilcox_F_stat.append(wilcox_result[0][0])
+            wilcox_P_value.append(wilcox_result[2][0])
+        df = pd.DataFrame({'type': lists, 'shapiro_pvalue_post' : shapiro_pvalue_post, 'shapiro_pvalue_pre': shapiro_pvalue_pre, 'var_pvalue' : var_pvalue, 
+                           'ttest_F_stat': ttest_F_stat, 'ttest_P_value':ttest_P_value, 'wilcox_F_stat':wilcox_F_stat, 'wilcox_P_value':wilcox_P_value })
+        return df
+    
+
+# 5. Add HealthScore data:
+# [1/3] healthscore variabels: before, after 
+# [2/3] calculate healthscore 
 
 #     def psmatch(data):
 # <<<<<<< HEAD
@@ -266,110 +388,35 @@ class Stats:
     #         fig.suptitle( step+' PSmatching  - 2 x 5 axes Box plot with all covariate' )
     #     plt.show()
     #     plt.savefig(step+'_ps.png', dpi=300)
-    def ttest(data):
-        ## all 
-<<<<<<< HEAD
-        after_ps = Stats.psmatch(data)
-=======
-        #after_ps = Stats.psmatch(data)
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
-        lists =['CRP','ESR']
-        t_stats=[]
-        p_vals=[]
-        for i in lists:
-<<<<<<< HEAD
-            condition = ((after_ps['cohort_type']== 'T') | (after_ps['cohort_type']== 1)) & (after_ps['measurement_type']== i)
-            target = after_ps.loc[condition,'rate']
-            condition = ((after_ps['cohort_type']== 'C') | (after_ps['cohort_type']== 0)) & (after_ps['measurement_type']== i)
-            control = after_ps.loc[condition,'rate']
-=======
-            condition = ((data['cohort_type']== 'T') | (data['cohort_type']== 1)) & (data['measurement_type']== i)
-            target = data.loc[condition,'rate']
-            condition = ((data['cohort_type']== 'C') | (data['cohort_type']== 0)) & (data['measurement_type']== i)
-            control = data.loc[condition,'rate']
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
-            t_stat, p_val= stats.ttest_ind(target, control, equal_var = True, alternative='two-sided')
-            t_stats.append(t_stat)
-            p_vals.append(p_val)
-        df= pd.DataFrame({'T-test': ['CRP', 'ESR'],
-                            't_stat':t_stats,
-                            'p_val': p_vals })
-        return df
-    def dose_preprocess(data):
-        ## T (high dose) vs Control  
-<<<<<<< HEAD
-        condition = (data['dose_type'] =='high') & (data['cohort_type']=='T')
-        high_list = data.loc[condition, 'subject_id'].drop_duplicates()
-        high = data.loc[condition, :].drop_duplicates()
-        condition = data['cohort_type']=='C'
-        control = data.loc[condition, :].drop_duplicates()
-        sub1 = pd.concat([high, control]).drop_duplicates()
-        condition = (data['subject_id'].isin(high_list)==False) & (data['cohort_type']=='T')
-        low = data.loc[condition,:].drop_duplicates()
-        sub2 = pd.concat([low, control]).drop_duplicates()
-        return sub1, sub2
-    def pairedttest(data2):
-=======
-        condition = (data['dose_type'] =='high') & ((data['cohort_type']=='T') | (data['cohort_type']== 1) )
-        high_list = data.loc[condition, 'subject_id'].drop_duplicates()
-        high = data.loc[condition, :].drop_duplicates()
-        condition = (data['cohort_type']=='C') | (data['cohort_type']== 0)
-        control = data.loc[condition, :].drop_duplicates()
-        sub1 = pd.concat([high, control]).drop_duplicates()
-        condition = (data['subject_id'].isin(high_list)==False) & ((data['cohort_type']=='T') | (data['cohort_type']== 1) )
-        low = data.loc[condition,:].drop_duplicates()
-        sub2 = pd.concat([low, control]).drop_duplicates()
-        return sub1, sub2
-    def pairedttest(data):
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
-        lists =['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
-        results=[]
-        for i in lists:
-            if i =='metformin': 
-<<<<<<< HEAD
-                condition = (data2.cohort_type =='T') & (data2.drug_group.isin(['metformin']))
-                i = data2.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
-                i.drop_duplicates(inplace=True)
-                results.append(i)
-            else:   
-                condition = (data2.cohort_type =='T') & (data2['drug_group'].str.contains('metformin') )& (data2['drug_group'].str.contains(i) )
-                i = data2.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
-=======
-                condition = (data.cohort_type =='T') & (data.drug_group.isin(['metformin']))
-                i = data.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
-                i.drop_duplicates(inplace=True)
-                results.append(i)
-            else:   
-                condition = (data.cohort_type =='T') & (data['drug_group'].str.contains('metformin') )& (data['drug_group'].str.contains(i) )
-                i = data.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
->>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
-                i.drop_duplicates(inplace=True)
-                results.append(i)
-        t_stats=[]
-        p_vals=[]
-        for i in results:
-            if len(i) == 0: 
-                t_stats.append(0)
-                p_vals.append(0)
-            else:
-<<<<<<< HEAD
-=======
-                i = ff.delete_none(i)
-                i['value_as_number_before'] = i['value_as_number_before'].astype(float)
-                i['value_as_number_after'] = i['value_as_number_after'].astype(float)
-
-                t_stat, p_val= stats.ttest_rel(i['value_as_number_before'],i['value_as_number_after']) 
-                t_stats.append(t_stat)
-                p_vals.append(p_val)
-        df= pd.DataFrame({'name': ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd'],
-                            't_stat':t_stats,
-                            'p_val': p_vals })
-        return df 
-# 5. Add HealthScore data:
-# [1/3] healthscore variabels: before, after 
-# [2/3] calculate healthscore 
-
-
+#     def ttest(data):
+#         ## all 
+# <<<<<<< HEAD
+#         after_ps = Stats.psmatch(data)
+# =======
+#         #after_ps = Stats.psmatch(data)
+# >>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
+#         lists =['CRP','ESR']
+#         t_stats=[]
+#         p_vals=[]
+#         for i in lists:
+# <<<<<<< HEAD
+#             condition = ((after_ps['cohort_type']== 'T') | (after_ps['cohort_type']== 1)) & (after_ps['measurement_type']== i)
+#             target = after_ps.loc[condition,'rate']
+#             condition = ((after_ps['cohort_type']== 'C') | (after_ps['cohort_type']== 0)) & (after_ps['measurement_type']== i)
+#             control = after_ps.loc[condition,'rate']
+# =======
+#             condition = ((data['cohort_type']== 'T') | (data['cohort_type']== 1)) & (data['measurement_type']== i)
+#             target = data.loc[condition,'rate']
+#             condition = ((data['cohort_type']== 'C') | (data['cohort_type']== 0)) & (data['measurement_type']== i)
+#             control = data.loc[condition,'rate']
+# >>>>>>> 2b830ff636b935f1fc5cbd505e353fdd6cbb128d
+#             t_stat, p_val= stats.ttest_ind(target, control, equal_var = True, alternative='two-sided')
+#             t_stats.append(t_stat)
+#             p_vals.append(p_val)
+#         df= pd.DataFrame({'T-test': ['CRP', 'ESR'],
+#                             't_stat':t_stats,
+#                             'p_val': p_vals })
+#         return df
 
 
 
