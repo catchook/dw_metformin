@@ -65,8 +65,8 @@ if __name__=='__main__' :
     cohort_control= cohort_info['C2'].iloc[0].astype(str)
     print("hospital: ", cohort_hospital)
 # sql 
-    sql = """ select distinct (case when cohort_definition_id = target then 0
-      when cohort_definition_id = control then 1 else '' end) as cohort_type
+    sql = """ select distinct (case when cohort_definition_id = target then '0'  
+    when cohort_definition_id = control then '1' else '' end) as cohort_type
       ,a.subject_id 
       ,a.cohort_start_date
       ,(a.cohort_start_date + 455) as cohort_end_date 
@@ -97,12 +97,10 @@ if __name__=='__main__' :
                     END) as measurement_type
       ,c.measurement_date
       ,c.value_as_number
-      , (case when d.gender_concept_id = 8507 then 0 
-              when d.gender_concept_id = 8532 then 1 
+      , (case when d.gender_concept_id = 8507 then '0' 
+              when d.gender_concept_id = 8532 then '1' 
               else ''
-              END) as gender
-      ,d.year_of_birth
-      , EXTRACT(YEAR FROM a.cohort_start_date) as start_year     
+              END) as gender   
       , (EXTRACT(YEAR FROM a.cohort_start_date)-d.year_of_birth) as age
       from cdm_hira_2017_results_fnet_v276.cohort as a
 
@@ -135,7 +133,7 @@ if __name__=='__main__' :
         # check file size
     m1.columns= ['cohort_type','subject_id','cohort_start_date','cohort_end_date','drug_concept_id','drug_exposure_start_date',
                                 'drug_exposure_end_date', 'quantity', 'days_supply','measurement_type','measurement_date', 'value_as_number','gender'
-                                ,'year_of_birth','start_year','age']
+                                ,'age']
     file_size = sys.getsizeof(m1)
     print("m1 file size: ", ff.convert_size(file_size), "bytes")
     #check N 
@@ -187,74 +185,76 @@ if __name__=='__main__' :
 # 1) quantity, days_supply 컬럼 값 붙이기. 
     final2 = pd.merge(final, m1[['subject_id', 'measurement_type', 'measurement_date', 'drug_concept_id','quantity', 'days_supply']], how='left',
                         left_on= ['subject_id','measurement_type','measurement_date_after','drug_concept_id'], right_on = ['subject_id','measurement_type','measurement_date','drug_concept_id'])
+    file_size = sys.getsizeof(final2)
+    print("final2 file size: ", ff.convert_size(file_size), "bytes")
+    final2.to_csv('/data/results/'+cohort_hospital+'_final2.csv')
 # 2) 계산해서 high, low 구분하기. 
-    dose = d.dose(final2, t1)
-    del final2
-    final1= pd.merge(final, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
-    final1.drop_duplicates(inplace=True)
-    
-# # [2/] calculate rate
-    final1=st.preprocess(final1)
-# 통계 계산에 필요한 컬럼은? 
-## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
-    final2 = final1[['subject_id', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
-    final2.drop_duplicates(inplace=True)
-## 수가 동일할까?
-    n4 = ff.count_measurement(final2)
-    n4.to_csv("/data/results/"+cohort_hospital+'_n4.csv')
+#     dose = d.dose(final2, t1)
+#     del final2
+#     final1= pd.merge(final, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
+#     final1.drop_duplicates(inplace=True)
+# # # [2/] calculate rate
+#     final1=st.preprocess(final1)
+# # 통계 계산에 필요한 컬럼은? 
+# ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
+#     final2 = final1[['subject_id', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
+#     final2.drop_duplicates(inplace=True)
+# ## 수가 동일할까?
+#     n4 = ff.count_measurement(final2)
+#     n4.to_csv("/data/results/"+cohort_hospital+'_n4.csv')
 
-# #[2/] type별로 등분산성, 정규성 검정 이후.
-    normality = st.normality(final2) # rate 정규성 검정 
-    normality.to_csv("/data/results/"+cohort_hospital+'_normality.csv')
-    vartest = st.vartest(final2)
-    vartest.to_csv("/data/results/"+cohort_hospital+'_vartest.csv')
-# #[3/] type별로 t-test
-    test = st.test(final2)
-    test.to_csv("/data/results/"+cohort_hospital+'_test.csv')
-## [4/] 용량별 t-test
-    sub1, sub2 = st.dose_preprocess(final2)
-    high_normality = st.normality(sub1)
-    high_normality['dose'] ='high'
-    low_normality = st.normality(sub2)
-    low_normality['dose'] ='low'
-    high_vartest = st.vartest(sub1)
-    high_vartest['dose'] ='high'
-    low_vartest = st.vartest(sub2)
-    low_vartest['dose'] ='low'
-    high = st.ttest(sub1)
-    high['dose']='high'
-    low= st.ttest(sub2)
-    low['dose']='low'
-    dose_nomality = pd.concat([high_normality,low_normality])
-    dose_vartest= pd.concat([high_vartest,low_vartest ])
-    dose_test = pd.concat([high, low])
-    dose_nomality.to_csv("/data/results/"+cohort_hospital+'_dose_nomality.csv')
-    dose_vartest.to_csv("/data/results/"+cohort_hospital+'_dose_vartest.csv')
-    dose_test.to_csv("/data/results/"+cohort_hospital+'_dose_test.csv')
-## [5/] paired t-test
-    results = st.drug_preprocess(final2) # ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
-    paired_results=[]
-    for i in results:
-        if len(i)==0:
-            paired_results.append(0)
-        else: 
-            paired_result = st.pairedtest(i)
-            paired_results.append(paired_result)
+# # #[2/] type별로 등분산성, 정규성 검정 이후.
+#     normality = st.normality(final2) # rate 정규성 검정 
+#     normality.to_csv("/data/results/"+cohort_hospital+'_normality.csv')
+#     vartest = st.vartest(final2)
+#     vartest.to_csv("/data/results/"+cohort_hospital+'_vartest.csv')
+# # #[3/] type별로 t-test
+#     test = st.test(final2)
+#     test.to_csv("/data/results/"+cohort_hospital+'_test.csv')
+# ## [4/] 용량별 t-test
+#     sub1, sub2 = st.dose_preprocess(final2)
+#     high_normality = st.normality(sub1)
+#     high_normality['dose'] ='high'
+#     low_normality = st.normality(sub2)
+#     low_normality['dose'] ='low'
+#     high_vartest = st.vartest(sub1)
+#     high_vartest['dose'] ='high'
+#     low_vartest = st.vartest(sub2)
+#     low_vartest['dose'] ='low'
+#     high = st.ttest(sub1)
+#     high['dose']='high'
+#     low= st.ttest(sub2)
+#     low['dose']='low'
+#     dose_nomality = pd.concat([high_normality,low_normality])
+#     dose_vartest= pd.concat([high_vartest,low_vartest ])
+#     dose_test = pd.concat([high, low])
+#     dose_nomality.to_csv("/data/results/"+cohort_hospital+'_dose_nomality.csv')
+#     dose_vartest.to_csv("/data/results/"+cohort_hospital+'_dose_vartest.csv')
+#     dose_test.to_csv("/data/results/"+cohort_hospital+'_dose_test.csv')
+# ## [5/] paired t-test
+#     results = st.drug_preprocess(final2) # ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+#     paired_results=[]
+#     for i in results:
+#         if len(i)==0:
+#             paired_results.append(0)
+#         else: 
+#             paired_result = st.pairedtest(i)
+#             paired_results.append(paired_result)
             
-    metformin = paried_results[0]
-    metformin.to_csv("/data/results/"+cohort_hospital+'_metformin.csv')
-    SU= paried_results[1]
-    SU.to_csv("/data/results/"+cohort_hospital+'_SU.csv')
-    alpha = paried_results[2]
-    alpha.to_csv("/data/results/"+cohort_hospital+'_alpha.csv')
-    dpp4i = paried_results[3]
-    dpp4i.to_csv("/data/results/"+cohort_hospital+'_dpp4i.csv')
-    gnd= paried_results[4]
-    gnd.to_csv("/data/results/"+cohort_hospital+'_gnd.csv')
-    sglt2 = paried_results[5]
-    sglt2.to_csv("/data/results/"+cohort_hospital+'_sglt2.csv')
-    tzd =paried_results[6]
-    tzd.to_csv("/data/results/"+cohort_hospital+'_tzd.csv')
+#     metformin = paried_results[0]
+#     metformin.to_csv("/data/results/"+cohort_hospital+'_metformin.csv')
+#     SU= paried_results[1]
+#     SU.to_csv("/data/results/"+cohort_hospital+'_SU.csv')
+#     alpha = paried_results[2]
+#     alpha.to_csv("/data/results/"+cohort_hospital+'_alpha.csv')
+#     dpp4i = paried_results[3]
+#     dpp4i.to_csv("/data/results/"+cohort_hospital+'_dpp4i.csv')
+#     gnd= paried_results[4]
+#     gnd.to_csv("/data/results/"+cohort_hospital+'_gnd.csv')
+#     sglt2 = paried_results[5]
+#     sglt2.to_csv("/data/results/"+cohort_hospital+'_sglt2.csv')
+#     tzd =paried_results[6]
+#     tzd.to_csv("/data/results/"+cohort_hospital+'_tzd.csv')
             
             
 ## python stat 차이나는지 이후 검정 https://techbrad.tistory.com/6..안되면 python으로?

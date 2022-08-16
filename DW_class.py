@@ -46,6 +46,10 @@ class Simplify:
         self.t1 = t1
         self.lists= lists
     def Pair(data, lists):
+        data['cohort_start_date'] = data['cohort_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
+        data['measurement_date'] = data['measurement_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))   
+        data['drug_exposure_start_date'] = data['drug_exposure_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
+        data['drug_exposure_end_date'] = data['drug_exposure_end_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))       
         condition= (data['measurement_date'] < data['cohort_start_date']) & (data['measurement_type'].isin(lists))
         before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','cohort_type','value_as_number']]
         before.dropna(inplace=True)
@@ -79,7 +83,7 @@ class Simplify:
         dc2= dc2.groupby(['subject_id','measurement_type','measurement_date_after','cohort_type'])['type'].agg( lambda x:list(set(x))).reset_index() ##list({k:None for k in x}.keys())
         dc2['ingredient_count'] = dc2['type'].apply(lambda x: len(set(x)))
         dc2['metformin_count'] = dc2['type'].apply(lambda x: x.count("metformin"))
-        condition = (dc2['ingredient_count'] >= 3) | ((dc2['cohort_type']=='T') &(dc2['metformin_count']==0))
+        condition = (dc2['ingredient_count'] >= 3) | ((dc2['cohort_type']=='T') &(dc2['metformin_count']=='0'))
         dc2= dc2.loc[~condition, :]
         dc2['drug_group'] =dc2['type'].apply(lambda x:'/'.join(map(str, x)))
         dc2['row'] = dc2.sort_values(['measurement_date_after'], ascending =True).groupby(['subject_id', 'measurement_type']).cumcount()+1
@@ -135,6 +139,8 @@ class Drug:
         return PS_1st     
     def buncr(data):
         # [2/3] 1st PS matching: BUN, Creatinine
+        data['cohort_start_date'] = data['cohort_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
+        data['measurement_date'] = data['measurement_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
         condition= (data['measurement_date'] < data['cohort_start_date']) & (data['measurement_type'].isin(['Creatinine', 'BUN' ]))
         before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','value_as_number']]
         before.dropna(inplace=True)
@@ -158,10 +164,10 @@ class Stats:
         data['rate']= (data['value_as_number_after'] - data['value_as_number_before']) /data['value_as_number_before'] *100
         return data
     def psmatch(data):           
-        func_seed = r.r['set_seed']
+        func_seed = r.r['set.seed']
         func_matchit = r.r['matchit']
         func_seed(1)
-        r_out1=func_matchit(formula = Formula('cohort_type ~BUN + Creatinine + gender + age'), data = data, method ='nearest', distance ='logit', replace =False, 
+        r_out1=func_matchit(formula = Formula('cohort_type ~ BUN + Creatinine + gender + age'), data = data, method ='nearest', distance ='logit', replace =False, 
         ratio =1)
         func_match_data = r.r['match.data']
         m_data = func_match_data(r_out1, data =data, distance ='prop.score')
@@ -174,9 +180,9 @@ class Stats:
         T_pvalue=[]
         C_pvalue=[]
         for i in lists:
-            condition = (data['cohort_type']==0) & (data['measurement_type']== i )
+            condition = (data['cohort_type']=='0') & (data['measurement_type']== i )
             target = data.loc[codition, 'rate']
-            condition = (data['cohort_type']==1) & (data['measurement_type']== i )
+            condition = (data['cohort_type']=='1') & (data['measurement_type']== i )
             control = data.loc[codition, 'rate']
             t_out = func_shapiro(target)
             c_out = func_shapiro(control)
@@ -223,13 +229,13 @@ class Stats:
 
     def dose_preprocess(data):
         ## T (high dose) vs Control  
-        condition = (data['dose_type'] =='high') & (data['cohort_type']==0)
+        condition = (data['dose_type'] =='high') & (data['cohort_type']=='0')
         high_list = data.loc[condition, 'subject_id'].drop_duplicates()
         high = data.loc[condition, :].drop_duplicates()
-        condition = data['cohort_type']==1
+        condition = data['cohort_type']=='1'
         control = data.loc[condition, :].drop_duplicates()
         sub1 = pd.concat([high, control]).drop_duplicates()
-        condition = (data['subject_id'].isin(high_list)==False) & (data['cohort_type']==0)
+        condition = (data['subject_id'].isin(high_list)==False) & (data['cohort_type']=='0')
         low = data.loc[condition,:].drop_duplicates()
         sub2 = pd.concat([low, control]).drop_duplicates()
         return sub1, sub2
@@ -238,12 +244,12 @@ class Stats:
         results=[]
         for i in lists:
             if i =='metformin': 
-                condition = (data.cohort_type ==0) & (data.drug_group.isin(['metformin']))
+                condition = (data.cohort_type =='0') & (data.drug_group.isin(['metformin']))
                 i = data2.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
                 i.drop_duplicates(inplace=True)
                 results.append(i)
             else:   
-                condition = (data.cohort_type ==0) & (data['drug_group'].str.contains(i))
+                condition = (data.cohort_type =='0') & (data['drug_group'].str.contains(i))
                 i = data.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
                 i.drop_duplicates(inplace=True)
                 results.append(i)
