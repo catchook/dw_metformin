@@ -159,6 +159,9 @@ class Stats:
     def __init__(self, data):
         self.data = data
     def preprocess(data):
+        condition = data['value_as_number'].eq('None') 
+        data = data.loc[~condition, :]
+        data.dropna(inplace=True)
         data=data.replace([np.inf, -np.inf], np.nan).dropna()
         data['cohort_type']=data['cohort_type'].replace('T',0)
         data['cohort_type']=data['cohort_type'].replace('C',1)
