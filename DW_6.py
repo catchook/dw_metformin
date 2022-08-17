@@ -193,15 +193,24 @@ if __name__=='__main__' :
     file_size = sys.getsizeof(final1)
     print("add dose_Type file size: ", ff.convert_size(file_size), "bytes")
     final1.to_csv('/data/results/'+cohort_hospital+'_add_dose_type.csv')
+    print("final 1: add dose type")
+    print(final1.columns)
+    print(final1.head())
 # 2) 계산해서 high, low 구분하기. 
     dose = d.dose(final1, t1)
     final2= pd.merge(final, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
     final2.drop_duplicates(inplace=True)
+    print("add high, low data:final2")
+    print(final2.columns)
+    print(final2.head())
 # # 통계 계산에 필요한 컬럼은? 
 # ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
     final2['rate']= (final2['value_as_number_after'] - final2['value_as_number_before']) /final2['value_as_number_before'] *100
     final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
     final3.drop_duplicates(inplace=True)
+    print("final3")
+    print(final3.columns)
+    print(final3.head())
 # ## 수가 동일할까?
     n6 = ff.count_measurement(final3, '6: calculate dose type')
 # # #[2/] type별로 등분산성, 정규성, t-test
