@@ -180,7 +180,7 @@ class Stats:
         func_match_data = r.r['match.data']
         m_data = func_match_data(r_out1, data =r_data, distance ='prop.score')
         with localconverter(r.default_converter + pandas2ri.converter):
-            pd_m_data = r.conversion.py2rpy(m_data)
+            pd_m_data = r.conversion.rpy2py(m_data)
         return pd_m_data
     def test(data):
         func_shapiro = r.r['shapiro.test']
