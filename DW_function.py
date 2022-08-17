@@ -89,7 +89,7 @@ def save_query( SCHEMA, cohort_target, cohort_control, sql, c):
 #     ESR_c_n= df.loc[condition, 'subject_id'].nunique()
 #     return all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n
 
-def count_measurement(df):
+def count_measurement(df, step):
  #   lists = ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
     lists = list(df['measurement_type'].drop_duplicates())
     T_numbers=[]
@@ -106,6 +106,7 @@ def count_measurement(df):
     C_count_N = pd.DataFrame(np.array([C_numbers]), columns =lists)
     C_count_N['cohort_type'] ='Control'
     count_N = pd.concat([T_count_N,C_count_N ])
+    count_N['step'] = step
     return   count_N
 
 def delete_none(data):
