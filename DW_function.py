@@ -95,10 +95,10 @@ def count_measurement(df):
     T_numbers=[]
     C_numbers=[]
     for  i in lists: 
-        condition= (df['cohort_type']=='T') & (df['measurement_type']== i )
+        condition= ((df['cohort_type']=='T')|(df['cohort_type']==0))& (df['measurement_type']== i )
         n= df.loc[condition, 'subject_id'].nunique()
         T_numbers.append(n)
-        condition= (df['cohort_type']=='C') & (df['measurement_type']== i )
+        condition= ((df['cohort_type']=='C')|(df['cohort_type']==1)) & (df['measurement_type']== i )
         n= df.loc[condition, 'subject_id'].nunique()
         C_numbers.append(n)
     T_count_N = pd.DataFrame(np.array([T_numbers]), columns =lists)
@@ -110,14 +110,17 @@ def count_measurement(df):
 
 def delete_none(data):
     condition = (data['value_as_number_before'].eq('None') | data['value_as_number_after'].eq('None'))
+    #condition = data['value_as_number'].eq('None')
     data = data.loc[~condition, :]
+    data.dropna(inplace=True)
     return(data)
-
 
 def change_str_date(dm):
     dm['drug_exposure_end_date']=dm['drug_exposure_end_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
     dm['drug_exposure_start_date'] = dm['drug_exposure_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
     dm['measurement_date'] = dm['measurement_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
+    dm['cohort_start_date'] = dm['cohort_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
+    dm['cohort_end_date'] = dm['cohort_end_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
     print('finish change_str_date')
 
 
