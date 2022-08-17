@@ -156,7 +156,7 @@ if __name__=='__main__' :
     ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
     ps = pd.merge(ps, buncr,on='subject_id', how='left')
     ps.drop_duplicates(inplace=True)
-    ps.fillna(0) # BUN, CREATININE 수치가 없는 경우?
+    ps.fillna(0, inplace =True) # BUN, CREATININE 수치가 없는 경우?
     print("before ps matching")
     print(ps.head())
 # [3/3] PS matching 
