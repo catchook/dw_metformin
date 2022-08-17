@@ -156,17 +156,18 @@ if __name__=='__main__' :
     ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
     ps = pd.merge(ps, buncr,on='subject_id', how='left')
     ps.drop_duplicates(inplace=True)
-    ps.fillna(0) # BUN, CREATININE 수치가 없는 경우?
+    ps.fillna(0, inplace =True) # BUN, CREATININE 수치가 없는 경우?
     print("before ps matching")
-    print(ps.head())
+    print(ps.head())   
+    
 # [3/3] PS matching 
-    m_data= st.psmatch(ps)
-    m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
-    file_size = sys.getsizeof(m2)
-    print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
-    m2.to_csv('/data/results/'+cohort_hospital+'_after_psmatch.csv')
+    # m_data= st.psmatch(ps)
+    # m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
+    # file_size = sys.getsizeof(m2)
+    # print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
+    # m2.to_csv('/data/results/'+cohort_hospital+'_after_psmatch.csv')
     #check N 
-    n2 = ff.count_measurement(m2, '2: after psmatch')
+    # n2 = ff.count_measurement(m2, '2: after psmatch')
 # # # 2. Simpliyfy N 
 # [1/3] Simplify N: only who got ESR, CRP
     s = cc.Simplify
@@ -183,7 +184,6 @@ if __name__=='__main__' :
     n3 = ff.count_measurement(pair, '3: pair')
     n4 = ff.count_measurement(exposure, '4 exposure')
     n5 = ff.count_measurement(final,'5 rule out')
-
 # # 3. Stat
 # # [1/ ] Tagging Dose type 
 # # # dose_type 
@@ -192,7 +192,10 @@ if __name__=='__main__' :
                         left_on= ['subject_id','measurement_type','measurement_date_after','drug_concept_id'], right_on = ['subject_id','measurement_type','measurement_date','drug_concept_id'])
     file_size = sys.getsizeof(final1)
     print("add dose_Type file size: ", ff.convert_size(file_size), "bytes")
-    final1.to_csv('/data/results/'+cohort_hospital+'_add_dose_type.csv')
+    print("final 1 file")
+    print(final1.columns)
+    print(final1.head())
+    # final1.to_csv('/data/results/'+cohort_hospital+'_add_dose_type.csv')
 # 2) 계산해서 high, low 구분하기. 
     dose = d.dose(final1, t1)
     final2= pd.merge(final, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
@@ -202,37 +205,49 @@ if __name__=='__main__' :
     final2['rate']= (final2['value_as_number_after'] - final2['value_as_number_before']) /final2['value_as_number_before'] *100
     final3 = final2[['subject_id', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
     final3.drop_duplicates(inplace=True)
+    print("final 3 file; add rate, dose type")
+    print(final3.columns)
+    print(final3.head())
 # ## 수가 동일할까?
     n6 = ff.count_measurement(final3, '6: calculate dose type')
-# # #[2/] type별로 등분산성, 정규성, t-test
-    test = st.test(final3)
-    test.to_csv("/data/results/"+cohort_hospital+'_ttest.csv')
-# ## [4/] 용량별 t-test
-    subs = st.dose_preprocess(final3)
-    names = ['high', 'low']
-    test_results=[]
-    for sub, name in zip(subs, names):
-        if len(sub)==0:
-                test_results.append(name)
-        else: 
-            test_result = st.test(sub)
-            test_result['dose']= name
-            test_results.append(test_result) 
-    t_results = pd.concat(test_results)   
-    t_results.to_csv("/data/results/"+cohort_hospital+'_dose_ttest.csv')
-# ## [5/] paired t-test
-    results = st.drug_preprocess(final3) # ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
-    names = ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
-    paired_results=[]
-    for result, name in zip(results, names):
-        if len(result)==0:
-                paired_results.append(name)
-        else: 
-            paired_result = st.pairedtest(result)
-            paired_result['drug_type']= name
-            paired_results.append(paired_result) 
-    p_results = pd.concat(paired_results)
-    p_results.to_csv("/data/results/"+cohort_hospital+'_p_results.csv')            
+#######################################################################################################################################
+# 16개 병원 데이터를 합치기 위한 코드 
+## 1사람당 1줄에 데이터 넣기. 
+    data= pd.merge(ps, final3, on=['subject_id', 'cohort_type', 'age', 'gender'], how='left')
+    file_size = sys.getsizeof(data)
+    print("data; to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
+    data.to_csv('/data/results/'+cohort_hospital+'_to_merge_data.csv')
+#######################################################################################################################################
+
+# # # #[2/] type별로 등분산성, 정규성, t-test
+#     test = st.test(final3)
+#     test.to_csv("/data/results/"+cohort_hospital+'_ttest.csv')
+# # ## [4/] 용량별 t-test
+#     subs = st.dose_preprocess(final3)
+#     names = ['high', 'low']
+#     test_results=[]
+#     for sub, name in zip(subs, names):
+#         if len(sub)==0:
+#                 test_results.append(name)
+#         else: 
+#             test_result = st.test(sub)
+#             test_result['dose']= name
+#             test_results.append(test_result) 
+#     t_results = pd.concat(test_results)   
+#     t_results.to_csv("/data/results/"+cohort_hospital+'_dose_ttest.csv')
+# # ## [5/] paired t-test
+#     results = st.drug_preprocess(final3) # ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+#     names = ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+#     paired_results=[]
+#     for result, name in zip(results, names):
+#         if len(result)==0:
+#                 paired_results.append(name)
+#         else: 
+#             paired_result = st.pairedtest(result)
+#             paired_result['drug_type']= name
+#             paired_results.append(paired_result) 
+#     p_results = pd.concat(paired_results)
+#     p_results.to_csv("/data/results/"+cohort_hospital+'_p_results.csv')            
 ## python stat 차이나는지 이후 검정 https://techbrad.tistory.com/6..안되면 python으로? 
     n= [n1, n2, n3, n4, n5, n6]
     count_N = reduce(lambda left, right: pd.merge(left, right, on='cohort_type', how='inner'), n)
