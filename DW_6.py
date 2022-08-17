@@ -200,7 +200,7 @@ if __name__=='__main__' :
 # # 통계 계산에 필요한 컬럼은? 
 # ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
     final2['rate']= (final2['value_as_number_after'] - final2['value_as_number_before']) /final2['value_as_number_before'] *100
-    final3 = final2[['subject_id', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
+    final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
     final3.drop_duplicates(inplace=True)
 # ## 수가 동일할까?
     n6 = ff.count_measurement(final3, '6: calculate dose type')
