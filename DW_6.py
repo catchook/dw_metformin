@@ -156,7 +156,7 @@ if __name__=='__main__' :
     ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
     ps = pd.merge(ps, buncr,on='subject_id', how='left')
     ps.drop_duplicates(inplace=True)
-    ps.fillna(0, inplace =True) # BUN, CREATININE 수치가 없는 경우?
+    ps.fillna(999, inplace =True) # BUN, CREATININE 수치가 없는 경우?
     print("before ps matching")
     print(ps.head())
 # [3/3] PS matching 
@@ -198,7 +198,7 @@ if __name__=='__main__' :
     print(final1.head())
 # 2) 계산해서 high, low 구분하기. 
     dose = d.dose(final1, t1)
-    final2= pd.merge(final, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
+    final2= pd.merge(final1, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
     final2.drop_duplicates(inplace=True)
     print("add high, low data:final2")
     print(final2.columns)
@@ -218,17 +218,12 @@ if __name__=='__main__' :
     test = st.test(final3)
     test.to_csv("/data/results/"+cohort_hospital+'_ttest.csv')
 # ## [4/] 용량별 t-test
-    subs = st.dose_preprocess(final3)
-    names = ['high', 'low']
-    test_results=[]
-    for sub, name in zip(subs, names):
-        if len(sub)==0:
-                test_results.append(name)
-        else: 
-            test_result = st.test(sub)
-            test_result['dose']= name
-            test_results.append(test_result) 
-    t_results = pd.concat(test_results)   
+    sub1, sub2 = st.dose_preprocess(final3)
+    high = st.test(sub1)
+    low = st.test(sub2)
+    high['dose']='high'
+    low['dose']='low'
+    t_results = pd.concat([high, low], axis =0)   
     t_results.to_csv("/data/results/"+cohort_hospital+'_dose_ttest.csv')
 # ## [5/] paired t-test
     results = st.drug_preprocess(final3) # ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
@@ -236,16 +231,16 @@ if __name__=='__main__' :
     paired_results=[]
     for result, name in zip(results, names):
         if len(result)==0:
-                paired_results.append(name)
+            empty = pd.DataFrame({'type': [0], 'shapiro_pvalue_post':[0], 'shapiro_pvalue_pre':[0], 'var_pvalue':[0], 'ttest_F_stat':[0], 'ttest_P_value':[0], 'wilcox_F_stat':[0], 'wilcox_P_value': [0], 'drug_type': [name]})
+            paired_results.append(empty)
         else: 
             paired_result = st.pairedtest(result)
             paired_result['drug_type']= name
             paired_results.append(paired_result) 
-    p_results = pd.concat(paired_results)
+    p_results = pd.concat([paired_results[0], paired_results[1], paired_results[2], paired_results[3], paired_results[4], paired_results[5], paired_results[6]], axis =0 )
     p_results.to_csv("/data/results/"+cohort_hospital+'_p_results.csv')            
 ## python stat 차이나는지 이후 검정 https://techbrad.tistory.com/6..안되면 python으로? 
-    n= [n1, n2, n3, n4, n5, n6]
-    count_N = reduce(lambda left, right: pd.merge(left, right, on='cohort_type', how='inner'), n)
+    count_N = pd.concat([n1, n2, n3, n4, n5, n6], axis =0)
     count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
 
 

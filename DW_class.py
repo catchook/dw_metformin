@@ -204,13 +204,12 @@ class Stats:
             target = data.loc[condition, 'rate']
             condition = ((data['cohort_type']==1)|(data['cohort_type']=='C')) & (data['measurement_type']== i )
             control = data.loc[condition, 'rate']           
-            condition = data['measurement_type']== i 
-            m_data = data.loc[condition, :]
-            m_data.drop_duplicates(inplace=True)
+            # condition = data['measurement_type']== i 
+            # m_data = data.loc[condition, :]
+            # m_data.drop_duplicates(inplace=True)
             with localconverter(r.default_converter + pandas2ri.converter):
                 r_target = r.conversion.py2rpy(target)
-                r_control = r.conversion.py2rpy(control)
-                r_data = r.conversion.py2rpy(m_data)    
+                r_control = r.conversion.py2rpy(control)  
             if len(target) <3 :
                 shapiro_pvalue_target.append(0)
                 shapiro_pvalue_control.append(0)
@@ -227,20 +226,12 @@ class Stats:
                 ttest_P_value.append(0)
                 wilcox_F_stat.append(0)
                 wilcox_P_value.append(0)
-            elif len(m_data) <3:
-                shapiro_pvalue_target.append(0)
-                shapiro_pvalue_control.append(0)
-                var_pvalue.append(0)
-                ttest_F_stat.append(0)
-                ttest_P_value.append(0)
-                wilcox_F_stat.append(0)
-                wilcox_P_value.append(0)
             else:               
                 t_out = func_shapiro(r_target)
                 c_out = func_shapiro(r_control)           
-                m_out1= func_vartest(Formula('rate ~cohort_type'), r_data)     
-                m_out2= func_ttest(Formula('rate ~cohort_type'), r_data)
-                m_out3= func_wilcox(Formula('rate ~cohort_type'), r_data)
+                m_out1= func_vartest(r_control, r_target)     
+                m_out2= func_ttest(r_control, r_target)
+                m_out3= func_wilcox(r_control, r_target)
                 shapiro_pvalue_target.append(t_out[1][0])
                 shapiro_pvalue_control.append(c_out[1][0])
                 var_pvalue.append(m_out1[2][0])
@@ -262,8 +253,7 @@ class Stats:
         condition = (data['subject_id'].isin(high_list)==False) & ((data['cohort_type']== 0)|(data['cohort_type']=='T'))
         low = data.loc[condition,:].drop_duplicates()
         sub2 = pd.concat([low, control]).drop_duplicates()
-        sub =[sub1, sub2]
-        return sub
+        return sub1, sub2 
     def drug_preprocess(data):
         lists =['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
         results=[]
@@ -299,7 +289,7 @@ class Stats:
             condition = data['measurement_type']== j
             post = data.loc[condition, 'value_as_number_after']
             pre = data.loc[condition, 'value_as_number_before']
-            if len(post) < 3:
+            if ((len(post) < 3) | (len(pre)<3)):
                 shapiro_pvalue_post.append(0)
                 shapiro_pvalue_pre.append(0)
                 var_pvalue.append(0)
@@ -307,6 +297,14 @@ class Stats:
                 ttest_P_value.append(0)
                 wilcox_F_stat.append(0)
                 wilcox_P_value.append(0)
+            # elif len(pre) <3: 
+            #     shapiro_pvalue_post.append(0)
+            #     shapiro_pvalue_pre.append(0)
+            #     var_pvalue.append(0)
+            #     ttest_F_stat.append(0)
+            #     ttest_P_value.append(0)
+            #     wilcox_F_stat.append(0)
+            #     wilcox_P_value.append(0)
             else:
                 with localconverter(r.default_converter + pandas2ri.converter):
                     r_post = r.conversion.py2rpy(post)

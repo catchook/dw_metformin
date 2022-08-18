@@ -154,20 +154,19 @@ if __name__=='__main__' :
     buncr.to_csv('/data/results/'+cohort_hospital+'_buncr.csv')
     # PS matching 
     ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
-    ps = pd.merge(ps, buncr,on='subject_id', how='left')
-    ps.drop_duplicates(inplace=True)
-    ps.fillna(0, inplace =True) # BUN, CREATININE 수치가 없는 경우?
+    ps2 = pd.merge(ps, buncr,on='subject_id', how='left')
+    ps2.drop_duplicates(inplace=True)
+    ps2.fillna(999, inplace =True) # BUN, CREATININE 수치가 없는 경우?
     print("before ps matching")
-    print(ps.head())   
-    
+    print(ps2.head())
 # [3/3] PS matching 
-    # m_data= st.psmatch(ps)
-    # m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
-    # file_size = sys.getsizeof(m2)
-    # print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
-    # m2.to_csv('/data/results/'+cohort_hospital+'_after_psmatch.csv')
+    m_data= st.psmatch(ps2)
+    m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
+    file_size = sys.getsizeof(m2)
+    print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
+    m2.to_csv('/data/results/'+cohort_hospital+'_after_psmatch.csv')
     #check N 
-    # n2 = ff.count_measurement(m2, '2: after psmatch')
+    n2 = ff.count_measurement(m2, '2: after psmatch')
 # # # 2. Simpliyfy N 
 # [1/3] Simplify N: only who got ESR, CRP
     s = cc.Simplify
@@ -184,28 +183,37 @@ if __name__=='__main__' :
     n3 = ff.count_measurement(pair, '3: pair')
     n4 = ff.count_measurement(exposure, '4 exposure')
     n5 = ff.count_measurement(final,'5 rule out')
+
 # # 3. Stat
 # # [1/ ] Tagging Dose type 
 # # # dose_type 
 # # 1) quantity, days_supply 컬럼 값 붙이기. 
-    final1 = pd.merge(final, m1[['subject_id', 'measurement_type', 'measurement_date', 'drug_concept_id','quantity', 'days_supply']], how='left',
-                        left_on= ['subject_id','measurement_type','measurement_date_after','drug_concept_id'], right_on = ['subject_id','measurement_type','measurement_date','drug_concept_id'])
+    final1 = pd.merge(final, m1[['subject_id', 'measurement_type', 'measurement_date', 'drug_concept_id','quantity', 'days_supply']], 
+                      how='left', left_on= ['subject_id','measurement_type','measurement_date_after','drug_concept_id'], 
+                      right_on = ['subject_id','measurement_type','measurement_date','drug_concept_id'])
     file_size = sys.getsizeof(final1)
     print("add dose_Type file size: ", ff.convert_size(file_size), "bytes")
-    print("final 1 file")
+    final1.to_csv('/data/results/'+cohort_hospital+'_add_dose_type.csv')
+    print("final 1: add dose type")
     print(final1.columns)
     print(final1.head())
-    # final1.to_csv('/data/results/'+cohort_hospital+'_add_dose_type.csv')
 # 2) 계산해서 high, low 구분하기. 
     dose = d.dose(final1, t1)
-    final2= pd.merge(final, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
+    final2= pd.merge(final1, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
     final2.drop_duplicates(inplace=True)
+    print("add high, low data:final2")
+    print(final2.columns)
+    print(final2.head())
 # # 통계 계산에 필요한 컬럼은? 
 # ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
     final2['rate']= (final2['value_as_number_after'] - final2['value_as_number_before']) /final2['value_as_number_before'] *100
-    final3 = final2[['subject_id','cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
+    final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
     final3.drop_duplicates(inplace=True)
-    print("final 3 file; add rate, dose type")
+    final3.fillna(999, inplace=True)
+    file_size = sys.getsizeof(final3)
+    print("add rate file size: ", ff.convert_size(file_size), "bytes")
+    final3.to_csv('/data/results/'+cohort_hospital+'_add_rate.csv')
+    print("final3 : add rate variable")
     print(final3.columns)
     print(final3.head())
 # ## 수가 동일할까?
@@ -213,12 +221,11 @@ if __name__=='__main__' :
 #######################################################################################################################################
 # 16개 병원 데이터를 합치기 위한 코드 
 ## 1사람당 1줄에 데이터 넣기. 
-    data= pd.merge(ps, final3, on=['subject_id', 'cohort_type', 'age', 'gender'], how='left')
+    data= pd.merge(ps, final3, on=['subject_id', 'cohort_type'], how='left')
     file_size = sys.getsizeof(data)
     print("data; to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
     data.to_csv('/data/results/'+cohort_hospital+'_to_merge_data.csv')
 #######################################################################################################################################
-
 # # # #[2/] type별로 등분산성, 정규성, t-test
 #     test = st.test(final3)
 #     test.to_csv("/data/results/"+cohort_hospital+'_ttest.csv')
@@ -250,7 +257,7 @@ if __name__=='__main__' :
 #     p_results.to_csv("/data/results/"+cohort_hospital+'_p_results.csv')            
 ## python stat 차이나는지 이후 검정 https://techbrad.tistory.com/6..안되면 python으로? 
     n= [n1, n2, n3, n4, n5, n6]
-    count_N = reduce(lambda left, right: pd.merge(left, right, on='cohort_type', how='inner'), n)
+    count_N = pd.concat([n1, n2, n3, n4, n5, n6], axis =0)
     count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
 
 
