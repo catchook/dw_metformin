@@ -208,6 +208,7 @@ if __name__=='__main__' :
     final2['rate']= (final2['value_as_number_after'] - final2['value_as_number_before']) /final2['value_as_number_before'] *100
     final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
     final3.drop_duplicates(inplace=True)
+    final3.fillna(999, inplace=True)
     print("final3")
     print(final3.columns)
     print(final3.head())

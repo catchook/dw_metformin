@@ -224,7 +224,8 @@ def generate_age_delta(data,results_root, selection_concept, model_name, gender)
         temp = info_df[info_df['name'] == concept_id].reset_index(drop=True)
 
         mean = temp['mean'][0]
-        std = np.sqrt(temp['var'][0])
+        std = np.sqrt(temp['var'][
+            0])
         weight = temp['weight'][0]
         sdX = (ndata[concept_id] - mean) / std
         sData_df['scale_'+concept_id] = sdX

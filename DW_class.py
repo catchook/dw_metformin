@@ -106,6 +106,8 @@ class Drug:
         self.t1 = t1
     def dose(data, t1):
         data['drug_concept_id'] = data['drug_concept_id'].astype(int)
+        data['quantity'] = data['quantity'].astype(float)
+        data['days_supply'] = data['days_supply'].astype(float)
         t1['drug_concept_id'] = t1['drug_concept_id'].astype(int)
         dc = pd.merge(data[['subject_id', 'drug_concept_id','quantity', 'days_supply','cohort_type']], 
             t1[['drug_concept_id','Name','type1','type2']], how = 'left', on= "drug_concept_id")
@@ -113,6 +115,8 @@ class Drug:
     # dose group 
         metformin_dose =ff.extract_number(dc)
         dc['metformin_dose']= metformin_dose
+        dc['days_supply'] = dc['days_supply'].round(2)
+        dc['days_supply'] = dc['days_supply'].replace(0.0, 999.0 )
         dc = dc.astype({'quantity':'float', 'days_supply':'float'})
     # new column: dose_group: high(over 1,000 mg/day) / low  
         dc['dose_type']=dc.apply(lambda x:'high' if (x['metformin_dose']* x['quantity']/x['days_supply']>=1000.0) else 'low', axis=1)
@@ -206,19 +210,44 @@ class Stats:
             with localconverter(r.default_converter + pandas2ri.converter):
                 r_target = r.conversion.py2rpy(target)
                 r_control = r.conversion.py2rpy(control)
-                r_data = r.conversion.py2rpy(m_data)            
-            t_out = func_shapiro(r_target)
-            c_out = func_shapiro(r_control)           
-            m_out1= func_vartest(Formula('rate ~cohort_type'), r_data)     
-            m_out2= func_ttest(Formula('rate ~cohort_type'), r_data)
-            m_out3= func_wilcox(Formula('rate ~cohort_type'), r_data)
-            shapiro_pvalue_target.append(t_out[1][0])
-            shapiro_pvalue_control.append(c_out[1][0])
-            var_pvalue.append(m_out1[2][0])
-            ttest_F_stat.append(m_out2[0][0])
-            ttest_P_value.append(m_out2[2][0])
-            wilcox_F_stat.append(m_out3[0][0])
-            wilcox_P_value.append(m_out3[2][0])
+                r_data = r.conversion.py2rpy(m_data)    
+            if len(target) <3 :
+                shapiro_pvalue_target.append(0)
+                shapiro_pvalue_control.append(0)
+                var_pvalue.append(0)
+                ttest_F_stat.append(0)
+                ttest_P_value.append(0)
+                wilcox_F_stat.append(0)
+                wilcox_P_value.append(0)
+            elif len(control) <3:
+                shapiro_pvalue_target.append(0)
+                shapiro_pvalue_control.append(0)
+                var_pvalue.append(0)
+                ttest_F_stat.append(0)
+                ttest_P_value.append(0)
+                wilcox_F_stat.append(0)
+                wilcox_P_value.append(0)
+            elif len(m_data) <3:
+                shapiro_pvalue_target.append(0)
+                shapiro_pvalue_control.append(0)
+                var_pvalue.append(0)
+                ttest_F_stat.append(0)
+                ttest_P_value.append(0)
+                wilcox_F_stat.append(0)
+                wilcox_P_value.append(0)
+            else:               
+                t_out = func_shapiro(r_target)
+                c_out = func_shapiro(r_control)           
+                m_out1= func_vartest(Formula('rate ~cohort_type'), r_data)     
+                m_out2= func_ttest(Formula('rate ~cohort_type'), r_data)
+                m_out3= func_wilcox(Formula('rate ~cohort_type'), r_data)
+                shapiro_pvalue_target.append(t_out[1][0])
+                shapiro_pvalue_control.append(c_out[1][0])
+                var_pvalue.append(m_out1[2][0])
+                ttest_F_stat.append(m_out2[0][0])
+                ttest_P_value.append(m_out2[2][0])
+                wilcox_F_stat.append(m_out3[0][0])
+                wilcox_P_value.append(m_out3[2][0])
         df = pd.DataFrame({'type': lists, 'shapiro_pvalue_target' : shapiro_pvalue_target, 'shapiro_pvalue_control': shapiro_pvalue_control, 'var_pvalue' : var_pvalue, 
                            'ttest_F_stat': ttest_F_stat, 'ttest_P_value':ttest_P_value, 'wilcox_F_stat':wilcox_F_stat, 'wilcox_P_value':wilcox_P_value })
         return df 
