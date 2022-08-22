@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import math
 from scipy import stats
 import DW_function as ff
-#rpy2
+# #rpy2
 import rpy2
 from rpy2.robjects.packages import importr
 import rpy2.robjects as r
@@ -116,7 +116,7 @@ class Drug:
         metformin_dose =ff.extract_number(dc)
         dc['metformin_dose']= metformin_dose
         dc['days_supply'] = dc['days_supply'].round(2)
-        dc['days_supply'] = dc['days_supply'].replace(0.0, 999.0 )
+        dc['days_supply'] = dc['days_supply'].replace(0.0, 1.0 )
         dc = dc.astype({'quantity':'float', 'days_supply':'float'})
     # new column: dose_group: high(over 1,000 mg/day) / low  
         dc['dose_type']=dc.apply(lambda x:'high' if (x['metformin_dose']* x['quantity']/x['days_supply']>=1000.0) else 'low', axis=1)
@@ -173,14 +173,14 @@ class Stats:
         data['gender']=data['gender'].replace('M',0)    
         data['value_as_number'] = data['value_as_number'].astype(float)
         return data
-    def psmatch(data):           
+    def psmatch(data,condition ,ratio_n):           
         func_seed = r.r['set.seed']
         func_matchit = r.r['matchit']
         func_seed(1)
         with localconverter(r.default_converter + pandas2ri.converter):
             r_data = r.conversion.py2rpy(data)
-        r_out1=func_matchit(formula = Formula('cohort_type ~ BUN + Creatinine + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd'), data = r_data, method ='nearest', distance ='logit', replace =False, 
-        ratio =1)
+        r_out1=func_matchit(formula = Formula('cohort_type ~ BUN + Creatinine + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd'), data = r_data, method ='nearest', distance ='logit', replace = condition, 
+        ratio = ratio_n)
         func_match_data = r.r['match.data']
         m_data = func_match_data(r_out1, data =r_data, distance ='prop.score')
         with localconverter(r.default_converter + pandas2ri.converter):
@@ -242,12 +242,34 @@ class Stats:
         df = pd.DataFrame({'type': lists, 'shapiro_pvalue_target' : shapiro_pvalue_target, 'shapiro_pvalue_control': shapiro_pvalue_control, 'var_pvalue' : var_pvalue, 
                            'ttest_F_stat': ttest_F_stat, 'ttest_P_value':ttest_P_value, 'wilcox_F_stat':wilcox_F_stat, 'wilcox_P_value':wilcox_P_value })
         return df 
+    def describe(data):
+        lists = list(data['measurement_type'].drop_duplicates())
+        data.rename(columns={'value_as_number_before':'baseline', 'value_as_number_after': 'F/U'}, inplace=True)
+        T_results=[]
+        C_results=[]
+        for i in lists:
+            condition = ((data['cohort_type']==0)|(data['cohort_type']=='T')) & (data['measurement_type']== i )
+            target = data.loc[condition, ['measurement_type','baseline', 'F/U','diff','rate'] ]
+            condition = ((data['cohort_type']==1)|(data['cohort_type']=='C')) & (data['measurement_type']== i )
+            control = data.loc[condition, ['measurement_type','baseline', 'F/U','diff','rate'] ]
+            columns =['baseline', 'F/U','diff','rate']
+            for j in columns:
+                a= control[j].describe().to_frame().transpose()
+                a['measurement_type']= i
+                C_results.append(a)
+                b= target[j].describe().to_frame().transpose()
+                b['measurement_type']= i
+                T_results.append(b)
+        target_final = pd.concat(T_results, axis=0)
+        control_final = pd.concat(C_results, axis=0)
+        return  target_final, control_final
+    
     def dose_preprocess(data):
         ## T (high dose) vs Control  
         condition = (data['dose_type'] =='high') & ((data['cohort_type']==0)|(data['cohort_type']=='T'))
         high_list = data.loc[condition, 'subject_id'].drop_duplicates()
         high = data.loc[condition, :].drop_duplicates()
-        condition = ((data['cohort_type']==0)|(data['cohort_type']=='T'))
+        condition = ((data['cohort_type']==1)|(data['cohort_type']=='C'))
         control = data.loc[condition, :].drop_duplicates()
         sub1 = pd.concat([high, control]).drop_duplicates()
         condition = (data['subject_id'].isin(high_list)==False) & ((data['cohort_type']== 0)|(data['cohort_type']=='T'))

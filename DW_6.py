@@ -79,9 +79,9 @@ if __name__=='__main__' :
       ,b.days_supply
       ,(case        when c.measurement_concept_id in (3020460, 3010156) then 'CRP'
                     when c.measurement_concept_id in (3015183, 3013707) then 'ESR'
-                    when c.measurement_concept_id = 3013682 then 'BUN' 
+                    when c.measurement_concept_id in (3013682, 3004295) then 'BUN' 
                     when c.measurement_concept_id = 3022192 then 'Triglyceride'
-                    when c.measurement_concept_id = 3004249 then 'SBP'
+                    when c.measurement_concept_id in (3004249, 21490853) then 'SBP'
                     when c.measurement_concept_id = 3027484 then 'Hb'
                     when c.measurement_concept_id in (3037110, 3040820) then 'Glucose_Fasting'
                     when c.measurement_concept_id = 3016723 then 'Creatinine'
@@ -91,7 +91,7 @@ if __name__=='__main__' :
                     when c.measurement_concept_id in (3015089, 3012064, 3016244) then 'insulin'
                     when c.measurement_concept_id = 3038553 then 'BMI'
                     when c.measurement_concept_id = 3004410 then 'HbA1c'
-                    when c.measurement_concept_id = 3012888 then 'DBP'
+                    when c.measurement_concept_id in (3012888, 21490851) then 'DBP'
                     when c.measurement_concept_id = 3027114 then 'Total cholesterol'
                     when c.measurement_concept_id = 3028437 then 'LDL'
                     when c.measurement_concept_id in (42529224, 3029187, 42870364) then 'NT-proBNP'
@@ -154,13 +154,13 @@ if __name__=='__main__' :
     buncr.to_csv('/data/results/'+cohort_hospital+'_buncr.csv')
     # PS matching 
     ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
-    ps = pd.merge(ps, buncr,on='subject_id', how='left')
-    ps.drop_duplicates(inplace=True)
-    ps.fillna(999, inplace =True) # BUN, CREATININE 수치가 없는 경우?
+    ps2 = pd.merge(ps, buncr,on='subject_id', how='left')
+    ps2.drop_duplicates(inplace=True)
+    ps2.fillna(999, inplace =True) # BUN, CREATININE 수치가 없는 경우?
     print("before ps matching")
     print(ps.head())
 # [3/3] PS matching 
-    m_data= st.psmatch(ps)
+    m_data= st.psmatch(ps,True, 2) # 2nd , 3rd arguments = replacement, ps matching ratio
     m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
     file_size = sys.getsizeof(m2)
     print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
@@ -171,6 +171,7 @@ if __name__=='__main__' :
 # [1/3] Simplify N: only who got ESR, CRP
     s = cc.Simplify
     lists = list(m2['measurement_type'].drop_duplicates())
+# lists =['CRP','ESR','BUN','Triglyceride','SBP', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL','AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'Total cholesterol', 'LDL', 'NT-proBNP' ]
     pair= s.Pair(m2, lists)
 # # [2/3] simplify N: measurement in drug_Exposure
     exposure= s.Exposure(m2, lists)
@@ -183,7 +184,6 @@ if __name__=='__main__' :
     n3 = ff.count_measurement(pair, '3: pair')
     n4 = ff.count_measurement(exposure, '4 exposure')
     n5 = ff.count_measurement(final,'5 rule out')
-
 # # 3. Stat
 # # [1/ ] Tagging Dose type 
 # # # dose_type 
@@ -192,7 +192,6 @@ if __name__=='__main__' :
                         left_on= ['subject_id','measurement_type','measurement_date_after','drug_concept_id'], right_on = ['subject_id','measurement_type','measurement_date','drug_concept_id'])
     file_size = sys.getsizeof(final1)
     print("add dose_Type file size: ", ff.convert_size(file_size), "bytes")
-    final1.to_csv('/data/results/'+cohort_hospital+'_add_dose_type.csv')
     print("final 1: add dose type")
     print(final1.columns)
     print(final1.head())
@@ -206,7 +205,8 @@ if __name__=='__main__' :
 # # 통계 계산에 필요한 컬럼은? 
 # ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
     final2['rate']= (final2['value_as_number_after'] - final2['value_as_number_before']) /final2['value_as_number_before'] *100
-    final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
+    final2['diff'] = final2['value_as_number_after'] - final2['value_as_number_before']
+    final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'diff','dose_type', 'drug_group']]
     final3.drop_duplicates(inplace=True)
     final3.fillna(999, inplace=True)
     print("final3")
@@ -217,6 +217,10 @@ if __name__=='__main__' :
 # # #[2/] type별로 등분산성, 정규성, t-test
     test = st.test(final3)
     test.to_csv("/data/results/"+cohort_hospital+'_ttest.csv')
+# # #[3/] type별로 describe()
+    target_final, control_final = st.describe(final3)
+    target_final.to_csv("/data/results/"+cohort_hospital+'_target_describe.csv')
+    control_final.to_csv("/data/results/"+cohort_hospital+'_control_describe.csv')
 # ## [4/] 용량별 t-test
     sub1, sub2 = st.dose_preprocess(final3)
     high = st.test(sub1)

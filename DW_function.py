@@ -91,6 +91,8 @@ def save_query( SCHEMA, cohort_target, cohort_control, sql, c):
 
 def count_measurement(df, step):
  #   lists = ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
+ # lists =['CRP','ESR','BUN','Triglyceride','SBP', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL','AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'Total cholesterol', 'LDL', 'NT-proBNP' ]
+ 
     lists = list(df['measurement_type'].drop_duplicates())
     T_numbers=[]
     C_numbers=[]
@@ -107,7 +109,27 @@ def count_measurement(df, step):
     C_count_N['cohort_type'] ='Control'
     count_N = pd.concat([T_count_N,C_count_N ])
     count_N['step'] = step
-    return   count_N
+    ## target, control , total N수 파악 
+    condition = ((df['cohort_type']=='T') | (df['cohort_type']==0))
+    n = df.loc[condition, 'subject_id'].nunique()
+    count_N['Target'] = n 
+    condition = ((df['cohort_type']=='C') | (df['cohort_type']==1))
+    n = df.loc[condition, 'subject_id'].nunique()
+    count_N['Control'] = n 
+    n = df.loc[:, 'subject_id'].nunique()
+    count_N['Total'] = n   
+    count_N2= pd.DataFrame(columns=['Step','Total', 'Target', 'Control', 'CRP','ESR','BUN','Triglyceride','SBP', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL','AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'Total cholesterol', 'LDL', 'NT-proBNP'])
+    columns =['CRP','ESR','BUN','Triglyceride','SBP', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL','AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'Total cholesterol', 'LDL', 'NT-proBNP' ]
+    for index in columns:
+        if index in count_N.columns:
+            count_N2[index] =count_N[index]
+        else:
+            count_N2[index]=0
+    count_N2['Total']= count_N['Total']
+    count_N2['Target']= count_N['Target']
+    count_N2['Control']= count_N['Control']
+    count_N2['Step']= count_N['Step']
+    return   count_N2
 
 def delete_none(data):
     condition = (data['value_as_number_before'].eq('None') | data['value_as_number_after'].eq('None'))

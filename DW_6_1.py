@@ -31,23 +31,23 @@ from scipy import stats
 import DW_function as ff
 import DW_class as cc 
 ##rpy2
-import rpy2
-from rpy2.robjects.packages import importr
-import rpy2.robjects as r
-import rpy2.robjects.pandas2ri as pandas2ri
-from rpy2.robjects import Formula
-pandas2ri.activate()
-# import rpy2's package module
-import rpy2.robjects.packages as rpackages
-from rpy2.robjects.conversion import localconverter
-# rpy2
-base = importr('base')
-utils = importr('utils')
-utils=rpackages.importr('utils')
-utils.install_packages('MatchIt')
-utils.install_packages('stats')
-statss= importr('stats')
-matchit=importr('MatchIt')
+# import rpy2
+# from rpy2.robjects.packages import importr
+# import rpy2.robjects as r
+# import rpy2.robjects.pandas2ri as pandas2ri
+# from rpy2.robjects import Formula
+# pandas2ri.activate()
+# # import rpy2's package module
+# import rpy2.robjects.packages as rpackages
+# from rpy2.robjects.conversion import localconverter
+# # rpy2
+# base = importr('base')
+# utils = importr('utils')
+# utils=rpackages.importr('utils')
+# utils.install_packages('MatchIt')
+# utils.install_packages('stats')
+# statss= importr('stats')
+# matchit=importr('MatchIt')
 
 # input_file reading 
 input_file = sys.argv[1]
@@ -79,9 +79,9 @@ if __name__=='__main__' :
       ,b.days_supply
       ,(case        when c.measurement_concept_id in (3020460, 3010156) then 'CRP'
                     when c.measurement_concept_id in (3015183, 3013707) then 'ESR'
-                    when c.measurement_concept_id = 3013682 then 'BUN' 
+                    when c.measurement_concept_id in (3013682, 3004295) then 'BUN' 
                     when c.measurement_concept_id = 3022192 then 'Triglyceride'
-                    when c.measurement_concept_id = 3004249 then 'SBP'
+                    when c.measurement_concept_id in (3004249, 21490853) then 'SBP'
                     when c.measurement_concept_id = 3027484 then 'Hb'
                     when c.measurement_concept_id in (3037110, 3040820) then 'Glucose_Fasting'
                     when c.measurement_concept_id = 3016723 then 'Creatinine'
@@ -91,7 +91,7 @@ if __name__=='__main__' :
                     when c.measurement_concept_id in (3015089, 3012064, 3016244) then 'insulin'
                     when c.measurement_concept_id = 3038553 then 'BMI'
                     when c.measurement_concept_id = 3004410 then 'HbA1c'
-                    when c.measurement_concept_id = 3012888 then 'DBP'
+                    when c.measurement_concept_id in (3012888, 21490851) then 'DBP'
                     when c.measurement_concept_id = 3027114 then 'Total cholesterol'
                     when c.measurement_concept_id = 3028437 then 'LDL'
                     when c.measurement_concept_id in (42529224, 3029187, 42870364) then 'NT-proBNP'
@@ -159,30 +159,31 @@ if __name__=='__main__' :
     ps2.fillna(999, inplace =True) # BUN, CREATININE 수치가 없는 경우?
     print("before ps matching")
     print(ps2.head())
+    print(ps2.columns)
 # [3/3] PS matching 
-    m_data= st.psmatch(ps2)
-    m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
-    file_size = sys.getsizeof(m2)
-    print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
-    m2.to_csv('/data/results/'+cohort_hospital+'_after_psmatch.csv')
-    #check N 
-    n2 = ff.count_measurement(m2, '2: after psmatch')
+    # m_data= st.psmatch(ps2)
+    # m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
+    # file_size = sys.getsizeof(m2)
+    # print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
+    # m2.to_csv('/data/results/'+cohort_hospital+'_after_psmatch.csv')
+    # #check N 
+    # n2 = ff.count_measurement(m2, '2: after psmatch')
 # # # 2. Simpliyfy N 
 # [1/3] Simplify N: only who got ESR, CRP
     s = cc.Simplify
-    lists = list(m2['measurement_type'].drop_duplicates())
-    pair= s.Pair(m2, lists)
+    lists = list(m1['measurement_type'].drop_duplicates())
+    pair= s.Pair(m1, lists)
 # # [2/3] simplify N: measurement in drug_Exposure
-    exposure= s.Exposure(m2, lists)
+    exposure= s.Exposure(m1, lists)
 # # [3/3] simplify N: ALL: 3 ingredient out, target: not metformin out
-    final= s.Ingredient(m2, t1, lists)
+    final= s.Ingredient(m1, t1, lists)
     print("final")
     print(final.head())
     print(final.columns)
 # ### count N 
-    n3 = ff.count_measurement(pair, '3: pair')
-    n4 = ff.count_measurement(exposure, '4 exposure')
-    n5 = ff.count_measurement(final,'5 rule out')
+    # n3 = ff.count_measurement(pair, '3: pair')
+    # n4 = ff.count_measurement(exposure, '4 exposure')
+    # n5 = ff.count_measurement(final,'5 rule out')
 
 # # 3. Stat
 # # [1/ ] Tagging Dose type 
@@ -207,23 +208,36 @@ if __name__=='__main__' :
 # # 통계 계산에 필요한 컬럼은? 
 # ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
     final2['rate']= (final2['value_as_number_after'] - final2['value_as_number_before']) /final2['value_as_number_before'] *100
-    final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'dose_type', 'drug_group']]
+    final2['diff'] = final2['value_as_number_after'] - final2['value_as_number_before']
+    final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'diff', 'dose_type', 'drug_group']]
     final3.drop_duplicates(inplace=True)
     final3.fillna(999, inplace=True)
     file_size = sys.getsizeof(final3)
     print("add rate file size: ", ff.convert_size(file_size), "bytes")
-    final3.to_csv('/data/results/'+cohort_hospital+'_add_rate.csv')
-    print("final3 : add rate variable")
+    print("final3 : add rate, diff  variable")
     print(final3.columns)
     print(final3.head())
+    #check N 
+    n2 = ff.count_measurement(final3, '2: merge')
 # ## 수가 동일할까?
-    n6 = ff.count_measurement(final3, '6: calculate dose type')
+    # n6 = ff.count_measurement(final3, '6: calculate dose type')
 #######################################################################################################################################
 # 16개 병원 데이터를 합치기 위한 코드 
-## 1사람당 1줄에 데이터 넣기. 
+## 1사람당 여러줄로 데이터 가져나오기 
+#### 1) before, after, rate, diff, ps, drug_group, dose_type
     data= pd.merge(ps, final3, on=['subject_id', 'cohort_type'], how='left')
     file_size = sys.getsizeof(data)
     print("data; to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
+    print("data: to merge 16 hospitals")
+
+#### 병원 + subject_id
+    data['id'] = str(cohort_hospital) + data['subject_id'].astype(str)
+    print(data.head())
+    print(data.columns)
+    #check N 
+    n3 = ff.count_measurement(data, '3: final') 
+    count_N = pd.concat([n1, n2, n3], axis =0)
+    count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
     data.to_csv('/data/results/'+cohort_hospital+'_to_merge_data.csv')
 #######################################################################################################################################
 # # # #[2/] type별로 등분산성, 정규성, t-test
@@ -256,8 +270,8 @@ if __name__=='__main__' :
 #     p_results = pd.concat(paired_results)
 #     p_results.to_csv("/data/results/"+cohort_hospital+'_p_results.csv')            
 ## python stat 차이나는지 이후 검정 https://techbrad.tistory.com/6..안되면 python으로? 
-    n= [n1, n2, n3, n4, n5, n6]
-    count_N = pd.concat([n1, n2, n3, n4, n5, n6], axis =0)
-    count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
+    # n= [n1, n2, n3, n4, n5, n6]
+    # count_N = pd.concat([n1, n2, n3, n4, n5, n6], axis =0)
+    # count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
 
 
