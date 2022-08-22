@@ -282,14 +282,14 @@ class Stats:
         for i in lists:
             if i =='metformin': 
                 condition = ((data.cohort_type ==0) | (data.cohort_type =='T')) & (data.drug_group.isin(['metformin']))
-                i = data.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
-                i.drop_duplicates(inplace=True)
-                results.append(i)
+                j = data.loc[condition,['subject_id','drug_group','measurement_type', 'baseline','F/U']]
+                j.drop_duplicates(inplace=True)
+                results.append(j)
             else:   
                 condition = ((data.cohort_type ==0) | (data.cohort_type =='T')) & (data['drug_group'].str.contains(i))
-                i = data.loc[condition,['subject_id','drug_group','measurement_type', 'value_as_number_before','value_as_number_after']]
-                i.drop_duplicates(inplace=True)
-                results.append(i)
+                j = data.loc[condition,['subject_id','drug_group','measurement_type', 'baseline','F/U']]
+                j.drop_duplicates(inplace=True)
+                results.append(j)
         return results 
     def pairedtest (data):
         lists = list(data['measurement_type'].drop_duplicates())
@@ -297,8 +297,8 @@ class Stats:
         func_vartest = r.r['var.test']
         func_ttest=r.r['t.test']
         func_wilcox=r.r['wilcox.test']
-        data['value_as_number_before'] = data['value_as_number_before'].astype(float)
-        data['value_as_number_after'] = data['value_as_number_after'].astype(float)
+        data['baseline'] = data['baseline'].astype(float)
+        data['F/U'] = data['F/U'].astype(float)
         shapiro_pvalue_post=[]
         shapiro_pvalue_pre=[]
         var_pvalue=[]
@@ -309,8 +309,8 @@ class Stats:
         
         for j in lists:
             condition = data['measurement_type']== j
-            post = data.loc[condition, 'value_as_number_after']
-            pre = data.loc[condition, 'value_as_number_before']
+            post = data.loc[condition, 'F/U']
+            pre = data.loc[condition, 'baseline']
             if ((len(post) < 3) | (len(pre)<3)):
                 shapiro_pvalue_post.append(0)
                 shapiro_pvalue_pre.append(0)

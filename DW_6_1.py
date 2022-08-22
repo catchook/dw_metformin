@@ -20,12 +20,12 @@ import psycopg2 as pg
 from collections import Counter
 import os
 from functools import reduce
-from psmpy import PsmPy
-from psmpy.functions import cohenD
-from psmpy.plotting import *
-import seaborn as sns
-import statsmodels.formula.api as smf
-import matplotlib.pyplot as plt
+# from psmpy import PsmPy
+# from psmpy.functions import cohenD
+# from psmpy.plotting import *
+# import seaborn as sns
+# import statsmodels.formula.api as smf
+# import matplotlib.pyplot as plt
 import math
 from scipy import stats
 import DW_function as ff
@@ -160,6 +160,7 @@ if __name__=='__main__' :
     print("before ps matching")
     print(ps2.head())
     print(ps2.columns)
+    ps2.to_csv('/data/results/'+cohort_hospital+'_for_ps.csv')
 # [3/3] PS matching 
     # m_data= st.psmatch(ps2)
     # m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
@@ -192,6 +193,7 @@ if __name__=='__main__' :
     final1 = pd.merge(final, m1[['subject_id', 'measurement_type', 'measurement_date', 'drug_concept_id','quantity', 'days_supply']], 
                       how='left', left_on= ['subject_id','measurement_type','measurement_date_after','drug_concept_id'], 
                       right_on = ['subject_id','measurement_type','measurement_date','drug_concept_id'])
+    final1.drop_duplicates(inplace=True)
     file_size = sys.getsizeof(final1)
     print("add dose_Type file size: ", ff.convert_size(file_size), "bytes")
     final1.to_csv('/data/results/'+cohort_hospital+'_add_dose_type.csv')
@@ -206,14 +208,16 @@ if __name__=='__main__' :
     print(final2.columns)
     print(final2.head())
 # # 통계 계산에 필요한 컬럼은? 
-# ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
+# ## subject_id, measurement_type, value_as_number_before, value_as_snumber_after, rate, dose_type, drug_group 
     final2['rate']= (final2['value_as_number_after'] - final2['value_as_number_before']) /final2['value_as_number_before'] *100
     final2['diff'] = final2['value_as_number_after'] - final2['value_as_number_before']
+    final2['rate'] = final2['rate'].round(2)
+    final2['diff'] = final2['diff'].round(2)
     final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'diff', 'dose_type', 'drug_group']]
     final3.drop_duplicates(inplace=True)
     final3.fillna(999, inplace=True)
     file_size = sys.getsizeof(final3)
-    print("add rate file size: ", ff.convert_size(file_size), "bytes")
+    print("add rate, diff file size: ", ff.convert_size(file_size), "bytes")
     print("final3 : add rate, diff  variable")
     print(final3.columns)
     print(final3.head())
@@ -226,6 +230,7 @@ if __name__=='__main__' :
 ## 1사람당 여러줄로 데이터 가져나오기 
 #### 1) before, after, rate, diff, ps, drug_group, dose_type
     data= pd.merge(ps, final3, on=['subject_id', 'cohort_type'], how='left')
+    data.drop_duplicates(inplace= True)
     file_size = sys.getsizeof(data)
     print("data; to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
     print("data: to merge 16 hospitals")
@@ -234,6 +239,8 @@ if __name__=='__main__' :
     data['id'] = str(cohort_hospital) + data['subject_id'].astype(str)
     print(data.head())
     print(data.columns)
+    sample =data[:500]
+    sample.to_csv('/data/results/'+cohort_hospital+'_to_merge_data_sample.csv')
     #check N 
     n3 = ff.count_measurement(data, '3: final') 
     count_N = pd.concat([n1, n2, n3], axis =0)

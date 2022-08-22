@@ -158,9 +158,9 @@ if __name__=='__main__' :
     ps2.drop_duplicates(inplace=True)
     ps2.fillna(999, inplace =True) # BUN, CREATININE 수치가 없는 경우?
     print("before ps matching")
-    print(ps.head())
+    print(ps2.head())
 # [3/3] PS matching 
-    m_data= st.psmatch(ps,True, 2) # 2nd , 3rd arguments = replacement, ps matching ratio
+    m_data= st.psmatch(ps2,True, 2) # 2nd , 3rd arguments = replacement, ps matching ratio
     m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
     file_size = sys.getsizeof(m2)
     print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
@@ -190,6 +190,7 @@ if __name__=='__main__' :
 # # 1) quantity, days_supply 컬럼 값 붙이기. 
     final1 = pd.merge(final, m1[['subject_id', 'measurement_type', 'measurement_date', 'drug_concept_id','quantity', 'days_supply']], how='left',
                         left_on= ['subject_id','measurement_type','measurement_date_after','drug_concept_id'], right_on = ['subject_id','measurement_type','measurement_date','drug_concept_id'])
+    final1.drop_duplicates(inplace=True)
     file_size = sys.getsizeof(final1)
     print("add dose_Type file size: ", ff.convert_size(file_size), "bytes")
     print("final 1: add dose type")
@@ -206,9 +207,14 @@ if __name__=='__main__' :
 # ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
     final2['rate']= (final2['value_as_number_after'] - final2['value_as_number_before']) /final2['value_as_number_before'] *100
     final2['diff'] = final2['value_as_number_after'] - final2['value_as_number_before']
+    final2['rate'] = final2['rate'].round(2)
+    final2['diff'] = final2['diff'].round(2)
     final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'diff','dose_type', 'drug_group']]
     final3.drop_duplicates(inplace=True)
     final3.fillna(999, inplace=True)
+    file_size = sys.getsizeof(final3)
+    print("add rate, diff file size: ", ff.convert_size(file_size), "bytes")
+    print("final3 : add rate, diff  variable")
     print("final3")
     print(final3.columns)
     print(final3.head())

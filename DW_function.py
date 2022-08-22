@@ -128,7 +128,7 @@ def count_measurement(df, step):
     count_N2['Total']= count_N['Total']
     count_N2['Target']= count_N['Target']
     count_N2['Control']= count_N['Control']
-    count_N2['Step']= count_N['Step']
+    count_N2['Step']= count_N['step']
     return   count_N2
 
 def delete_none(data):
