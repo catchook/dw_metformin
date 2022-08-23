@@ -47,10 +47,6 @@ class Simplify:
         self.t1 = t1
         self.lists= lists
     def Pair(data, lists):
-        # data['cohort_start_date'] = data['cohort_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
-        # data['measurement_date'] = data['measurement_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))   
-        # data['drug_exposure_start_date'] = data['drug_exposure_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
-        # data['drug_exposure_end_date'] = data['drug_exposure_end_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))       
         condition= (data['measurement_date'] < data['cohort_start_date']) & (data['measurement_type'].isin(lists))
         before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','cohort_type','value_as_number']]
         before.dropna(inplace=True)
@@ -58,7 +54,7 @@ class Simplify:
         condition = before['row']== 1
         before = before.loc[condition,['subject_id','measurement_type','measurement_date','cohort_type','value_as_number']]
         condition= (data['measurement_type'].isin(lists)) & (data['measurement_date'] >= data['cohort_start_date'] ) & (data['measurement_date'] >= data['drug_exposure_start_date']) & (data['measurement_date'] <= data['drug_exposure_end_date'])
-        after = data.loc[condition,['subject_id','cohort_type','measurement_type','measurement_date','value_as_number','drug_concept_id','drug_exposure_start_date','drug_exposure_end_date','cohort_start_date']]
+        after = data.loc[condition,['subject_id','cohort_type','measurement_type','measurement_date','value_as_number','drug_concept_id','drug_exposure_start_date','drug_exposure_end_date','cohort_start_date','dose_type']]
         after.dropna(inplace=True)
         pair = pd.merge(before, after, on=['subject_id','measurement_type','cohort_type'], how ='inner', suffixes=('_before','_after'))
         pair=ff.delete_none(pair)
@@ -84,14 +80,16 @@ class Simplify:
         dc2= dc2.groupby(['subject_id','measurement_type','measurement_date_after','cohort_type'])['type'].agg( lambda x:list(set(x))).reset_index() ##list({k:None for k in x}.keys())
         dc2['ingredient_count'] = dc2['type'].apply(lambda x: len(set(x)))
         dc2['metformin_count'] = dc2['type'].apply(lambda x: x.count("metformin"))
-        condition = (dc2['ingredient_count'] >= 3) | (((dc2['cohort_type']=='T')| (dc2['cohort_type']==0)) &(dc2['metformin_count']=='0'))
+        condition = (dc2['ingredient_count'] >= 3) 
+        dc2= dc2.loc[~condition, :]
+        condition = ((dc2['cohort_type']=='T')| (dc2['cohort_type']==0)) & (dc2['metformin_count']==0) ##따옴표를 없앰, 에러시 "0"으로 대체 
         dc2= dc2.loc[~condition, :]
         dc2['drug_group'] =dc2['type'].apply(lambda x:'/'.join(map(str, x)))
         dc2['row'] = dc2.sort_values(['measurement_date_after'], ascending =True).groupby(['subject_id', 'measurement_type']).cumcount()+1
-        condition = dc2['row']==1
+        condition = dc2['row']== 1
         dc2 = dc2.loc[condition,['subject_id', 'measurement_type', 'measurement_date_after', 'drug_group']]
         final = pd.merge(exposure[['subject_id','measurement_type','cohort_type','measurement_date_before', 'value_as_number_before',
-                'measurement_date_after','value_as_number_after','drug_concept_id']], dc2, on=['subject_id', 'measurement_type','measurement_date_after'])
+                'measurement_date_after','value_as_number_after', 'dose_type']], dc2, on=['subject_id', 'measurement_type','measurement_date_after'], how ='inner')
         final.drop_duplicates(inplace=True)
         final=ff.delete_none(final)
         return final 
@@ -199,26 +197,20 @@ class Stats:
         ttest_P_value=[]
         wilcox_F_stat =[]
         wilcox_P_value=[]
+        condition = data['rate'].eq('None') 
+        data = data.loc[~condition, :]
+        data = data.dropna()
         for i in lists:
             condition = ((data['cohort_type']==0)|(data['cohort_type']=='T')) & (data['measurement_type']== i )
             target = data.loc[condition, 'rate']
             condition = ((data['cohort_type']==1)|(data['cohort_type']=='C')) & (data['measurement_type']== i )
             control = data.loc[condition, 'rate']           
-            # condition = data['measurement_type']== i 
-            # m_data = data.loc[condition, :]
-            # m_data.drop_duplicates(inplace=True)
+            target.drop_duplicates(inplace =True)
+            control.drop_duplicates(inplace =True)
             with localconverter(r.default_converter + pandas2ri.converter):
                 r_target = r.conversion.py2rpy(target)
                 r_control = r.conversion.py2rpy(control)  
-            if len(target) <3 :
-                shapiro_pvalue_target.append(0)
-                shapiro_pvalue_control.append(0)
-                var_pvalue.append(0)
-                ttest_F_stat.append(0)
-                ttest_P_value.append(0)
-                wilcox_F_stat.append(0)
-                wilcox_P_value.append(0)
-            elif len(control) <3:
+            if ((len(r_target) < 3) | (len(r_control) <3)):
                 shapiro_pvalue_target.append(0)
                 shapiro_pvalue_control.append(0)
                 var_pvalue.append(0)
@@ -278,17 +270,26 @@ class Stats:
         return sub1, sub2 
     def drug_preprocess(data):
         lists =['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+        condition = data['rate'].eq('None') 
+        data = data.loc[~condition, :]
+        condition = data['baseline'].eq('None') 
+        data = data.loc[~condition, :]
+        condition = data['F/U'].eq('None') 
+        data = data.loc[~condition, :]
+        condition = data['drug_group'].eq('None') 
+        data = data.loc[~condition, :]
+        data = data.dropna()
         results=[]
         for i in lists:
             if i =='metformin': 
                 condition = ((data.cohort_type ==0) | (data.cohort_type =='T')) & (data.drug_group.isin(['metformin']))
                 j = data.loc[condition,['subject_id','drug_group','measurement_type', 'baseline','F/U']]
-                j.drop_duplicates(inplace=True)
+                j=j.drop_duplicates()
                 results.append(j)
             else:   
                 condition = ((data.cohort_type ==0) | (data.cohort_type =='T')) & (data['drug_group'].str.contains(i))
                 j = data.loc[condition,['subject_id','drug_group','measurement_type', 'baseline','F/U']]
-                j.drop_duplicates(inplace=True)
+                j=j.drop_duplicates()
                 results.append(j)
         return results 
     def pairedtest (data):
@@ -306,11 +307,17 @@ class Stats:
         ttest_P_value=[]
         wilcox_F_stat =[]
         wilcox_P_value=[]      
-        
+        condition = data['F/U'].eq('None') 
+        data = data.loc[~condition, :]
+        condition = data['baseline'].eq('None') 
+        data = data.loc[~condition, :]
+        data = data.dropna()        
         for j in lists:
             condition = data['measurement_type']== j
             post = data.loc[condition, 'F/U']
             pre = data.loc[condition, 'baseline']
+            post = post.drop_duplicates()
+            pre= pre.drop_duplicates()
             if ((len(post) < 3) | (len(pre)<3)):
                 shapiro_pvalue_post.append(0)
                 shapiro_pvalue_pre.append(0)
@@ -319,14 +326,6 @@ class Stats:
                 ttest_P_value.append(0)
                 wilcox_F_stat.append(0)
                 wilcox_P_value.append(0)
-            # elif len(pre) <3: 
-            #     shapiro_pvalue_post.append(0)
-            #     shapiro_pvalue_pre.append(0)
-            #     var_pvalue.append(0)
-            #     ttest_F_stat.append(0)
-            #     ttest_P_value.append(0)
-            #     wilcox_F_stat.append(0)
-            #     wilcox_P_value.append(0)
             else:
                 with localconverter(r.default_converter + pandas2ri.converter):
                     r_post = r.conversion.py2rpy(post)
