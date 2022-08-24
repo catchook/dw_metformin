@@ -104,12 +104,35 @@ if __name__=='__main__' :
               else ''
               END) as gender   
       , (EXTRACT(YEAR FROM a.cohort_start_date)-d.year_of_birth) as age
+       ,(case       when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id = 4329847) then 'acute_myocardial_infarction'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id = 316139)  then 'Congestive_heart_failure'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id = 321052) then 'Peripheral_vascular_disease'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id in (381591, 434056)) then 'Cerebrovascular_disease'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id = 4182210) then 'Dementia'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id = 4063381) then 'Chronic_Pulmonary_disease'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id in (257628, 134442, 80800, 80809, 256197, 255348)) then 'Rheumatologic_disease'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id = 4247120) then 'Peptic_ulcer_disease'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id in (4064161, 4212540)) then 'Mild_liver_disease'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id = 201820) then 'Diabetes'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id in (443767, 442793)) then 'Diabetes_with_chronic_complications'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id in (192606, 374022)) then 'Hemoplegia_or_paralegia'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id in  (4030518, 4239233, 4245042)) then 'Renal_disease'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id  = 443392) then 'Any_malignancy'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id in (4245975, 4029488, 192680, 24966) ) then 'Moderate_to_severe_liver_disease'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id  = 432851 ) then 'Metastatic_solid_tumor'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id  = 439727 ) then 'AIDS'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id  = 316866 ) then 'Hypertension'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id  = 432867 ) then 'Hyperlipidemia'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id  = 132797 ) then 'Sepsis'
+                    when e.condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor where ancestor_concept_id  = 4254542 ) then 'Hypopituitarism'
+                    else '' 
+                    END) as condition_type
       from cdm_hira_2017_results_fnet_v276.cohort as a
 
       join
-      (select * from cdm_hira_2017.measurement where measurement_concept_id in (3020460, 3010156, 3015183, 3013707, 3013682, 3022192, 3004249,
+      (select * from cdm_hira_2017.measurement where measurement_concept_id in (3020460, 3010156, 3015183, 3013707, 3013682, 3004295, 3022192, 3004249,21490853,
                                                 3027484, 3037110, 3040820,3016723, 3007070,3013721, 3024561,3015089, 3012064, 3016244,3038553,
-                                                3004410, 3012888, 3027114 ,3028437 , 42529224, 3029187, 42870364))  as c
+                                                3004410, 3012888, 21490851 ,3027114 ,3028437 , 42529224, 3029187, 42870364))  as c
       on a.subject_id = c.person_id
       
       join
@@ -125,9 +148,17 @@ if __name__=='__main__' :
       join 
       (select * from cdm_hira_2017.person) as d 
       on a.subject_id = d.person_id
-
+      
+      join 
+      (select person_id, condition_concept_id, condition_start_date from cdm_hira_2017.condition_occurrence 
+      where condition_concept_id in (select distinct descendant_concept_id from cdm_hira_2017.concept_ancestor
+                                where ancestor_concept_id in( 4329847,316139, 321052 ,381591,434056,4182210, 4063381, 257628, 134442, 80800, 80809, 256197
+                                ,255348, 4247120 ,4064161, 4212540, 201820, 443767, 442793, 192606, 374022, 4030518, 443392, 4245975, 4029488, 192680,
+                                24966, 432851, 439727, 316866, 432867, 132797, 4254542, 4239233, 4245042))) as  e
+      on a.subject_id = e.person_id
       where a.cohort_definition_id in (target, control)
       and b.drug_exposure_start_date between a.cohort_start_date  and (a.cohort_start_date + 455)
+      and d.condition_start_date < a.cohort_start_date
 """
 # male =0, female =1
 # target =0, control =1
@@ -135,122 +166,118 @@ if __name__=='__main__' :
         # check file size
     m1.columns= ['cohort_type','subject_id','cohort_start_date','cohort_end_date','drug_concept_id','drug_exposure_start_date',
                                 'drug_exposure_end_date', 'quantity', 'days_supply','measurement_type','measurement_date', 'value_as_number','gender'
-                                ,'age']
+                                ,'age', 'condition_type']
     ff.change_str_date(m1)
     st= cc.Stats
     m1= st.preprocess(m1)
     file_size = sys.getsizeof(m1)
     print("m1 file size: ", ff.convert_size(file_size), "bytes")
     print(m1.head())
+    sample= m1[:500]
+    sample.to_csv('/data/results/'+cohort_hospital+'_sample.csv')
     #check N 
     n1 = ff.count_measurement(m1, '1: sql')
     #  1. PS matching data
 # [1/3] ADD DATA: drug history (adm drug group) 
-    d = cc.Drug
-    PS_1st = d.drug_history(m1, t1)
-    PS_1st.to_csv('/data/results/'+cohort_hospital+'_PS_1st.csv')
-# [2/3] ADD DATA: BUN, Creatinine
-    buncr=d.buncr(m1)
-    buncr.to_csv('/data/results/'+cohort_hospital+'_buncr.csv')
-    # PS matching 
-    ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
-    ps2 = pd.merge(ps, buncr,on='subject_id', how='left')
-    ps2.drop_duplicates(inplace=True)
-    ps2.fillna(999, inplace =True) # BUN, CREATININE 수치가 없는 경우?
-    print("before ps matching")
-    print(ps2.head())
-# [3/3] PS matching 
-    m_data= st.psmatch(ps2,True, 2) # 2nd , 3rd arguments = replacement, ps matching ratio
-    m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
-    file_size = sys.getsizeof(m2)
-    print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
-    m2.to_csv('/data/results/'+cohort_hospital+'_after_psmatch.csv')
-    #check N 
-    n2 = ff.count_measurement(m2, '2: after psmatch')
-# # # 2. Simpliyfy N 
-# [1/3] Simplify N: only who got ESR, CRP
-    s = cc.Simplify
-    lists = list(m2['measurement_type'].drop_duplicates())
-# lists =['CRP','ESR','BUN','Triglyceride','SBP', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL','AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'Total cholesterol', 'LDL', 'NT-proBNP' ]
-    pair= s.Pair(m2, lists)
-# # [2/3] simplify N: measurement in drug_Exposure
-    exposure= s.Exposure(m2, lists)
-# # [3/3] simplify N: ALL: 3 ingredient out, target: not metformin out
-    final= s.Ingredient(m2, t1, lists)
-    print("final")
-    print(final.head())
-    print(final.columns)
-# ### count N 
-    n3 = ff.count_measurement(pair, '3: pair')
-    n4 = ff.count_measurement(exposure, '4 exposure')
-    n5 = ff.count_measurement(final,'5 rule out')
-# # 3. Stat
-# # [1/ ] Tagging Dose type 
-# # # dose_type 
-# # 1) quantity, days_supply 컬럼 값 붙이기. 
-    final1 = pd.merge(final, m1[['subject_id', 'measurement_type', 'measurement_date', 'drug_concept_id','quantity', 'days_supply']], how='left',
-                        left_on= ['subject_id','measurement_type','measurement_date_after','drug_concept_id'], right_on = ['subject_id','measurement_type','measurement_date','drug_concept_id'])
-    final1.drop_duplicates(inplace=True)
-    file_size = sys.getsizeof(final1)
-    print("add dose_Type file size: ", ff.convert_size(file_size), "bytes")
-    print("final 1: add dose type")
-    print(final1.columns)
-    print(final1.head())
-# 2) 계산해서 high, low 구분하기. 
-    dose = d.dose(final1, t1)
-    final2= pd.merge(final1, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
-    final2.drop_duplicates(inplace=True)
-    print("add high, low data:final2")
-    print(final2.columns)
-    print(final2.head())
-# # 통계 계산에 필요한 컬럼은? 
-# ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
-    final2['rate']= (final2['value_as_number_after'] - final2['value_as_number_before']) /final2['value_as_number_before'] *100
-    final2['diff'] = final2['value_as_number_after'] - final2['value_as_number_before']
-    final2['rate'] = final2['rate'].round(2)
-    final2['diff'] = final2['diff'].round(2)
-    final3 = final2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'diff','dose_type', 'drug_group']]
-    final3.drop_duplicates(inplace=True)
-    final3.fillna(999, inplace=True)
-    file_size = sys.getsizeof(final3)
-    print("add rate, diff file size: ", ff.convert_size(file_size), "bytes")
-    print("final3 : add rate, diff  variable")
-    print("final3")
-    print(final3.columns)
-    print(final3.head())
-# ## 수가 동일할까?
-    n6 = ff.count_measurement(final3, '6: calculate dose type')
-# # #[2/] type별로 등분산성, 정규성, t-test
-    test = st.test(final3)
-    test.to_csv("/data/results/"+cohort_hospital+'_ttest.csv')
-# # #[3/] type별로 describe()
-    target_final, control_final = st.describe(final3)
-    target_final.to_csv("/data/results/"+cohort_hospital+'_target_describe.csv')
-    control_final.to_csv("/data/results/"+cohort_hospital+'_control_describe.csv')
-# ## [4/] 용량별 t-test
-    sub1, sub2 = st.dose_preprocess(final3)
-    high = st.test(sub1)
-    low = st.test(sub2)
-    high['dose']='high'
-    low['dose']='low'
-    t_results = pd.concat([high, low], axis =0)   
-    t_results.to_csv("/data/results/"+cohort_hospital+'_dose_ttest.csv')
-# ## [5/] paired t-test
-    results = st.drug_preprocess(final3) # ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
-    names = ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
-    paired_results=[]
-    for result, name in zip(results, names):
-        if len(result)==0:
-            empty = pd.DataFrame({'type': [0], 'shapiro_pvalue_post':[0], 'shapiro_pvalue_pre':[0], 'var_pvalue':[0], 'ttest_F_stat':[0], 'ttest_P_value':[0], 'wilcox_F_stat':[0], 'wilcox_P_value': [0], 'drug_type': [name]})
-            paired_results.append(empty)
-        else: 
-            paired_result = st.pairedtest(result)
-            paired_result['drug_type']= name
-            paired_results.append(paired_result) 
-    p_results = pd.concat([paired_results[0], paired_results[1], paired_results[2], paired_results[3], paired_results[4], paired_results[5], paired_results[6]], axis =0 )
-    p_results.to_csv("/data/results/"+cohort_hospital+'_p_results.csv')            
-## python stat 차이나는지 이후 검정 https://techbrad.tistory.com/6..안되면 python으로? 
-    count_N = pd.concat([n1, n2, n3, n4, n5, n6], axis =0)
-    count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
+#     d = cc.Drug
+#     PS_1st = d.drug_history(m1, t1)
+#     PS_1st.to_csv('/data/results/'+cohort_hospital+'_PS_1st.csv')
+# # [2/3] ADD DATA: BUN, Creatinine
+#     buncr=d.buncr(m1)
+#     buncr.to_csv('/data/results/'+cohort_hospital+'_buncr.csv')
+#     # PS matching 
+#     ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
+#     ps2 = pd.merge(ps, buncr,on='subject_id', how='left')
+#     ps2.drop_duplicates(inplace=True)
+#     ps2.fillna(999.0, inplace =True) # BUN, CREATININE 수치가 없는 경우?
+#     print("before ps matching")
+#     print(ps2.head())
+# # [3/3] PS matching 
+#     m_data= st.psmatch(ps2,True, 2) # 2nd , 3rd arguments = replacement, ps matching ratio
+#     m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
+#     file_size = sys.getsizeof(m2)
+#     print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
+#     sample = m2[:100]
+#     sample.to_csv('/data/results/'+cohort_hospital+'_after_psmatch.csv')
+#     #check N 
+#     n2 = ff.count_measurement(m2, '2: after psmatch')
+# # # # 2. Simpliyfy N 
+# # # [1/4 ] Tagging Dose type 
+# # # # dose_type 
+#     dose = d.dose(m2, t1)
+#     m3= pd.merge(m2, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
+#     m3.drop_duplicates(inplace=True)
+#     print("add high, low data: m3")
+#     print(m3.columns)
+#     print(m3.head())
+#     del m2
+#     del m1
+#     sample = m3[:100]
+#     sample.to_csv('/data/results/'+cohort_hospital+'_add_highlow.csv')
+# # [2/4] Simplify N: only who got ESR, CRP
+#     s = cc.Simplify
+#     lists = list(m3['measurement_type'].drop_duplicates())
+# # lists =['CRP','ESR','BUN','Triglyceride','SBP', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL','AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'Total cholesterol', 'LDL', 'NT-proBNP' ]
+#     pair= s.Pair(m3, lists)
+# # [3/4] simplify N: measurement in drug_Exposure
+#     exposure= s.Exposure(m3, lists)
+# # [4/4] simplify N: ALL: 3 ingredient out, target: not metformin out
+#     final= s.Ingredient(m3, t1, lists)
+#     print("final")
+#     print(final.head())
+#     print(final.columns)
+# # ### count N 
+#     n3 = ff.count_measurement(pair, '3: pair')
+#     n4 = ff.count_measurement(exposure, '4 exposure')
+#     n5 = ff.count_measurement(final,'5 rule out')
+# # # 3. Stat
+# # # 통계 계산에 필요한 컬럼은? 
+# # ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
+#     final['rate']= (final['value_as_number_after'] - final['value_as_number_before']) /final['value_as_number_before'] *100
+#     final['diff'] = final['value_as_number_after'] - final['value_as_number_before']
+#     final['rate'] = final['rate'].round(2)
+#     final['diff'] = final['diff'].round(2)
+#     final.drop_duplicates(inplace=True)
+#     final.fillna(999.0, inplace=True)
+#     file_size = sys.getsizeof(final)
+#     print("add rate, diff file size: ", ff.convert_size(file_size), "bytes")
+#     print("final : add rate, diff  variable")
+#     print("final")
+#     print(final.columns)
+#     print(final.head())
+# # ## 수가 동일할까?
+#     n6 = ff.count_measurement(final, '6: calculate dose type')
+# # # #[2/] type별로 등분산성, 정규성, t-test
+#     test = st.test(final)
+#     test.to_csv("/data/results/"+cohort_hospital+'_ttest.csv')
+# # # #[3/] type별로 describe()
+#     target_final, control_final = st.describe(final)
+#     target_final.to_csv("/data/results/"+cohort_hospital+'_target_describe.csv')
+#     control_final.to_csv("/data/results/"+cohort_hospital+'_control_describe.csv')
+# # ## [4/] 용량별 t-test
+#     sub1, sub2 = st.dose_preprocess(final)
+#     high = st.test(sub1)
+#     low = st.test(sub2)
+#     high['dose']='high'
+#     low['dose']='low'
+#     t_results = pd.concat([high, low], axis =0)   
+#     t_results.to_csv("/data/results/"+cohort_hospital+'_dose_ttest.csv')
+# # ## [5/] paired t-test
+#     results = st.drug_preprocess(final) # ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+#     names = ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+#     paired_results=[]
+#     for result, name in zip(results, names):
+#         if len(result)==0:
+#             empty = pd.DataFrame({'type': [0], 'shapiro_pvalue_post':[0], 'shapiro_pvalue_pre':[0], 'var_pvalue':[0], 'ttest_F_stat':[0], 'ttest_P_value':[0], 'wilcox_F_stat':[0], 'wilcox_P_value': [0], 'drug_type': [name]})
+#             paired_results.append(empty)
+#         else: 
+#             paired_result = st.pairedtest(result)
+#             paired_result['drug_type']= name
+#             paired_results.append(paired_result) 
+#     p_results = pd.concat([paired_results[0], paired_results[1], paired_results[2], paired_results[3], paired_results[4], paired_results[5], paired_results[6]], axis =0 )
+#     p_results.to_csv("/data/results/"+cohort_hospital+'_p_results.csv')            
+# ## python stat 차이나는지 이후 검정 https://techbrad.tistory.com/6..안되면 python으로? 
+#     count_N = pd.concat([n1, n2, n3, n4, n5, n6], axis =0)
+#     count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
 
 
