@@ -20,35 +20,34 @@ import psycopg2 as pg
 from collections import Counter
 import os
 from functools import reduce
-import random
-# from psmpy import PsmPy
-# from psmpy.functions import cohenD
-# from psmpy.plotting import *
-# import seaborn as sns
-# import statsmodels.formula.api as smf
-# import matplotlib.pyplot as plt
+from psmpy import PsmPy
+from psmpy.functions import cohenD
+from psmpy.plotting import *
+import seaborn as sns
+import statsmodels.formula.api as smf
+import matplotlib.pyplot as plt
 import math
 from scipy import stats
 import DW_function as ff
 import DW_class as cc 
 ##rpy2
-# import rpy2
-# from rpy2.robjects.packages import importr
-# import rpy2.robjects as r
-# import rpy2.robjects.pandas2ri as pandas2ri
-# from rpy2.robjects import Formula
-# pandas2ri.activate()
-# # import rpy2's package module
-# import rpy2.robjects.packages as rpackages
-# from rpy2.robjects.conversion import localconverter
-# # rpy2
-# base = importr('base')
-# utils = importr('utils')
-# utils=rpackages.importr('utils')
-# utils.install_packages('MatchIt')
-# utils.install_packages('stats')
-# statss= importr('stats')
-# matchit=importr('MatchIt')
+import rpy2
+from rpy2.robjects.packages import importr
+import rpy2.robjects as r
+import rpy2.robjects.pandas2ri as pandas2ri
+from rpy2.robjects import Formula
+pandas2ri.activate()
+# import rpy2's package module
+import rpy2.robjects.packages as rpackages
+from rpy2.robjects.conversion import localconverter
+# rpy2
+base = importr('base')
+utils = importr('utils')
+utils=rpackages.importr('utils')
+utils.install_packages('MatchIt')
+utils.install_packages('stats')
+statss= importr('stats')
+matchit=importr('MatchIt')
 
 # input_file reading 
 input_file = sys.argv[1]
@@ -105,6 +104,29 @@ if __name__=='__main__' :
               else ''
               END) as gender   
       , (EXTRACT(YEAR FROM a.cohort_start_date)-d.year_of_birth) as age
+      ,(case        when e.ancestor_concept_id = 4329847 then 'MI'
+                    when e.ancestor_concept_id = 316139 then 'HF'
+                    when e.ancestor_concept_id = 321052 then 'PV'
+                    when e.ancestor_concept_id in (381591, 434056 ) then 'CV'
+                    when e.ancestor_concept_id = 4182210 then 'Dementia'
+                    when e.ancestor_concept_id = 4063381 then 'CPD'
+                    when e.ancestor_concept_id in ( 257628, 134442, 80800, 80809, 256197, 255348)  then 'RD'
+                    when e.ancestor_concept_id = 4247120 then 'PUD'
+                    when e.ancestor_concept_id in (4064161, 4212540)  then 'MLD'
+                    when e.ancestor_concept_id = 201820 then 'D'
+                    when e.ancestor_concept_id in (443767,442793 ) then 'DCC'
+                    when e.ancestor_concept_id in (192606, 374022) then 'H/P'
+                    when e.ancestor_concept_id in (4030518,	4239233, 4245042 ) then 'RD'
+                    when e.ancestor_concept_id = 443392 then 'M'
+                    when e.ancestor_concept_id in (4245975, 4029488, 192680, 24966) then 'MSLD'
+                    when e.ancestor_concept_id = 432851 then 'MST'
+                    when e.ancestor_concept_id = 439727 then 'AIDS'
+                    when e.ancestor_concept_id = 316866 then 'HT'
+                    when e.ancestor_concept_id = 432867 then 'HL'
+                    when e.ancestor_concept_id = 132797 then 'Sepsis'
+                    when e.ancestor_concept_id = 4254542 then 'HTT'
+                    else '' 
+                    END) as condition_type
       from cdm_hira_2017_results_fnet_v276.cohort as a
 
       join
@@ -126,9 +148,19 @@ if __name__=='__main__' :
       join 
       (select * from cdm_hira_2017.person) as d 
       on a.subject_id = d.person_id
-
+      
+      join 
+      ( select a.person_id as person_id, a.condition_concept_id, a.condition_start_date as condition_start_date, b.ancestor_concept_id as ancestor_concept_id 
+      from cdm_hira_2017.condition_occurrence as a
+        inner join cdm_hira_2017.concept_ancestor as b
+        on a.condition_concept_id = b.descendant_concept_id
+        where b.ancestor_concept_id in( 4329847,316139, 321052 ,381591,434056,4182210, 4063381, 257628, 134442, 80800, 80809, 256197
+                                        ,255348, 4247120 ,4064161, 4212540, 201820, 443767, 442793, 192606, 374022, 4030518, 443392, 4245975, 4029488, 192680,
+                                        24966, 432851, 439727, 316866, 432867, 132797, 4254542, 4239233, 4245042) ) as e
+      on a.subject_id = e.person_id
       where a.cohort_definition_id in (target, control)
       and b.drug_exposure_start_date between a.cohort_start_date  and (a.cohort_start_date + 455)
+      and e.condition_start_date between (a.cohort_start_date - 365) and a.cohort_start_date 
 """
 # male =0, female =1
 # target =0, control =1
@@ -136,54 +168,72 @@ if __name__=='__main__' :
         # check file size
     m1.columns= ['cohort_type','subject_id','cohort_start_date','cohort_end_date','drug_concept_id','drug_exposure_start_date',
                                 'drug_exposure_end_date', 'quantity', 'days_supply','measurement_type','measurement_date', 'value_as_number','gender'
-                                ,'age']
+                                ,'age', 'condition_type']
     ff.change_str_date(m1)
     st= cc.Stats
     m1= st.preprocess(m1)
     file_size = sys.getsizeof(m1)
     print("m1 file size: ", ff.convert_size(file_size), "bytes")
     print(m1.head())
+    sample= m1[:500]
+    sample.to_csv('/data/results/'+cohort_hospital+'_sample.csv')
     #check N 
     n1 = ff.count_measurement(m1, '1: sql')
-  #  1. PS matching data
-# [1/3] ADD DATA: drug history (adm drug group) 
+#      1. PS matching data
+# [1/3] ADD DATA: drug  and comordity history (adm drug group) 
     d = cc.Drug
     PS_1st = d.drug_history(m1, t1)
+    History = d.history(m1)
 # [2/3] ADD DATA: BUN, Creatinine
     buncr=d.buncr(m1)
+
     # PS matching 
     ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
     ps2 = pd.merge(ps, buncr,on='subject_id', how='left')
-    ps2.drop_duplicates(inplace=True)
-    ps2.fillna(999, inplace =True) # BUN, CREATININE 수치가 없는 경우?
+    ps3 = pd.merge(ps2, History,on='subject_id', how='left' )
+    ps3.drop_duplicates(inplace=True)
+    ps3.fillna(999.0, inplace =True) # BUN, CREATININE 수치가 없는 경우?
     print("before ps matching")
-    print(ps2.head())
-
- # # # 2. Simpliyfy N 
+    print(ps3.head())
+    
+# [3/3] PS matching 
+    m_data= st.psmatch(ps3, True, 2) # 2nd , 3rd arguments = replacement, ps matching ratio
+    m2 =pd.merge(m_data, m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
+    file_size = sys.getsizeof(m2)
+    print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
+    sample = m2[:100]
+    sample.to_csv('/data/results/'+cohort_hospital+'_after_psmatch.csv')
+    #check N 
+    n2 = ff.count_measurement(m2, '2: after psmatch')
+# # # 2. Simpliyfy N 
 # # [1/4 ] Tagging Dose type 
 # # # dose_type 
-    dose = d.dose(m1, t1)
-    m2= pd.merge(m1, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
-    m2.drop_duplicates(inplace=True)
+    dose = d.dose(m2, t1)
+    m3= pd.merge(m2, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
+    m3.drop_duplicates(inplace=True)
     print("add high, low data: m3")
-    print(m2.columns)
-    print(m2.head())
+    print(m3.columns)
+    print(m3.head())
+    del m2
+    del m1
+    sample = m3[:100]
+    sample.to_csv('/data/results/'+cohort_hospital+'_add_highlow.csv')
 # [2/4] Simplify N: only who got ESR, CRP
     s = cc.Simplify
-    lists = list(m2['measurement_type'].drop_duplicates())
+    lists = list(m3['measurement_type'].drop_duplicates())
 # lists =['CRP','ESR','BUN','Triglyceride','SBP', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL','AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'Total cholesterol', 'LDL', 'NT-proBNP' ]
-    pair= s.Pair(m2, lists)
+    pair= s.Pair(m3, lists)
 # [3/4] simplify N: measurement in drug_Exposure
-    exposure= s.Exposure(m2, lists)
+    exposure= s.Exposure(m3, lists)
 # [4/4] simplify N: ALL: 3 ingredient out, target: not metformin out
-    final= s.Ingredient(m2, t1, lists)
+    final= s.Ingredient(m3, t1, lists)
     print("final")
     print(final.head())
     print(final.columns)
 # ### count N 
-    n2 = ff.count_measurement(pair, '2: pair')
-    n3 = ff.count_measurement(exposure, '3: exposure')
-    n4 = ff.count_measurement(final,'4: rule out')
+    n3 = ff.count_measurement(pair, '3: pair')
+    n4 = ff.count_measurement(exposure, '4 exposure')
+    n5 = ff.count_measurement(final,'5 rule out')
 # # 3. Stat
 # # 통계 계산에 필요한 컬럼은? 
 # ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
@@ -192,39 +242,45 @@ if __name__=='__main__' :
     final['rate'] = final['rate'].round(2)
     final['diff'] = final['diff'].round(2)
     final.drop_duplicates(inplace=True)
-    final.fillna(999, inplace=True)
+    final.fillna(999.0, inplace=True)
     file_size = sys.getsizeof(final)
     print("add rate, diff file size: ", ff.convert_size(file_size), "bytes")
     print("final : add rate, diff  variable")
     print("final")
     print(final.columns)
     print(final.head())
-#######################################################################################################################################
-# 16개 병원 데이터를 합치기 위한 코드 
-## 1사람당 여러줄로 데이터 가져나오기 
-#### 1) before, after, rate, diff, ps, drug_group, dose_type
-    data= pd.merge(ps2, final, on=['subject_id', 'cohort_type'], how='left')
-    data.drop_duplicates(inplace= True)
-    n5 = ff.count_measurement(data, '5: before merge') 
-#### 병원 + subject_id
-    original_ids = data['subject_id'].unique()
-    while True:
-        new_ids = {id_: random.randint(10_000_000, 99_999_999) for id_ in original_ids}
-        if len(set(new_ids.values())) == len(original_ids):
-            # all the generated id's were unique
-            break
-        # otherwise this will repeat until they are
-    data['ID'] = data['subject_id'].map(new_ids)
-    data['ID2'] = str(cohort_hospital) + data['ID'].astype(str)
-    data.drop(columns='subject_id', inplace= True)
-    file_size = sys.getsizeof(data)
-    print("data; to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
-    print("data: to merge 16 hospitals")
-    print(data.head())
-    print(data.columns)
-    sample =data[:500]
-    sample.to_csv('/data/results/'+cohort_hospital+'_to_merge_data_sample.csv')
-    #check N 
-    count_N = pd.concat([n1, n2, n3, n4, n5], axis =0)
+# ## 수가 동일할까?
+    n6 = ff.count_measurement(final, '6: calculate dose type')
+# # #[2/] type별로 등분산성, 정규성, t-test
+    test = st.test(final)
+    test.to_csv("/data/results/"+cohort_hospital+'_ttest.csv')
+# # #[3/] type별로 describe()
+    target_final, control_final = st.describe(final)
+    target_final.to_csv("/data/results/"+cohort_hospital+'_target_describe.csv')
+    control_final.to_csv("/data/results/"+cohort_hospital+'_control_describe.csv')
+# ## [4/] 용량별 t-test
+    sub1, sub2 = st.dose_preprocess(final)
+    high = st.test(sub1)
+    low = st.test(sub2)
+    high['dose']='high'
+    low['dose']='low'
+    t_results = pd.concat([high, low], axis =0)   
+    t_results.to_csv("/data/results/"+cohort_hospital+'_dose_ttest.csv')
+# ## [5/] paired t-test
+    results = st.drug_preprocess(final) # ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+    names = ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+    paired_results=[]
+    for result, name in zip(results, names):
+        if len(result)==0:
+            empty = pd.DataFrame({'type': [0], 'shapiro_pvalue_post':[0], 'shapiro_pvalue_pre':[0], 'var_pvalue':[0], 'ttest_F_stat':[0], 'ttest_P_value':[0], 'wilcox_F_stat':[0], 'wilcox_P_value': [0], 'drug_type': [name]})
+            paired_results.append(empty)
+        else: 
+            paired_result = st.pairedtest(result)
+            paired_result['drug_type']= name
+            paired_results.append(paired_result) 
+    p_results = pd.concat([paired_results[0], paired_results[1], paired_results[2], paired_results[3], paired_results[4], paired_results[5], paired_results[6]], axis =0 )
+    p_results.to_csv("/data/results/"+cohort_hospital+'_p_results.csv')            
+## python stat 차이나는지 이후 검정 https://techbrad.tistory.com/6..안되면 python으로? 
+    count_N = pd.concat([n1, n2, n3, n4, n5, n6], axis =0)
     count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
-    data.to_csv('/data/results/'+cohort_hospital+'_to_merge_data.csv')
+

@@ -1,4 +1,4 @@
-# SQL 
+# SQL ## 동반질환 ps매칭 변수 추가. 
 # # check N 
 # PS matching 
 # # Check N 
@@ -20,7 +20,7 @@ import psycopg2 as pg
 from collections import Counter
 import os
 from functools import reduce
-import random
+import random 
 # from psmpy import PsmPy
 # from psmpy.functions import cohenD
 # from psmpy.plotting import *
@@ -32,23 +32,23 @@ from scipy import stats
 import DW_function as ff
 import DW_class as cc 
 ##rpy2
-# import rpy2
-# from rpy2.robjects.packages import importr
-# import rpy2.robjects as r
-# import rpy2.robjects.pandas2ri as pandas2ri
-# from rpy2.robjects import Formula
-# pandas2ri.activate()
-# # import rpy2's package module
-# import rpy2.robjects.packages as rpackages
-# from rpy2.robjects.conversion import localconverter
-# # rpy2
-# base = importr('base')
-# utils = importr('utils')
-# utils=rpackages.importr('utils')
-# utils.install_packages('MatchIt')
-# utils.install_packages('stats')
-# statss= importr('stats')
-# matchit=importr('MatchIt')
+import rpy2
+from rpy2.robjects.packages import importr
+import rpy2.robjects as r
+import rpy2.robjects.pandas2ri as pandas2ri
+from rpy2.robjects import Formula
+pandas2ri.activate()
+# import rpy2's package module
+import rpy2.robjects.packages as rpackages
+from rpy2.robjects.conversion import localconverter
+# rpy2
+base = importr('base')
+utils = importr('utils')
+utils=rpackages.importr('utils')
+utils.install_packages('MatchIt')
+utils.install_packages('stats')
+statss= importr('stats')
+matchit=importr('MatchIt')
 
 # input_file reading 
 input_file = sys.argv[1]
@@ -105,6 +105,29 @@ if __name__=='__main__' :
               else ''
               END) as gender   
       , (EXTRACT(YEAR FROM a.cohort_start_date)-d.year_of_birth) as age
+      ,(case        when e.ancestor_concept_id = 4329847 then 'MI'
+                    when e.ancestor_concept_id = 316139 then 'HF'
+                    when e.ancestor_concept_id = 321052 then 'PV'
+                    when e.ancestor_concept_id in (381591, 434056 ) then 'CV'
+                    when e.ancestor_concept_id = 4182210 then 'Dementia'
+                    when e.ancestor_concept_id = 4063381 then 'CPD'
+                    when e.ancestor_concept_id in ( 257628, 134442, 80800, 80809, 256197, 255348)  then 'RD'
+                    when e.ancestor_concept_id = 4247120 then 'PUD'
+                    when e.ancestor_concept_id in (4064161, 4212540)  then 'MLD'
+                    when e.ancestor_concept_id = 201820 then 'D'
+                    when e.ancestor_concept_id in (443767,442793 ) then 'DCC'
+                    when e.ancestor_concept_id in (192606, 374022) then 'H/P'
+                    when e.ancestor_concept_id in (4030518,	4239233, 4245042 ) then 'RD'
+                    when e.ancestor_concept_id = 443392 then 'M'
+                    when e.ancestor_concept_id in (4245975, 4029488, 192680, 24966) then 'MSLD'
+                    when e.ancestor_concept_id = 432851 then 'MST'
+                    when e.ancestor_concept_id = 439727 then 'AIDS'
+                    when e.ancestor_concept_id = 316866 then 'HT'
+                    when e.ancestor_concept_id = 432867 then 'HL'
+                    when e.ancestor_concept_id = 132797 then 'Sepsis'
+                    when e.ancestor_concept_id = 4254542 then 'HTT'
+                    else '' 
+                    END) as condition_type
       from cdm_hira_2017_results_fnet_v276.cohort as a
 
       join
@@ -126,9 +149,19 @@ if __name__=='__main__' :
       join 
       (select * from cdm_hira_2017.person) as d 
       on a.subject_id = d.person_id
-
+      
+      join 
+      ( select a.person_id as person_id, a.condition_concept_id, a.condition_start_date as condition_start_date, b.ancestor_concept_id as ancestor_concept_id 
+      from cdm_hira_2017.condition_occurrence as a
+        inner join cdm_hira_2017.concept_ancestor as b
+        on a.condition_concept_id = b.descendant_concept_id
+        where b.ancestor_concept_id in( 4329847,316139, 321052 ,381591,434056,4182210, 4063381, 257628, 134442, 80800, 80809, 256197
+                                        ,255348, 4247120 ,4064161, 4212540, 201820, 443767, 442793, 192606, 374022, 4030518, 443392, 4245975, 4029488, 192680,
+                                        24966, 432851, 439727, 316866, 432867, 132797, 4254542, 4239233, 4245042) ) as e
+      on a.subject_id = e.person_id
       where a.cohort_definition_id in (target, control)
       and b.drug_exposure_start_date between a.cohort_start_date  and (a.cohort_start_date + 455)
+      and e.condition_start_date between (a.cohort_start_date - 365) and a.cohort_start_date 
 """
 # male =0, female =1
 # target =0, control =1
@@ -136,7 +169,7 @@ if __name__=='__main__' :
         # check file size
     m1.columns= ['cohort_type','subject_id','cohort_start_date','cohort_end_date','drug_concept_id','drug_exposure_start_date',
                                 'drug_exposure_end_date', 'quantity', 'days_supply','measurement_type','measurement_date', 'value_as_number','gender'
-                                ,'age']
+                                ,'age', 'condition_type']
     ff.change_str_date(m1)
     st= cc.Stats
     m1= st.preprocess(m1)
@@ -145,20 +178,21 @@ if __name__=='__main__' :
     print(m1.head())
     #check N 
     n1 = ff.count_measurement(m1, '1: sql')
-  #  1. PS matching data
-# [1/3] ADD DATA: drug history (adm drug group) 
+#      1. PS matching data
+# [1/3] ADD DATA: drug  and comordity history (adm drug group) 
     d = cc.Drug
     PS_1st = d.drug_history(m1, t1)
+    History = d.history(m1)
 # [2/3] ADD DATA: BUN, Creatinine
     buncr=d.buncr(m1)
     # PS matching 
     ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
     ps2 = pd.merge(ps, buncr,on='subject_id', how='left')
-    ps2.drop_duplicates(inplace=True)
-    ps2.fillna(999, inplace =True) # BUN, CREATININE 수치가 없는 경우?
+    ps3 = pd.merge(ps2, History,on='subject_id', how='left' )
+    ps3.drop_duplicates(inplace=True)
+    ps3.fillna(999.0, inplace =True) # BUN, CREATININE 수치가 없는 경우?
     print("before ps matching")
-    print(ps2.head())
-
+    print(ps3.head())
  # # # 2. Simpliyfy N 
 # # [1/4 ] Tagging Dose type 
 # # # dose_type 
@@ -168,6 +202,7 @@ if __name__=='__main__' :
     print("add high, low data: m3")
     print(m2.columns)
     print(m2.head())
+    del m1
 # [2/4] Simplify N: only who got ESR, CRP
     s = cc.Simplify
     lists = list(m2['measurement_type'].drop_duplicates())
@@ -191,20 +226,24 @@ if __name__=='__main__' :
     final['diff'] = final['value_as_number_after'] - final['value_as_number_before']
     final['rate'] = final['rate'].round(2)
     final['diff'] = final['diff'].round(2)
-    final.drop_duplicates(inplace=True)
-    final.fillna(999, inplace=True)
-    file_size = sys.getsizeof(final)
+    final2 = final[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'diff','dose_type', 'drug_group']]
+    final2.drop_duplicates(inplace=True)
+    final2.fillna(999, inplace=True)
+    file_size = sys.getsizeof(final2)
     print("add rate, diff file size: ", ff.convert_size(file_size), "bytes")
-    print("final : add rate, diff  variable")
-    print("final")
-    print(final.columns)
-    print(final.head())
+    print("final2 : add rate, diff  variable")
+    print("final2")
+    print(final2.columns)
+    print(final2.head())
 #######################################################################################################################################
 # 16개 병원 데이터를 합치기 위한 코드 
 ## 1사람당 여러줄로 데이터 가져나오기 
 #### 1) before, after, rate, diff, ps, drug_group, dose_type
-    data= pd.merge(ps2, final, on=['subject_id', 'cohort_type'], how='left')
+    data= pd.merge(ps3, final2, on=['subject_id', 'cohort_type'], how='left')
     data.drop_duplicates(inplace= True)
+    file_size = sys.getsizeof(data)
+    print("data; to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
+    print("data: to merge 16 hospitals")
     n5 = ff.count_measurement(data, '5: before merge') 
 #### 병원 + subject_id
     original_ids = data['subject_id'].unique()
@@ -228,3 +267,4 @@ if __name__=='__main__' :
     count_N = pd.concat([n1, n2, n3, n4, n5], axis =0)
     count_N.to_csv("/data/results/"+cohort_hospital+'_count_N.csv')
     data.to_csv('/data/results/'+cohort_hospital+'_to_merge_data.csv')
+

@@ -157,6 +157,23 @@ class Drug:
         print("this is buncr pivot table ")
         print(before_pivot.head())
         return before_pivot 
+    def history(data):
+        data2 = data[['subject_id', 'condition_type']].drop_duplicates()
+        dc = data2.groupby('subject_id')['condition_type'].agg(lambda x: ",".join(list(set(x)))).reset_index()
+        dc.set_index('subject_id', inplace = True)
+        PS = pd.get_dummies(dc['condition_type'].str.split(',\s*', expand=True).stack()).groupby(level='subject_id').sum().astype(int).reset_index()
+        # condition= PS_1st['error']==0
+        # PS_1st= PS_1st.loc[condition,:].drop(columns='error')
+        PS_1st = pd.DataFrame(columns=['subject_id','MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'RD', 'PUD', 'MLD', 'D', 'DCC', 'H/P', 'RD', 'M', 'MSLD', 'MST', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT'])
+        columns = ['MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'RD', 'PUD', 'MLD', 'D', 'DCC', 'H/P', 'RD', 'M', 'MSLD', 'MST', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']
+        for index in columns:
+            if index in PS.columns:
+                PS_1st[index] = PS[index]
+            else:
+                PS_1st[index] = 0
+        PS_1st['subject_id']= PS['subject_id']
+        print("History columns are {}".format(PS_1st.columns))
+        return PS_1st     
 class Stats:
     def __init__(self, data):
         self.data = data
