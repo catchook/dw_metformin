@@ -32,23 +32,23 @@ from scipy import stats
 import DW_function as ff
 import DW_class as cc 
 ##rpy2
-import rpy2
-from rpy2.robjects.packages import importr
-import rpy2.robjects as r
-import rpy2.robjects.pandas2ri as pandas2ri
-from rpy2.robjects import Formula
-pandas2ri.activate()
-# import rpy2's package module
-import rpy2.robjects.packages as rpackages
-from rpy2.robjects.conversion import localconverter
-# rpy2
-base = importr('base')
-utils = importr('utils')
-utils=rpackages.importr('utils')
-utils.install_packages('MatchIt')
-utils.install_packages('stats')
-statss= importr('stats')
-matchit=importr('MatchIt')
+# import rpy2
+# from rpy2.robjects.packages import importr
+# import rpy2.robjects as r
+# import rpy2.robjects.pandas2ri as pandas2ri
+# from rpy2.robjects import Formula
+# pandas2ri.activate()
+# # import rpy2's package module
+# import rpy2.robjects.packages as rpackages
+# from rpy2.robjects.conversion import localconverter
+# # rpy2
+# base = importr('base')
+# utils = importr('utils')
+# utils=rpackages.importr('utils')
+# utils.install_packages('MatchIt')
+# utils.install_packages('stats')
+# statss= importr('stats')
+# matchit=importr('MatchIt')
 
 # input_file reading 
 input_file = sys.argv[1]
@@ -160,7 +160,7 @@ if __name__=='__main__' :
                                         24966, 432851, 439727, 316866, 432867, 132797, 4254542, 4239233, 4245042) ) as e
       on a.subject_id = e.person_id
       where a.cohort_definition_id in (target, control)
-      and b.drug_exposure_start_date between a.cohort_start_date  and (a.cohort_start_date + 455)
+      and b.drug_exposure_start_date between (a.cohort_start_date + 90)  and (a.cohort_start_date + 455)
       and e.condition_start_date between (a.cohort_start_date - 365) and a.cohort_start_date 
 """
 # male =0, female =1
@@ -199,7 +199,7 @@ if __name__=='__main__' :
     dose = d.dose(m1, t1)
     m2= pd.merge(m1, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
     m2.drop_duplicates(inplace=True)
-    print("add high, low data: m3")
+    print("add high, low data: m2")
     print(m2.columns)
     print(m2.head())
     del m1
@@ -222,29 +222,31 @@ if __name__=='__main__' :
 # # 3. Stat
 # # 통계 계산에 필요한 컬럼은? 
 # ## subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
+    final.drop_duplicates(inplace=True)
+    final = ff.delete_none(final)
+    final['value_as_number_before'] = final['value_as_number_before'].replace(0, 0.00000000000001) 
     final['rate']= (final['value_as_number_after'] - final['value_as_number_before']) /final['value_as_number_before'] *100
     final['diff'] = final['value_as_number_after'] - final['value_as_number_before']
     final['rate'] = final['rate'].round(2)
     final['diff'] = final['diff'].round(2)
-    final2 = final[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'diff','dose_type', 'drug_group']]
+    final2 = final[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'rate', 'diff','dose_type', 'drug_group', 'row', 'rrow' ]]
     final2.drop_duplicates(inplace=True)
-    final2.fillna(999, inplace=True)
+   # final2.fillna(999, inplace=True)
     file_size = sys.getsizeof(final2)
     print("add rate, diff file size: ", ff.convert_size(file_size), "bytes")
     print("final2 : add rate, diff  variable")
     print("final2")
     print(final2.columns)
     print(final2.head())
+    
 #######################################################################################################################################
 # 16개 병원 데이터를 합치기 위한 코드 
 ## 1사람당 여러줄로 데이터 가져나오기 
 #### 1) before, after, rate, diff, ps, drug_group, dose_type
     data= pd.merge(ps3, final2, on=['subject_id', 'cohort_type'], how='left')
     data.drop_duplicates(inplace= True)
-    file_size = sys.getsizeof(data)
-    print("data; to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
-    print("data: to merge 16 hospitals")
     n5 = ff.count_measurement(data, '5: before merge') 
+        ## change names
 #### 병원 + subject_id
     original_ids = data['subject_id'].unique()
     while True:
@@ -255,9 +257,11 @@ if __name__=='__main__' :
         # otherwise this will repeat until they are
     data['ID'] = data['subject_id'].map(new_ids)
     data['ID2'] = str(cohort_hospital) + data['ID'].astype(str)
-    data.drop(columns='subject_id', inplace= True)
+    data.drop(columns=['subject_id','ID'], inplace= True)
+    data.rename(columns={'ID2':'ID'}, inplace=True)
+
     file_size = sys.getsizeof(data)
-    print("data; to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
+    print("data: to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
     print("data: to merge 16 hospitals")
     print(data.head())
     print(data.columns)

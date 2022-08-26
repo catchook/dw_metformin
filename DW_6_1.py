@@ -128,7 +128,7 @@ if __name__=='__main__' :
       on a.subject_id = d.person_id
 
       where a.cohort_definition_id in (target, control)
-      and b.drug_exposure_start_date between a.cohort_start_date  and (a.cohort_start_date + 455)
+      and b.drug_exposure_start_date between (a.cohort_start_date +90)  and (a.cohort_start_date + 455)
 """
 # male =0, female =1
 # target =0, control =1
@@ -170,13 +170,13 @@ if __name__=='__main__' :
     print(m2.head())
 # [2/4] Simplify N: only who got ESR, CRP
     s = cc.Simplify
-    lists = list(m2['measurement_type'].drop_duplicates())
+#    lists = list(m2['measurement_type'].drop_duplicates())
 # lists =['CRP','ESR','BUN','Triglyceride','SBP', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL','AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'Total cholesterol', 'LDL', 'NT-proBNP' ]
-    pair= s.Pair(m2, lists)
+    pair= s.Pair(m2)
 # [3/4] simplify N: measurement in drug_Exposure
-    exposure= s.Exposure(m2, lists)
+    exposure= s.Exposure(m2)
 # [4/4] simplify N: ALL: 3 ingredient out, target: not metformin out
-    final= s.Ingredient(m2, t1, lists)
+    final= s.Ingredient(m2, t1)
     print("final")
     print(final.head())
     print(final.columns)
@@ -192,7 +192,7 @@ if __name__=='__main__' :
     final['rate'] = final['rate'].round(2)
     final['diff'] = final['diff'].round(2)
     final.drop_duplicates(inplace=True)
-    final.fillna(999, inplace=True)
+   # final.fillna(999, inplace=True)
     file_size = sys.getsizeof(final)
     print("add rate, diff file size: ", ff.convert_size(file_size), "bytes")
     print("final : add rate, diff  variable")
@@ -206,6 +206,9 @@ if __name__=='__main__' :
     data= pd.merge(ps2, final, on=['subject_id', 'cohort_type'], how='left')
     data.drop_duplicates(inplace= True)
     n5 = ff.count_measurement(data, '5: before merge') 
+    file_size = sys.getsizeof(data)
+    
+        ## change names
 #### 병원 + subject_id
     original_ids = data['subject_id'].unique()
     while True:
@@ -216,10 +219,10 @@ if __name__=='__main__' :
         # otherwise this will repeat until they are
     data['ID'] = data['subject_id'].map(new_ids)
     data['ID2'] = str(cohort_hospital) + data['ID'].astype(str)
-    data.drop(columns='subject_id', inplace= True)
-    file_size = sys.getsizeof(data)
-    print("data; to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
-    print("data: to merge 16 hospitals")
+    data.drop(columns=['subject_id','ID'], inplace= True)
+    data.rename(columns={'ID2':'ID'}, inplace=True)
+    print("data : to merge 16 hospital file size: ", ff.convert_size(file_size), "bytes")
+    print("data : to merge 16 hospitals")
     print(data.head())
     print(data.columns)
     sample =data[:500]

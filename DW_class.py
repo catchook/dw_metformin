@@ -42,35 +42,32 @@ matchit=importr('MatchIt')
 # [3/3] simplify N: ALL: 3 ingredient out, target: not metformin out 
 
 class Simplify:
-    def __init__(self, data, t1, lists):
+    def __init__(self, data, t1):
         self.data = data
         self.t1 = t1
-        self.lists= lists
-    def Pair(data, lists):
-        condition= (data['measurement_date'] < data['cohort_start_date']) & (data['measurement_type'].isin(lists))
+    def Pair(data): #(data['measurement_type'].isin(lists)) 제거
+        condition= (data['measurement_date'] < data['cohort_start_date']) 
         before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','cohort_type','value_as_number']]
         before.dropna(inplace=True)
         before['row'] = before.sort_values(['measurement_date'], ascending =False).groupby(['subject_id', 'measurement_type']).cumcount()+1
         condition = before['row']== 1
         before = before.loc[condition,['subject_id','measurement_type','measurement_date','cohort_type','value_as_number']]
-        condition= (data['measurement_type'].isin(lists)) & (data['measurement_date'] >= data['cohort_start_date'] ) & (data['measurement_date'] >= data['drug_exposure_start_date']) & (data['measurement_date'] <= data['drug_exposure_end_date'])
+       
+        condition= (data['measurement_date'] >= data['drug_exposure_start_date']) & (data['measurement_date'] <= data['drug_exposure_end_date'])
         after = data.loc[condition,['subject_id','cohort_type','measurement_type','measurement_date','value_as_number','drug_concept_id','drug_exposure_start_date','drug_exposure_end_date','cohort_start_date','dose_type']]
         after.dropna(inplace=True)
         pair = pd.merge(before, after, on=['subject_id','measurement_type','cohort_type'], how ='inner', suffixes=('_before','_after'))
         pair=ff.delete_none(pair)
         return pair 
-    def Exposure(data, lists):
-        pair33 = Simplify.Pair(data, lists)
-        # pair33['drug_exposure_end_date']=pair33['drug_exposure_end_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
-        # pair33['drug_exposure_start_date'] = pair33['drug_exposure_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
-        # pair33['measurement_date_after'] = pair33['measurement_date_after'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
+    def Exposure(data):
+        pair33 = Simplify.Pair(data)
         condition = (pair33['drug_exposure_start_date'] <= pair33['measurement_date_after']) & (pair33['measurement_date_after'] <= pair33['drug_exposure_end_date'])
         exposure = pair33.loc[condition,:]
         exposure=ff.delete_none(exposure)
         return exposure 
-    def Ingredient(data, t1, lists):
+    def Ingredient(data, t1):
         ## Step3 : 3 ingredient out (control, target 공통) &  target = metformin 포함 한 것만 추출 
-        exposure=Simplify.Exposure(data, lists)
+        exposure=Simplify.Exposure(data)
         exposure['drug_concept_id'] = exposure['drug_concept_id'].astype(int)
         dc = pd.merge(exposure,  t1[['drug_concept_id','Name','type1','type2']], on= 'drug_concept_id', how = 'left')
         dc.drop_duplicates(inplace=True)
@@ -80,14 +77,21 @@ class Simplify:
         dc2= dc2.groupby(['subject_id','measurement_type','measurement_date_after','cohort_type'])['type'].agg( lambda x:list(set(x))).reset_index() ##list({k:None for k in x}.keys())
         dc2['ingredient_count'] = dc2['type'].apply(lambda x: len(set(x)))
         dc2['metformin_count'] = dc2['type'].apply(lambda x: x.count("metformin"))
+        
         condition = (dc2['ingredient_count'] >= 3) 
         dc2= dc2.loc[~condition, :]
         condition = ((dc2['cohort_type']=='T')| (dc2['cohort_type']==0)) & (dc2['metformin_count']==0) ##따옴표를 없앰, 에러시 "0"으로 대체 
         dc2= dc2.loc[~condition, :]
+        
         dc2['drug_group'] =dc2['type'].apply(lambda x:'/'.join(map(str, x)))
         dc2['row'] = dc2.sort_values(['measurement_date_after'], ascending =True).groupby(['subject_id', 'measurement_type']).cumcount()+1
-        condition = dc2['row']== 1
-        dc2 = dc2.loc[condition,['subject_id', 'measurement_type', 'measurement_date_after', 'drug_group']]
+        dc2['rrow'] = dc2.sort_values(['measurement_date_after'], ascending =False).groupby(['subject_id', 'measurement_type']).cumcount()+1
+        print(" before select certain columns , step: ingredient--dc2 ")
+        print(dc2.head())
+        dc2 = dc2[['subject_id', 'measurement_type', 'measurement_date_after', 'drug_group','row','rrow']]
+        dc2.drop_duplicates(inplace=True)
+        print(" after drop_duplicates, step: ingredient--dc2 ")
+        print(dc2.head())
         final = pd.merge(exposure[['subject_id','measurement_type','cohort_type','measurement_date_before', 'value_as_number_before',
                 'measurement_date_after','value_as_number_after', 'dose_type']], dc2, on=['subject_id', 'measurement_type','measurement_date_after'], how ='inner')
         final.drop_duplicates(inplace=True)
@@ -96,7 +100,7 @@ class Simplify:
 # 2. Add PS matching data
 # [1/3] 1st PS matching: drug history (adm drug group) 
 # [2/3] 1st PS matching: BUN, Creatinine
-# [3/3] 2nd PS matching: disease history --중간 보고 이후 작성. 
+# [3/3] 2nd PS matching: disease history 
 
 class Drug:
     def __init__(self, data, t1):
@@ -142,8 +146,7 @@ class Drug:
         return PS_1st     
     def buncr(data):
         # [2/3] 1st PS matching: BUN, Creatinine
-        # data['cohort_start_date'] = data['cohort_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
-        # data['measurement_date'] = data['measurement_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
+
         condition= (data['measurement_date'] < data['cohort_start_date']) & (data['measurement_type'].isin(['Creatinine', 'BUN' ]))
         before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','value_as_number']]
         before.dropna(inplace=True)
@@ -153,7 +156,7 @@ class Drug:
         before_pivot = before.pivot(values ='value_as_number', index='subject_id', columns ='measurement_type')
         before_pivot.columns = before_pivot.columns.values
         before_pivot.reset_index(level=0, inplace =True)  
-        before_pivot.fillna(0, inplace= True)  
+        before_pivot.fillna(999, inplace= True)  
         print("this is buncr pivot table ")
         print(before_pivot.head())
         return before_pivot 
@@ -226,7 +229,59 @@ class Stats:
             control.drop_duplicates(inplace =True)
             with localconverter(r.default_converter + pandas2ri.converter):
                 r_target = r.conversion.py2rpy(target)
-                r_control = r.conversion.py2rpy(control)  
+                r_control = r.conversion.py2rpy(control)
+
+            if ((len(r_target) < 3) | (len(r_control) <3)):
+                shapiro_pvalue_target.append(0)
+                shapiro_pvalue_control.append(0)
+                var_pvalue.append(0)
+                ttest_F_stat.append(0)
+                ttest_P_value.append(0)
+                wilcox_F_stat.append(0)
+                wilcox_P_value.append(0)
+            else:               
+                t_out = func_shapiro(r_target)
+                c_out = func_shapiro(r_control)           
+                m_out1= func_vartest(r_control, r_target)     
+                m_out2= func_ttest(r_control, r_target)
+                m_out3= func_wilcox(r_control, r_target)
+                shapiro_pvalue_target.append(t_out[1][0])
+                shapiro_pvalue_control.append(c_out[1][0])
+                var_pvalue.append(m_out1[2][0])
+                ttest_F_stat.append(m_out2[0][0])
+                ttest_P_value.append(m_out2[2][0])
+                wilcox_F_stat.append(m_out3[0][0])
+                wilcox_P_value.append(m_out3[2][0])
+        df = pd.DataFrame({'type': lists, 'shapiro_pvalue_target' : shapiro_pvalue_target, 'shapiro_pvalue_control': shapiro_pvalue_control, 'var_pvalue' : var_pvalue, 
+                           'ttest_F_stat': ttest_F_stat, 'ttest_P_value':ttest_P_value, 'wilcox_F_stat':wilcox_F_stat, 'wilcox_P_value':wilcox_P_value })
+        return df 
+    def test2(data):
+        func_shapiro = r.r['shapiro.test']
+        func_vartest = r.r['var.test']       
+        func_ttest=r.r['t.test']
+        func_wilcox=r.r['wilcox.test']
+        lists = list(data['measurement_type'].drop_duplicates())
+        shapiro_pvalue_target=[]
+        shapiro_pvalue_control=[]
+        var_pvalue=[]
+        ttest_F_stat =[]
+        ttest_P_value=[]
+        wilcox_F_stat =[]
+        wilcox_P_value=[]
+        condition = data['diff'].eq('None') 
+        data = data.loc[~condition, :]
+        data = data.dropna()
+        for i in lists:
+            condition = ((data['cohort_type']==0)|(data['cohort_type']=='T')) & (data['measurement_type']== i )
+            target = data.loc[condition, 'diff']
+            condition = ((data['cohort_type']==1)|(data['cohort_type']=='C')) & (data['measurement_type']== i )
+            control = data.loc[condition, 'diff']           
+            target.drop_duplicates(inplace =True)
+            control.drop_duplicates(inplace =True)
+            with localconverter(r.default_converter + pandas2ri.converter):
+                r_target = r.conversion.py2rpy(target)
+                r_control = r.conversion.py2rpy(control)
+
             if ((len(r_target) < 3) | (len(r_control) <3)):
                 shapiro_pvalue_target.append(0)
                 shapiro_pvalue_control.append(0)

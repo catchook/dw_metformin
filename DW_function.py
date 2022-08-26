@@ -77,22 +77,7 @@ def save_query( SCHEMA, cohort_target, cohort_control, sql, c):
     print('save sql success')
     return m1
 
-# def count_crp_esr(df):
-#     all_n = df['subject_id'].nunique()
-#     condition= (df['cohort_type']=='T') & (df['measurement_type']=='CRP')
-#     CRP_t_n= df.loc[condition, 'subject_id'].nunique()
-#     condition= (df['cohort_type']=='T') & (df['measurement_type']=='ESR')
-#     ESR_t_n= df.loc[condition, 'subject_id'].nunique()
-#     condition= (df['cohort_type']=='C') & (df['measurement_type']=='CRP')
-#     CRP_c_n= df.loc[condition, 'subject_id'].nunique()
-#     condition= (df['cohort_type']=='C') & (df['measurement_type']=='ESR')
-#     ESR_c_n= df.loc[condition, 'subject_id'].nunique()
-#     return all_n, CRP_t_n , ESR_t_n, CRP_c_n, ESR_c_n
-
 def count_measurement(df, step):
- #   lists = ['BUN','Triglyceride','SBP','Hb','Glucose_Fasting','Creatinine','HDL','AST','Albumin']
- # lists =['CRP','ESR','BUN','Triglyceride','SBP', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL','AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'Total cholesterol', 'LDL', 'NT-proBNP' ]
- 
     lists = list(df['measurement_type'].drop_duplicates())
     T_numbers=[]
     C_numbers=[]
