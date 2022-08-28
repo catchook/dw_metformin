@@ -167,8 +167,8 @@ class Drug:
         PS = pd.get_dummies(dc['condition_type'].str.split(',\s*', expand=True).stack()).groupby(level='subject_id').sum().astype(int).reset_index()
         # condition= PS_1st['error']==0
         # PS_1st= PS_1st.loc[condition,:].drop(columns='error')
-        PS_1st = pd.DataFrame(columns=['subject_id','MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'RD', 'PUD', 'MLD', 'D', 'DCC', 'H/P', 'RD', 'M', 'MSLD', 'MST', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT'])
-        columns = ['MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'RD', 'PUD', 'MLD', 'D', 'DCC', 'H/P', 'RD', 'M', 'MSLD', 'MST', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']
+        PS_1st = pd.DataFrame(columns=['subject_id','MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'RD', 'PUD', 'MLD', 'D', 'DCC', 'HP', 'RD', 'M', 'MSLD', 'MST', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT'])
+        columns = ['MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'RD', 'PUD', 'MLD', 'D', 'DCC', 'HP', 'RD', 'M', 'MSLD', 'MST', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']
         for index in columns:
             if index in PS.columns:
                 PS_1st[index] = PS[index]
@@ -197,13 +197,24 @@ class Stats:
         func_seed(1)
         with localconverter(r.default_converter + pandas2ri.converter):
             r_data = r.conversion.py2rpy(data)
-        r_out1=func_matchit(formula = Formula('cohort_type ~ BUN + Creatinine + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd'), data = r_data, method ='nearest', distance ='logit', replace = condition, 
-        ratio = ratio_n)
+        r_out1=func_matchit(formula = Formula('cohort_type ~ BUN + Creatinine + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + CV + CPD +RD+ PUD +MLD + DCC + HP + Renal + MSLD + AIDS + HT+ HL + Sepsis+ HTT'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
         func_match_data = r.r['match.data']
         m_data = func_match_data(r_out1, data =r_data, distance ='prop.score')
         with localconverter(r.default_converter + pandas2ri.converter):
             pd_m_data = r.conversion.rpy2py(m_data)
         return pd_m_data
+    def psmatch2(data,condition ,ratio_n):           
+        func_seed = r.r['set.seed']
+        func_matchit = r.r['matchit']
+        func_seed(1)
+        with localconverter(r.default_converter + pandas2ri.converter):
+            r_data = r.conversion.py2rpy(data)
+        r_out1=func_matchit(formula = Formula('dose_type ~ BUN + Creatinine + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + CV + CPD +RD+ PUD +MLD + DCC + HP + Renal + MSLD + AIDS + HT+ HL + Sepsis+ HTT'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
+        func_match_data = r.r['match.data']
+        m_data = func_match_data(r_out1, data =r_data, distance ='prop.score')
+        with localconverter(r.default_converter + pandas2ri.converter):
+            pd_m_data = r.conversion.rpy2py(m_data)
+        return pd_m_data    
     def test(data): #rate
         func_shapiro = r.r['shapiro.test']
         func_vartest = r.r['var.test']       
@@ -306,29 +317,27 @@ class Stats:
         df = pd.DataFrame({'type': lists, 'shapiro_pvalue_target' : shapiro_pvalue_target, 'shapiro_pvalue_control': shapiro_pvalue_control, 'var_pvalue' : var_pvalue, 
                            'ttest_F_stat': ttest_F_stat, 'ttest_P_value':ttest_P_value, 'wilcox_F_stat':wilcox_F_stat, 'wilcox_P_value':wilcox_P_value })
         return df 
-    def dose_test(data1, data2, lists): #rate
-        func_shapiro = r.r['shapiro.test']
+    def dose_test(data): #rate
+        lists = list(data['measurement_type'].drop_duplicates())
+        # func_shapiro = r.r['shapiro.test']
         func_vartest = r.r['var.test']       
         func_ttest=r.r['t.test']
         func_wilcox=r.r['wilcox.test']
-        shapiro_pvalue_high=[]
-        shapiro_pvalue_low=[]
+        kolmogorov_pvalue_high=[]
+        kolmogorov_pvalue_low=[]
         var_pvalue=[]
         ttest_F_stat =[]
         ttest_P_value=[]
         wilcox_F_stat =[]
         wilcox_P_value=[]
-        condition = data1['rate'].eq('None') 
-        data1 = data1.loc[~condition, 'rate']
-        data1 = data1.dropna()
-        condition = data2['rate'].eq('None') 
-        data2 = data2.loc[~condition, 'rate']
-        data2 = data2.dropna()
+        condition = data['rate'].eq('None') 
+        data2 = data.loc[~condition, :]
+        data2.dropna(inplace =True)
         for i in lists:
-            condition = data1['measurement_type']== i 
-            high = data1.loc[condition, :]
-            condition = data2['measurement_type']== i 
-            low = data2.loc[condition, :]           
+            condition = (data2['measurement_type']== i ) & (data2['dose_type']== 1)
+            high = data.loc[condition, 'rate']
+            condition = (data2['measurement_type']== i ) & (data2['dose_type']== 0)
+            low = data.loc[condition, 'rate']           
             #high.drop_duplicates(inplace =True)
             #low.drop_duplicates(inplace =True)
             with localconverter(r.default_converter + pandas2ri.converter):
@@ -336,110 +345,111 @@ class Stats:
                 r_low = r.conversion.py2rpy(low)
 
             if ((len(high) <= 3) | (len(low)<=3)):
-                shapiro_pvalue_high.append(0)
-                shapiro_pvalue_low.append(0)
-                var_pvalue.append(0)
-                ttest_F_stat.append(0)
-                ttest_P_value.append(0)
-                wilcox_F_stat.append(0)
-                wilcox_P_value.append(0)
+                # shapiro_pvalue_high.append(0)
+                # shapiro_pvalue_low.append(0)
+                # var_pvalue.append(0)
+                # ttest_F_stat.append(0)
+                # ttest_P_value.append(0)
+                # wilcox_F_stat.append(0)
+                # wilcox_P_value.append(0)
+                pass
             else:               
-                h_out = func_shapiro(r_high)
-                l_out = func_shapiro(r_low)           
+                h_out = stats.kstest(r_high,'norm')
+                l_out = stats.kstest(r_low, 'norm')           
                 m_out1= func_vartest(r_high, r_low)     
                 m_out2= func_ttest(r_high, r_low)
                 m_out3= func_wilcox(r_high, r_low)
-                shapiro_pvalue_high.append(h_out[1][0])
-                shapiro_pvalue_low.append(l_out[1][0])
+                kolmogorov_pvalue_high.append(h_out[1])
+                kolmogorov_pvalue_low.append(l_out[1])
                 var_pvalue.append(m_out1[2][0])
                 ttest_F_stat.append(m_out2[0][0])
                 ttest_P_value.append(m_out2[2][0])
                 wilcox_F_stat.append(m_out3[0][0])
                 wilcox_P_value.append(m_out3[2][0])
-        df = pd.DataFrame({'type': lists, 'shapiro_pvalue_target' : shapiro_pvalue_high, 'shapiro_pvalue_control': shapiro_pvalue_low, 'var_pvalue' : var_pvalue, 
+        df = pd.DataFrame({'type': lists, 'kolmogorov_pvalue_high' : kolmogorov_pvalue_high, 'kolmogorov_pvalue_low': kolmogorov_pvalue_low, 'var_pvalue' : var_pvalue, 
                            'ttest_F_stat': ttest_F_stat, 'ttest_P_value':ttest_P_value, 'wilcox_F_stat':wilcox_F_stat, 'wilcox_P_value':wilcox_P_value })
         return df
      
-    def dose_test2(data1, data2, lists): #diff
-        func_shapiro = r.r['shapiro.test']
+    def dose_test2(data): #diff
+        lists = list(data['measurement_type'].drop_duplicates())
+        # func_shapiro = r.r['shapiro.test']
         func_vartest = r.r['var.test']       
         func_ttest=r.r['t.test']
         func_wilcox=r.r['wilcox.test']
-        shapiro_pvalue_high=[]
-        shapiro_pvalue_low=[]
+        kolmogorov_pvalue_high=[]
+        kolmogorov_pvalue_low=[]
         var_pvalue=[]
         ttest_F_stat =[]
         ttest_P_value=[]
         wilcox_F_stat =[]
         wilcox_P_value=[]
-        condition = data1['diff'].eq('None') 
-        data1 = data1.loc[~condition, :]
-        data1 = data1.dropna()
-        condition = data2['diff'].eq('None') 
-        data2 = data2.loc[~condition, :]
-        data2 = data2.dropna()
+        condition = data['diff'].eq('None') 
+        data2 = data.loc[~condition, :]
+        data2.dropna(inplace =True)
         for i in lists:
-            condition = data1['measurement_type']== i 
-            high = data1.loc[condition, 'diff']
-            condition = data2['measurement_type']== i 
-            low = data2.loc[condition, 'diff']           
+            condition = (data2['measurement_type']== i ) & (data2['dose_type']== 1)
+            high = data.loc[condition, 'diff']
+            condition = (data2['measurement_type']== i ) & (data2['dose_type']== 0)
+            low = data.loc[condition, 'diff']           
             #high.drop_duplicates(inplace =True)
             #low.drop_duplicates(inplace =True)
             with localconverter(r.default_converter + pandas2ri.converter):
                 r_high = r.conversion.py2rpy(high)
                 r_low = r.conversion.py2rpy(low)
 
-            if ((len(r_high) < 3) | (len(r_low) <3)):
-                shapiro_pvalue_high.append(0)
-                shapiro_pvalue_low.append(0)
-                var_pvalue.append(0)
-                ttest_F_stat.append(0)
-                ttest_P_value.append(0)
-                wilcox_F_stat.append(0)
-                wilcox_P_value.append(0)
+            if ((len(high) <= 3) | (len(low)<=3)):
+                # shapiro_pvalue_high.append(0)
+                # shapiro_pvalue_low.append(0)
+                # var_pvalue.append(0)
+                # ttest_F_stat.append(0)
+                # ttest_P_value.append(0)
+                # wilcox_F_stat.append(0)
+                # wilcox_P_value.append(0)
+                pass
             else:               
-                h_out = func_shapiro(r_high)
-                l_out = func_shapiro(r_low)           
+                h_out = stats.kstest(r_high,'norm')
+                l_out = stats.kstest(r_low, 'norm')           
                 m_out1= func_vartest(r_high, r_low)     
                 m_out2= func_ttest(r_high, r_low)
                 m_out3= func_wilcox(r_high, r_low)
-                shapiro_pvalue_high.append(h_out[1][0])
-                shapiro_pvalue_low.append(l_out[1][0])
+                kolmogorov_pvalue_high.append(h_out[1])
+                kolmogorov_pvalue_low.append(l_out[1])
                 var_pvalue.append(m_out1[2][0])
                 ttest_F_stat.append(m_out2[0][0])
                 ttest_P_value.append(m_out2[2][0])
                 wilcox_F_stat.append(m_out3[0][0])
                 wilcox_P_value.append(m_out3[2][0])
-        df = pd.DataFrame({'type': lists, 'shapiro_pvalue_target' : shapiro_pvalue_high, 'shapiro_pvalue_control': shapiro_pvalue_low, 'var_pvalue' : var_pvalue, 
+        df = pd.DataFrame({'type': lists, 'kolmogorov_pvalue_high' : kolmogorov_pvalue_high, 'kolmogorov_pvalue_low': kolmogorov_pvalue_low, 'var_pvalue' : var_pvalue, 
                            'ttest_F_stat': ttest_F_stat, 'ttest_P_value':ttest_P_value, 'wilcox_F_stat':wilcox_F_stat, 'wilcox_P_value':wilcox_P_value })
-        return df 
-    def describe(data ):
+        return df
+    def describe(data):
         lists = list(data['measurement_type'].drop_duplicates())
         data = data.rename(columns={'value_as_number_before':'baseline', 'value_as_number_after': 'F/U'})
         results=[]
         for i in lists:
+            print(i)
             condition = data['measurement_type']== i 
-            data = data.loc[condition, ['measurement_type','baseline', 'F/U','diff','rate'] ]
+            data2 = data.loc[condition, ['measurement_type','baseline', 'F/U','diff','rate'] ]
             columns =['baseline', 'F/U','diff','rate']
             for j in columns:
-                a= data[j].describe().to_frame().transpose()
+                a= data2[j].describe().to_frame().transpose()
                 a['measurement_type']= i
                 results.append(a)
         result = pd.concat(results, axis=0)
         return  result
     
-    def dose_preprocess(data):
-        ## T (high dose) vs Control  
-        condition = (data['dose_type'] =='high') & ((data['cohort_type']==0)|(data['cohort_type']=='T'))
-        high_list = data.loc[condition, 'subject_id'].drop_duplicates()
-        high = data.loc[condition, :].drop_duplicates()
-        condition = ((data['cohort_type']==1)|(data['cohort_type']=='C'))
-        control = data.loc[condition, :].drop_duplicates()
-        sub1 = pd.concat([high, control]).drop_duplicates()
-        condition = (data['subject_id'].isin(high_list)==False) & ((data['cohort_type']== 0)|(data['cohort_type']=='T'))
-        low = data.loc[condition,:].drop_duplicates()
-        sub2 = pd.concat([low, control]).drop_duplicates()
-        return sub1, sub2 
+    # def dose_preprocess(data):
+    #     ## T (high dose) vs Control  
+    #     condition = (data['dose_type'] =='high') & ((data['cohort_type']==0)|(data['cohort_type']=='T'))
+    #     high_list = data.loc[condition, 'subject_id'].drop_duplicates()
+    #     high = data.loc[condition, :].drop_duplicates()
+    #     condition = ((data['cohort_type']==1)|(data['cohort_type']=='C'))
+    #     control = data.loc[condition, :].drop_duplicates()
+    #     sub1 = pd.concat([high, control]).drop_duplicates()
+    #     condition = (data['subject_id'].isin(high_list)==False) & ((data['cohort_type']== 0)|(data['cohort_type']=='T'))
+    #     low = data.loc[condition,:].drop_duplicates()
+    #     sub2 = pd.concat([low, control]).drop_duplicates()
+    #     return sub1, sub2 
     def drug_preprocess(data):
         lists =['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
         data = data.rename(columns={'value_as_number_before':'baseline', 'value_as_number_after': 'F/U'})
@@ -456,12 +466,12 @@ class Stats:
         for i in lists:
             if i =='metformin': 
                 condition = ((data.cohort_type ==0) | (data.cohort_type =='T')) & (data.drug_group.isin(['metformin']))
-                j = data.loc[condition,['subject_id','drug_group','measurement_type', 'baseline','F/U']]
+                j = data.loc[condition,['subject_id','drug_group','measurement_type', 'baseline','F/U','rate','diff']]
                 j=j.drop_duplicates()
                 results.append(j)
             else:   
                 condition = ((data.cohort_type ==0) | (data.cohort_type =='T')) & (data['drug_group'].str.contains(i))
-                j = data.loc[condition,['subject_id','drug_group','measurement_type', 'baseline','F/U']]
+                j = data.loc[condition,['subject_id','drug_group','measurement_type', 'baseline','F/U','rate','diff']]
                 j=j.drop_duplicates()
                 results.append(j)
         return results 
