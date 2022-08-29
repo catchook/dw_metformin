@@ -146,7 +146,6 @@ class Drug:
         return PS_1st     
     def buncr(data):
         # [2/3] 1st PS matching: BUN, Creatinine
-
         condition= (data['measurement_date'] < data['cohort_start_date']) & (data['measurement_type'].isin(['Creatinine', 'BUN' ]))
         before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','value_as_number']]
         before.dropna(inplace=True)
@@ -156,7 +155,7 @@ class Drug:
         before_pivot = before.pivot(values ='value_as_number', index='subject_id', columns ='measurement_type')
         before_pivot.columns = before_pivot.columns.values
         before_pivot.reset_index(level=0, inplace =True)  
-        before_pivot.fillna(999, inplace= True)  
+        before_pivot.fillna(1, inplace= True)  
         print("this is buncr pivot table ")
         print(before_pivot.head())
         return before_pivot 
@@ -197,7 +196,7 @@ class Stats:
         func_seed(1)
         with localconverter(r.default_converter + pandas2ri.converter):
             r_data = r.conversion.py2rpy(data)
-        r_out1=func_matchit(formula = Formula('cohort_type ~ BUN + Creatinine + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + CV + CPD +RD+ PUD +MLD + DCC + HP + Renal + MSLD + AIDS + HT+ HL + Sepsis+ HTT'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
+        r_out1=func_matchit(formula = Formula('cohort_type ~ BUN + Creatinine + egfr + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + CV + CPD +RD+ PUD +MLD + DCC + HP + Renal + MSLD + AIDS + HT+ HL + Sepsis+ HTT'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
         func_match_data = r.r['match.data']
         m_data = func_match_data(r_out1, data =r_data, distance ='prop.score')
         with localconverter(r.default_converter + pandas2ri.converter):
@@ -209,12 +208,36 @@ class Stats:
         func_seed(1)
         with localconverter(r.default_converter + pandas2ri.converter):
             r_data = r.conversion.py2rpy(data)
-        r_out1=func_matchit(formula = Formula('dose_type ~ BUN + Creatinine + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + CV + CPD +RD+ PUD +MLD + DCC + HP + Renal + MSLD + AIDS + HT+ HL + Sepsis+ HTT'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
+        r_out1=func_matchit(formula = Formula('dose_type ~ BUN + Creatinine + egfr + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + CV + CPD +RD+ PUD +MLD + DCC + HP + Renal + MSLD + AIDS + HT+ HL + Sepsis+ HTT'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
         func_match_data = r.r['match.data']
         m_data = func_match_data(r_out1, data =r_data, distance ='prop.score')
         with localconverter(r.default_converter + pandas2ri.converter):
             pd_m_data = r.conversion.rpy2py(m_data)
         return pd_m_data    
+    # def psmatch3(data,condition ,ratio_n):           
+    #     func_seed = r.r['set.seed']
+    #     func_matchit = r.r['matchit']
+    #     func_seed(1)
+    #     with localconverter(r.default_converter + pandas2ri.converter):
+    #         r_data = r.conversion.py2rpy(data)
+    #     r_out1=func_matchit(formula = Formula('dose_type ~ BUN + Creatinine'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
+    #     func_match_data = r.r['match.data']
+    #     m_data = func_match_data(r_out1, data =r_data, distance ='prop.score')
+    #     with localconverter(r.default_converter + pandas2ri.converter):
+    #         pd_m_data = r.conversion.rpy2py(m_data)
+    #     return pd_m_data
+    # def psmatch4(data,condition ,ratio_n):           
+    #     func_seed = r.r['set.seed']
+    #     func_matchit = r.r['matchit']
+    #     func_seed(1)
+    #     with localconverter(r.default_converter + pandas2ri.converter):
+    #         r_data = r.conversion.py2rpy(data)
+    #     r_out1=func_matchit(formula = Formula('dose_type ~ gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + CV + CPD +RD+ PUD +MLD + DCC + HP + Renal + MSLD + AIDS + HT+ HL + Sepsis+ HTT'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
+    #     func_match_data = r.r['match.data']
+    #     m_data = func_match_data(r_out1, data =r_data, distance ='prop.score')
+    #     with localconverter(r.default_converter + pandas2ri.converter):
+    #         pd_m_data = r.conversion.rpy2py(m_data)
+    #     return pd_m_data   
     def test(data): #rate
         func_shapiro = r.r['shapiro.test']
         func_vartest = r.r['var.test']       
@@ -422,7 +445,7 @@ class Stats:
         df = pd.DataFrame({'type': lists, 'kolmogorov_pvalue_high' : kolmogorov_pvalue_high, 'kolmogorov_pvalue_low': kolmogorov_pvalue_low, 'var_pvalue' : var_pvalue, 
                            'ttest_F_stat': ttest_F_stat, 'ttest_P_value':ttest_P_value, 'wilcox_F_stat':wilcox_F_stat, 'wilcox_P_value':wilcox_P_value })
         return df
-    def describe(data):
+    def describe(data, group):
         lists = list(data['measurement_type'].drop_duplicates())
         data = data.rename(columns={'value_as_number_before':'baseline', 'value_as_number_after': 'F/U'})
         results=[]
@@ -436,8 +459,9 @@ class Stats:
                 a['measurement_type']= i
                 results.append(a)
         result = pd.concat(results, axis=0)
+        result['group']= group
         return  result
-    
+
     # def dose_preprocess(data):
     #     ## T (high dose) vs Control  
     #     condition = (data['dose_type'] =='high') & ((data['cohort_type']==0)|(data['cohort_type']=='T'))

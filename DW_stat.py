@@ -55,24 +55,42 @@ if __name__=='__main__' :
 #   print("error" + str(ex))
     m0 = pd.read_csv("/home/syk/data2.csv")
     m0.rename(columns={'ID':'subject_id', 'RD.1': 'Renal', 'H/P': 'HP'}, inplace=True)
+    
+    # bun, cr 999를 1로 변경 
+    m0['BUN'] = m0['BUN'].replace({999.0:1.0})
+    m0['Creatinine'] = m0['Creatinine'].replace({999.0:1.0, 0.0:1.0}) 
     print(m0.head())
     ### n수 확인 (전 처리 하기 전 , total)
     n0 = ff.count_measurement(m0, '0: before delete zero baseline, f/u (except crp, esr)')
     print(n0.head())
-    ### before, after 모두 0인거 제거 
+    ### before, after 모두 0인거 제거 s
     condition = (m0['value_as_number_before'] == 0) | (m0['value_as_number_after'] == 0)
     m1 = m0.loc[~condition, :]
     del m0
+    
     ### n수 확인 (ps매칭 전, total)
     n1 = ff.count_measurement(m1, '1: after delete zero baseline, f/u ')
     print(n1.head())
     st= cc.Stats
-    ### ps매칭할 데이터만 분리
-    ps = m1[['subject_id','cohort_type', 'age', 'gender', 'SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd', 'BUN', 'Creatinine','MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']]
-    ps.drop_duplicates(inplace=True)   
     
-    ### ps matching
+    ## ps매칭에 필요한 eGFR 계산  (MDRD 공식 사용)
+    EGFR =  m1[['subject_id', 'age', 'gender', 'Creatinine']]
+    EGFR.drop_duplicates(inplace =True)
+    EGFR['gender'] = EGFR['gender'].replace({1.0: 0.742,  0.0: 1.0})
+    EGFR['egfr'] = 175* (EGFR['Creatinine']**-1.154) * (EGFR['age']**-0.203) * EGFR['gender'] 
+    print("EGFR")
+    print(EGFR.head())   
+    EGFR.to_csv("/home/syk/egfr.csv")
+    m1 = pd.merge(m1, EGFR[['subject_id', 'egfr']], on ='subject_id', how = 'left')
+    ### ps매칭할 데이터만 분리
+    ps = m1[['subject_id','cohort_type', 'age', 'gender', 'egfr','SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd', 'BUN', 'Creatinine','MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']]
+    ps.drop_duplicates(inplace=True)   
+    ### ps matching 통합 버전  
     m_data= st.psmatch(ps, False, 1) # 2nd , 3rd arguments = replacement, ps matching ratio
+   # m_data = m_data[['subject_id','cohort_type', 'age', 'gender','BUN', 'Creatinine', 'egfr', 'SU', 'alpha', 'dpp4i', 'gnd',  'sglt2', 'tzd', 'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']]
+    m_data.drop_duplicates(inplace=True)
+    # ## ps matching 2 : 인구학적 정보, 병용 약물, 동반질환 추가  
+    # m_data2 = st.psmatch2(m_data, False, 1)
     m2 =pd.merge(m_data[['subject_id', 'cohort_type', 'age', 'gender']], m1, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
     file_size = sys.getsizeof(m2)
     print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
@@ -90,8 +108,8 @@ if __name__=='__main__' :
     m3_2 = m2.loc[condition,:]
     del m2
     ### 통계에 필요한 컬럼만 추출 --> na 제거(자동으로 simplify N )
-    m3_1 = m3_1[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'dose_type', 'drug_group']]
-    m3_2 = m3_2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'dose_type', 'drug_group']]
+    m3_1 = m3_1[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'dose_type', 'drug_group', 'egfr']]
+    m3_2 = m3_2[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'dose_type', 'drug_group', 'egfr']]
     m3_1.drop_duplicates(inplace=True)
     m3_2.drop_duplicates(inplace=True)
     m3_1.dropna(inplace =True)
@@ -120,24 +138,36 @@ if __name__=='__main__' :
     target = m3_1.loc[condition,:]
     print(control.head())
     print(target.head())
-    target_describe = st.describe(target)
-    control_describe = st.describe(control)
+    target_describe = st.describe(target,'earliest_target')
+    control_describe = st.describe(control, 'earliest_control')
     total_describe = pd.concat([target_describe, control_describe], axis=0)
     total_describe.to_csv("/home/syk/total_describe_1.csv")
-    
+    ################### egfr describe_1###############################################
+    t_ = target['egfr'].describe().to_frame().transpose()
+    t_['measurement_type']= 'egfr'
+    t_['group']= 'earliest_target'
+    c_ = control['egfr'].describe().to_frame().transpose()
+    c_['measurement_type']= 'egfr'
+    c_['group']= 'earliest_control'
+    egfr_describe = pd.concat([t_, c_], axis=0)
+    egfr_describe.to_csv("/home/syk/egfr_describe_1.csv")
+    ####################################################################################
      ### 용량별 t-test
      ##용량별 psmtching
     condition = (m1['cohort_type']== 0) & (m1['row']==1)
     m4 = m1.loc[condition,:]
     m4['dose_type']= m4['dose_type'].replace('high',1)
     m4['dose_type']= m4['dose_type'].replace('low',0)
-    ps = m4[['subject_id','age', 'gender', 'SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd', 'BUN', 'Creatinine',
+    ps = m4[['subject_id','age', 'gender', 'SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd', 'BUN', 'Creatinine', 'egfr',
              'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT','dose_type']]
     ps.drop_duplicates(inplace=True)
     ps.dropna(inplace = True)
     m_data= st.psmatch2(ps, False, 1) # 2nd , 3rd arguments = replacement, ps matching ratio
-    m5 =pd.merge(m_data, m4, on =['subject_id','age', 'gender', 'SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd', 'BUN', 'Creatinine',
-             'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT','dose_type'], how='left')
+    #m_data= m_data[['subject_id','age', 'gender', 'SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd',
+    #         'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT','dose_type']]
+    m_data.drop_duplicates(inplace=True)
+   # m_data2 = st.psmatch4(m_data, False, 1)
+    m5 =pd.merge(m_data[['subject_id', 'dose_type']], m4, on =['subject_id','dose_type'], how='left')
     m5.drop_duplicates(inplace=True)
     file_size = sys.getsizeof(m5)
     m5.to_csv("/home/syk/m5_1.csv")
@@ -165,7 +195,7 @@ if __name__=='__main__' :
             paired_result = st.pairedtest(result)
             paired_result['dose_type']= name
             paired_results.append(paired_result) 
-            dose_describe = st.describe(result)
+            dose_describe = st.describe(result, 'earliest_dose_paired')
             dose_describe['dose_type']= name
             dose_describes.append(dose_describe)
     dose_paired_results = pd.concat(paired_results, axis =0 )
@@ -187,7 +217,7 @@ if __name__=='__main__' :
             paired_result = st.pairedtest(result)
             paired_result['drug_type']= name
             paired_results.append(paired_result) 
-            describe_result = st.describe(result)
+            describe_result = st.describe(result, 'earliest_paired')
             describe_result['drug_type']= name
             describe_results.append(describe_result)
     p_results = pd.concat(paired_results, axis=0)
@@ -214,10 +244,21 @@ if __name__=='__main__' :
     target = m3_2.loc[condition,:]
     print(control.head())
     print(target.head())
-    target_describe = st.describe(target)
-    control_describe = st.describe(control)
+    target_describe = st.describe(target,'latest_target')
+    control_describe = st.describe(control, 'latest_control')
     total_describe = pd.concat([target_describe, control_describe], axis=0)
     total_describe.to_csv("/home/syk/total_describe_2.csv")
+################### egfr describe_2###############################################
+    t_ = target['egfr'].describe().to_frame().transpose()
+    t_['measurement_type']= 'egfr'
+    t_['group']= 'latest_target'
+    c_ = control['egfr'].describe().to_frame().transpose()
+    c_['measurement_type']= 'egfr'
+    c_['group']= 'latest_control'
+    egfr_describe = pd.concat([t_, c_], axis=0)
+    egfr_describe.to_csv("/home/syk/egfr_describe_2.csv")
+    ####################################################################################
+    
     
      ### 용량별 t-test
      ##용량별 psmtching
@@ -225,14 +266,18 @@ if __name__=='__main__' :
     m4 = m1.loc[condition,:]
     m4['dose_type']= m4['dose_type'].replace('high',1)
     m4['dose_type']= m4['dose_type'].replace('low',0)
-    ps = m4[['subject_id','age', 'gender', 'SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd', 'BUN', 'Creatinine',
+    ps = m4[['subject_id','age', 'gender', 'SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd', 'BUN', 'Creatinine', 'egfr',
              'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT','dose_type']]
     ps.drop_duplicates(inplace=True)
     ps.dropna(inplace = True)
     ps.to_csv("/home/syk/dose_ps_2.csv")
     m_data= st.psmatch2(ps, False, 1) # 2nd , 3rd arguments = replacement, ps matching ratio
-    m5 =pd.merge(m_data, m4, on =['subject_id','age', 'gender', 'SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd', 'BUN', 'Creatinine',
-             'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT','dose_type'], how='left')
+    # m_data= m_data[['subject_id','age', 'gender', 'SU', 'alpha', 'dpp4i', 'gnd', 'metformin', 'sglt2', 'tzd',
+    #          'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal', 'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT','dose_type']]
+    m_data.drop_duplicates(inplace =True)
+    # m_data2 = st.psmatch4(m_data, False, 1)
+    m5 =pd.merge(m_data[['subject_id', 'dose_type']], m4, on =['subject_id','dose_type'], how='left')
+    m5.drop_duplicates(inplace=True)
     file_size = sys.getsizeof(m5)
     m5.to_csv("/home/syk/m5_2.csv")
 
@@ -259,7 +304,7 @@ if __name__=='__main__' :
             paired_result = st.pairedtest(result)
             paired_result['dose_type']= name
             paired_results.append(paired_result) 
-            dose_describe = st.describe(result)
+            dose_describe = st.describe(result,'latest_dose_target')
             dose_describe['dose_type']= name
             dose_describes.append(dose_describe)
     dose_paired_results = pd.concat(paired_results, axis =0 )
@@ -281,7 +326,7 @@ if __name__=='__main__' :
             paired_result = st.pairedtest(result)
             paired_result['drug_type']= name
             paired_results.append(paired_result) 
-            describe_result = st.describe(result)
+            describe_result = st.describe(result,'latest_target_paired')
             describe_result['drug_type']= name
             describe_results.append(describe_result)
     p_results = pd.concat(paired_results, axis=0)
