@@ -178,11 +178,11 @@ if __name__=='__main__' :
     PS_1st = d.drug_history(m1, t1)
     History = d.history(m1)
 # [2/3] ADD DATA: CCR, Creatinine
-    cr=d.cr(m1)
+    buncr=d.buncr(m1)
     # PS matching 
     ps = pd.merge(m1[['subject_id', 'cohort_type', 'age', 'gender']], PS_1st, on='subject_id', how= 'left')
     ps.drop_duplicates(inplace =True)
-    ps2 = pd.merge(ps, cr,on='subject_id', how='left')
+    ps2 = pd.merge(ps, buncr,on='subject_id', how='left')
     ps2.drop_duplicates(inplace =True)
     ps3 = pd.merge(ps2, History,on='subject_id', how='left' )
     ps3.drop_duplicates(inplace =True)

@@ -17,24 +17,24 @@ import math
 from scipy import stats
 import DW_function as ff
 # #rpy2
-import rpy2
-from rpy2.robjects.packages import importr
-import rpy2.robjects as r
-import rpy2.robjects.pandas2ri as pandas2ri
-pandas2ri.activate()
-from rpy2.robjects import Formula
+# import rpy2
+# from rpy2.robjects.packages import importr
+# import rpy2.robjects as r
+# import rpy2.robjects.pandas2ri as pandas2ri
+# pandas2ri.activate()
+# from rpy2.robjects import Formula
 
-# import rpy2's package module
-import rpy2.robjects.packages as rpackages
-from rpy2.robjects.conversion import localconverter
-# rpy2
-base = importr('base')
-utils = importr('utils')
-utils= rpackages.importr('utils')
-utils.install_packages('MatchIt')
-utils.install_packages('stats')
-statss= importr('stats')
-matchit=importr('MatchIt')
+# # import rpy2's package module
+# import rpy2.robjects.packages as rpackages
+# from rpy2.robjects.conversion import localconverter
+# # rpy2
+# base = importr('base')
+# utils = importr('utils')
+# utils= rpackages.importr('utils')
+# utils.install_packages('MatchIt')
+# utils.install_packages('stats')
+# statss= importr('stats')
+# matchit=importr('MatchIt')
 
 
 # 1. Simpliyfy N 
@@ -145,9 +145,9 @@ class Drug:
         PS_1st['subject_id']= PS['subject_id']
         print("PS_1st columns are {}".format(PS_1st.columns))
         return PS_1st     
-    def cr(data):
+    def buncr(data):
         # [2/3] 1st PS matching: BUN, Creatinine
-        condition= (data['measurement_date'] < data['cohort_start_date']) & (data['measurement_type'].isin(['Creatinine']))
+        condition= (data['measurement_date'] < data['cohort_start_date']) & (data['measurement_type'].isin(['Creatinine', 'BUN']))
         before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','value_as_number']]
         before.dropna(inplace=True)
         before['row'] = before.sort_values(['measurement_date'], ascending =False).groupby(['subject_id', 'measurement_type']).cumcount()+1
@@ -363,13 +363,13 @@ class Stats:
         ttest_P_value=[]
         wilcox_F_stat =[]
         wilcox_P_value=[]
-        condition = data['rate'].eq('None') 
-        data2 = data.loc[~condition, :]
-        data2.dropna(inplace =True)
+        #condition = data['rate'].eq('None') 
+        #data2 = data.loc[~condition, :]
+        #data2.dropna(inplace =True)
         for i in lists:
-            condition = (data2['measurement_type']== i ) & (data2['dose_type']== 1)
+            condition = (data['measurement_type']== i ) & (data['dose_type']== 1)
             high = data.loc[condition, 'rate']
-            condition = (data2['measurement_type']== i ) & (data2['dose_type']== 0)
+            condition = (data['measurement_type']== i ) & (data['dose_type']== 0)
             low = data.loc[condition, 'rate']           
             #high.drop_duplicates(inplace =True)
             #low.drop_duplicates(inplace =True)
@@ -378,14 +378,13 @@ class Stats:
                 r_low = r.conversion.py2rpy(low)
 
             if ((len(high) <= 3) | (len(low)<=3)):
-                # shapiro_pvalue_high.append(0)
-                # shapiro_pvalue_low.append(0)
-                # var_pvalue.append(0)
-                # ttest_F_stat.append(0)
-                # ttest_P_value.append(0)
-                # wilcox_F_stat.append(0)
-                # wilcox_P_value.append(0)
-                pass
+                kolmogorov_pvalue_high.append(0)
+                kolmogorov_pvalue_low.append(0)
+                var_pvalue.append(0)
+                ttest_F_stat.append(0)
+                ttest_P_value.append(0)
+                wilcox_F_stat.append(0)
+                wilcox_P_value.append(0)
             else:               
                 h_out = stats.kstest(r_high,'norm')
                 l_out = stats.kstest(r_low, 'norm')           
@@ -416,13 +415,13 @@ class Stats:
         ttest_P_value=[]
         wilcox_F_stat =[]
         wilcox_P_value=[]
-        condition = data['diff'].eq('None') 
-        data2 = data.loc[~condition, :]
-        data2.dropna(inplace =True)
+        # condition = data['diff'].eq('None') 
+        # data2 = data.loc[~condition, :]
+        # data2.dropna(inplace =True)
         for i in lists:
-            condition = (data2['measurement_type']== i ) & (data2['dose_type']== 1)
+            condition = (data['measurement_type']== i ) & (data['dose_type']== 1)
             high = data.loc[condition, 'diff']
-            condition = (data2['measurement_type']== i ) & (data2['dose_type']== 0)
+            condition = (data['measurement_type']== i ) & (data['dose_type']== 0)
             low = data.loc[condition, 'diff']           
             #high.drop_duplicates(inplace =True)
             #low.drop_duplicates(inplace =True)
@@ -431,14 +430,13 @@ class Stats:
                 r_low = r.conversion.py2rpy(low)
 
             if ((len(high) <= 3) | (len(low)<=3)):
-                # shapiro_pvalue_high.append(0)
-                # shapiro_pvalue_low.append(0)
-                # var_pvalue.append(0)
-                # ttest_F_stat.append(0)
-                # ttest_P_value.append(0)
-                # wilcox_F_stat.append(0)
-                # wilcox_P_value.append(0)
-                pass
+                kolmogorov_pvalue_high.append(0)
+                kolmogorov_pvalue_low.append(0)
+                var_pvalue.append(0)
+                ttest_F_stat.append(0)
+                ttest_P_value.append(0)
+                wilcox_F_stat.append(0)
+                wilcox_P_value.append(0)
             else:               
                 h_out = stats.kstest(r_high,'norm')
                 l_out = stats.kstest(r_low, 'norm')           

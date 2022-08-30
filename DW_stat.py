@@ -116,7 +116,7 @@ if __name__=='__main__' :
     c_['measurement_type']= 'egfr'
     c_['group']= 'control'
     egfr_describe_2 = pd.concat([t_, c_], axis=0)
-    egfr_describe_2['step'] = '2.5% trim'
+    egfr_describe_2['step'] = "2.5 trim"
     #egfr_describe.to_csv("/home/syk/egfr_describe_1.csv")
     ####################################################################################    
     m2 = pd.merge(EGFR2[['subject_id', 'egfr']], m1, on= 'subject_id', how='left')
@@ -222,10 +222,11 @@ if __name__=='__main__' :
     m_data.drop_duplicates(inplace =True)
     m6 =pd.merge(m_data[['subject_id', 'dose_type']], m5, on =['subject_id','dose_type'], how='left')
     m6.drop_duplicates(inplace=True)
-    file_size = sys.getsizeof(m5)
+    file_size = sys.getsizeof(m6)
     print("after dose psmatch  file size: ", ff.convert_size(file_size), "bytes")
     print(m6.head())
     print(m6.columns)
+    m6.to_csv("/home/syk/m6.csv")
      ## ttest rate & diff
     dose_ttest_rate = st.dose_test(m6)
     dose_ttest_diff = st.dose_test2(m6)
