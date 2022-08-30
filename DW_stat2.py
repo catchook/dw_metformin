@@ -1,4 +1,4 @@
-#DW_STAT: ps 매칭 변수: 동반질환, egfr추가, bun제거 version 
+#DW_STAT2: ps 매칭 변수: egfr추가, bun제거 단순히 신기능과 병용약물군,  version 
 import numpy as np
 import pandas as pd
 import re 
@@ -54,9 +54,8 @@ if __name__=='__main__' :
 #     print(csv)
 # except Exception as ex:
 #   print("error" + str(ex))
-    m1 = pd.read_csv("/home/syk/data3.csv")
+    m1 = pd.read_csv("/home/syk/data2.csv")
     m1.rename(columns={'ID':'subject_id', 'RD.1': 'Renal', 'H/P': 'HP'}, inplace=True)
-    print(m1.head())
 ### 전처리################################################################################################################################################################### 
     ### n수 확인 (zero delete)
     n1 = ff.count_measurement(m1, '1: Total')
@@ -66,10 +65,9 @@ if __name__=='__main__' :
     EGFR =  m1[['subject_id', 'age', 'gender', 'Creatinine','cohort_type']]
     EGFR.drop_duplicates(inplace =True)
     EGFR.dropna(inplace =True)
-    EGFR['Creatinine'].fillna(1.0, inplace = True)
     EGFR['gender'] = EGFR['gender'].replace({1.0: 0.742,  0.0: 1.0})
-    # EGFR['Creatinine'] = EGFR['Creatinine'].astype(int)
-    # EGFR['age'] = EGFR['age'].astype(int)
+    EGFR['Creatinine'] = EGFR['Creatinine'].astype(int)
+    EGFR['age'] = EGFR['age'].astype(int)
     EGFR['egfr'] = 175* (EGFR['Creatinine']**-1.154) * (EGFR['age']**-0.203) * EGFR['gender'] 
     print("EGFR")
     print(EGFR.head())   
@@ -92,13 +90,11 @@ if __name__=='__main__' :
     egfr_describe_1['step'] = 'before_trim'
     ####################################################################################
     ## 2.5% trim Cr  
-    high_limit= EGFR['Creatinine'].quantile(0.975)
+    high_limit= EGFR['Creatinine'].quantile(.975)
     low_limit = EGFR['Creatinine'].quantile(0.025)
     condition = ( low_limit < EGFR['Creatinine'] ) &  (EGFR['Creatinine']< high_limit)
     EGFR2= EGFR.loc[condition, :]
     EGFR2.drop_duplicates(inplace = True)
-    print("EGFR2")
-    print(EGFR2.head())
     del EGFR
     ###  trim 한 후  fig 
     sns.histplot(data = EGFR2, x ='egfr', hue='cohort_type')
@@ -119,37 +115,33 @@ if __name__=='__main__' :
     egfr_describe_2['step'] = '2.5% trim'
     #egfr_describe.to_csv("/home/syk/egfr_describe_1.csv")
     ####################################################################################    
-    m2 = pd.merge(EGFR2[['subject_id', 'egfr']], m1, on= 'subject_id', how='left')
+    m2 = pd.merge(EGFR2[['subject_id', 'egfr']], m1, on='subject_id', how='left')
     m2.drop_duplicates(inplace=True) 
     n2 = ff.count_measurement(m2, '2: trim 2.5% Cr')
     print(n2.head()) 
    #######################################################################################PS MATCHING################################################################# 
 #   ### ps매칭할 데이터만 분리
-    ps = m2[['subject_id','cohort_type', 'age', 'gender', 'egfr','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine', 'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']]
+    ps = m2[['subject_id','cohort_type', 'age', 'gender', 'egfr','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine']]
     ps.drop_duplicates(inplace=True)   
-    ps.dropna(inplace =True)
-#    ps.fillna(1.0, inplace =True)
+    ps.fillna(1.0, inplace =True)
     
     ##ps매칭 전 smd 
-    variable = ['age', 'gender', 'egfr', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine', 'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']
+    variable = ['age', 'gender', 'egfr', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine']
     smd1=ff.smd (ps, variable, 'before ps') 
     ### ps matching 통합 버전  
     m_data = st.psmatch(ps, False, 1) # 2nd , 3rd arguments = replacement, ps matching ratio
     m_data.drop_duplicates(inplace=True)
     ##ps 매칭 후 smd
     smd2 = ff.smd(m_data, variable, 'after ps')
-    
-    smd = pd.concat([smd1, smd2], axis=0)
-    smd.to_csv("/home/syk/smd.csv")
 
     m3 =pd.merge(m_data[['subject_id', 'cohort_type', 'age', 'gender']], m2, on =['subject_id', 'cohort_type', 'age', 'gender'], how='left')
     file_size = sys.getsizeof(m3)
     print("after psmatch file size: ", ff.convert_size(file_size), "bytes")
     print(m3.head())
     print(m3.columns)
-
+    del m2
     ## n수 확인 (ps매칭 후)
-    n3 = ff.count_measurement(m3, '3: after ps matching')
+    n3 = ff.count_measurement(m2, '3: after ps matching')
     print(n3.head())
     # ################### egfr describe_3 ###############################################
     condition = m3['cohort_type']== 0
@@ -178,7 +170,7 @@ if __name__=='__main__' :
     del m3
     # ### 통계에 필요한 컬럼만 추출 --> na 제거(자동으로 simplify N )
     m4 = m4[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'dose_type', 'drug_group', 'egfr']]
-    m4.drop_duplicates(inplace =True)
+    m4.drop_duplicate(inplace =True)
     m4.dropna(inplace =True)
     # m4['value_as_number_before'] = m3['value_as_number_before'].replace(0, 0.00000000000001) 
     m4['rate']= (m4['value_as_number_after'] - m4['value_as_number_before']) /m4['value_as_number_before'] *100

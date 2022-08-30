@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import math
 from scipy import stats
 import DW_function as ff
-# #rpy2
+#rpy2
 import rpy2
 from rpy2.robjects.packages import importr
 import rpy2.robjects as r
@@ -198,7 +198,7 @@ class Stats:
         func_seed(1)
         with localconverter(r.default_converter + pandas2ri.converter):
             r_data = r.conversion.py2rpy(data)
-        r_out1=func_matchit(formula = Formula('cohort_type ~ Creatinine+ egfr + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + CV + CPD +RD+ PUD +MLD + DCC + HP + Renal + MSLD + AIDS + HT+ HL + Sepsis+ HTT'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
+        r_out1=func_matchit(formula = Formula('cohort_type ~ Creatinine+ egfr + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
         func_match_data = r.r['match.data']
         summary = func_summary(r_out1)
         m_data = func_match_data(r_out1, data =r_data, distance ='prop.score')
@@ -218,7 +218,7 @@ class Stats:
         func_seed(1)
         with localconverter(r.default_converter + pandas2ri.converter):
             r_data = r.conversion.py2rpy(data)
-        r_out1=func_matchit(formula = Formula('dose_type ~ Creatinine + egfr + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + CV + CPD +RD+ PUD +MLD + DCC + HP + Renal + MSLD + AIDS + HT+ HL + Sepsis+ HTT'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
+        r_out1=func_matchit(formula = Formula('dose_type ~ Creatinine + egfr + gender + age+ SU + alpha+ dpp4i + gnd + sglt2 +tzd'), data = r_data, method ='nearest', distance ='logit', replace = condition, ratio = ratio_n)
         func_match_data = r.r['match.data']
         m_data = func_match_data(r_out1, data =r_data, distance ='prop.score')
         with localconverter(r.default_converter + pandas2ri.converter):

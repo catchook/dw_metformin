@@ -123,6 +123,21 @@ def delete_none(data):
     data.dropna(inplace=True)
     return(data)
 
+def smd (data, variable, step):
+  feature_smds=[]
+  condition = data['cohort_type'] == 1
+  target = data.loc[condition,:]
+  control = data.loc[~condition,:]
+  for i in variable:
+    target_mean = target[i].mean()
+    target_std= target[i].std()
+    control_mean = control[i].mean()
+    control_std= control[i].std()
+    smd = (target_mean - control_mean) / np.sqrt((target_std**2 +control_std**2) / 2)
+    smd = round(abs(smd), 4)
+    feature_smds.append(smd)
+  return pd.DataFrame({'features': variable, 'smd': feature_smds, 'step': step})
+
 def change_str_date(dm):
     dm['drug_exposure_end_date']=dm['drug_exposure_end_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
     dm['drug_exposure_start_date'] = dm['drug_exposure_start_date'].map(lambda x:datetime.strptime(str(x), '%Y-%m-%d'))
@@ -309,7 +324,7 @@ def convert_size(size_bytes):
   s= round(size_bytes/ p,2)
   return "%s %s"% (s, size_name[i])
 
-      # ## 코호트 기간 3개월 미만 인 것 추출. 
+      # 코호트 기간 3개월 미만 인 것 추출. 
     # m1['cohort_end_date'] = pd.to_datetime(m1['cohort_end_date'])
     # m1['cohort_start_date'] = pd.to_datetime(m1['cohort_start_date'])
     # m1['cohort_period'] = m1['cohort_end_date'] - m1['cohort_start_date']
