@@ -54,7 +54,7 @@ if __name__=='__main__' :
 #     print(csv)
 # except Exception as ex:
 #   print("error" + str(ex))
-    m1 = pd.read_csv("/home/syk/data3.csv")
+    m1 = pd.read_csv("/home/syk/data4.csv")
     m1.rename(columns={'ID':'subject_id', 'RD.1': 'Renal', 'H/P': 'HP'}, inplace=True)
     print(m1.head())
 ### 전처리################################################################################################################################################################### 
@@ -91,6 +91,22 @@ if __name__=='__main__' :
     egfr_describe_1 = pd.concat([t_, c_], axis=0)
     egfr_describe_1['step'] = 'before_trim'
     ####################################################################################
+    fig, axs = plt.subplots(1,3, figsize=(15,5))
+    fig.suptitle('Before 2.5% Cr Trim')
+    sns.distplot(EGFR[EGFR['cohort_type'] ==0]['Creatinine'], ax= axs[0], bins =100, color='#ffd966', kde=False)
+    sns.distplot(EGFR[EGFR['cohort_type'] ==1]['Creatinine'],  ax= axs[0],bins =100, color='#6aa84f', kde=False)
+ 
+    sns.distplot(EGFR[EGFR['cohort_type'] ==0]['egfr'],  ax= axs[1],bins =100, color='#ffd966', kde=False)
+    sns.distplot(EGFR[EGFR['cohort_type'] ==1]['egfr'],  ax= axs[1],bins =100, color='#6aa84f', kde=False)
+
+    fig.legend(labels=['target', 'control'], loc ='center left')
+    sns.distplot(m1[m1['cohort_type'] ==0]['BUN'],  ax= axs[2],bins =100, color='#ffd966', kde=False)
+    sns.distplot(m1[m1['cohort_type'] ==1]['BUN'],  ax= axs[2],bins =100, color='#6aa84f', kde=False)
+ 
+
+    fig.savefig("/home/syk/before_trim.png")
+    ####################################################################################
+        
     ## 2.5% trim Cr  
     high_limit= EGFR['Creatinine'].quantile(0.975)
     low_limit = EGFR['Creatinine'].quantile(0.025)
@@ -123,15 +139,30 @@ if __name__=='__main__' :
     m2.drop_duplicates(inplace=True) 
     n2 = ff.count_measurement(m2, '2: trim 2.5% Cr')
     print(n2.head()) 
+    ##################################################################################
+    fig, axs = plt.subplots(1,3, figsize=(15,5))
+    fig.suptitle('After 2.5% Cr Trim')
+    sns.distplot(EGFR2[EGFR2['cohort_type'] ==0]['Creatinine'], ax= axs[0], bins =100, color='#f1c232', kde=False)
+    sns.distplot(EGFR2[EGFR2['cohort_type'] ==1]['Creatinine'],  ax= axs[0],bins =100, color='#6aa84f', kde=False)
+
+    sns.distplot(EGFR2[EGFR2['cohort_type'] ==0]['egfr'],  ax= axs[1],bins =100, color='#ffd966', kde=False)
+    sns.distplot(EGFR2[EGFR2['cohort_type'] ==1]['egfr'],  ax= axs[1],bins =100, color='#6aa84f', kde=False)
+
+    fig.legend(labels=['target', 'control'], loc ='center left')
+    sns.distplot(m2[m2['cohort_type'] ==0]['BUN'],  ax= axs[2],bins =100, color='#ffd966', kde=False)
+    sns.distplot(m2[m2['cohort_type'] ==1]['BUN'],  ax= axs[2],bins =100, color='#6aa84f', kde=False)
+    # fig.legend(labels=['target', 'control'], loc ='center')
+    fig.savefig("/home/syk/after_trim.png")
+    ####################################################################################
    #######################################################################################PS MATCHING################################################################# 
 #   ### ps매칭할 데이터만 분리
-    ps = m2[['subject_id','cohort_type', 'age', 'gender', 'egfr','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine', 'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']]
+    ps = m2[['subject_id','cohort_type', 'age', 'gender', 'egfr', 'BUN','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine', 'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']]
     ps.drop_duplicates(inplace=True)   
     ps.dropna(inplace =True)
 #    ps.fillna(1.0, inplace =True)
     
     ##ps매칭 전 smd 
-    variable = ['age', 'gender', 'egfr', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine', 'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']
+    variable = ['age', 'gender', 'egfr', 'BUN', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine', 'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']
     smd1=ff.smd (ps, variable, 'before ps') 
     ### ps matching 통합 버전  
     m_data = st.psmatch(ps, False, 1) # 2nd , 3rd arguments = replacement, ps matching ratio
@@ -171,113 +202,128 @@ if __name__=='__main__' :
     plt.savefig("egfr_3_ps.png", dpi= 300)
     sns.histplot(data = m3, x ='Creatinine', hue='cohort_type')
     plt.savefig("Cr_3_ps.png", dpi= 300)
-    
+    ##############################################################################################
+    fig, axs = plt.subplots(1,3, figsize=(15,5))
+    fig.suptitle('After PS matching')
+    sns.distplot(m3[m3['cohort_type'] ==0]['Creatinine'], ax= axs[0], bins =100, color='#ffd966', kde=False)
+    sns.distplot(m3[m3['cohort_type'] ==1]['Creatinine'],  ax= axs[0],bins =100, color='#6aa84f', kde=False)
+ 
+    sns.distplot(m3[m3['cohort_type'] ==0]['egfr'],  ax= axs[1],bins =100, color='#ffd966', kde=False)
+    sns.distplot(m3[m3['cohort_type'] ==1]['egfr'],  ax= axs[1],bins =100, color='#6aa84f', kde=False)
+ 
+    fig.legend(labels=['target', 'control'], loc ='center left')
+    sns.distplot(m3[m3['cohort_type'] ==0]['BUN'],  ax= axs[2],bins =100, color='#ffd966', kde=False)
+    sns.distplot(m3[m3['cohort_type'] ==1]['BUN'],  ax= axs[2],bins =100, color='#6aa84f', kde=False)
+
+
+    fig.savefig("/home/syk/after_ps.png")
     ##  latest 만 사용
-    condition = m3['rrow']==1
-    m4 = m3.loc[condition, :]
-    del m3
-    # ### 통계에 필요한 컬럼만 추출 --> na 제거(자동으로 simplify N )
-    m4 = m4[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'dose_type', 'drug_group', 'egfr']]
-    m4.drop_duplicates(inplace =True)
-    m4.dropna(inplace =True)
-    # m4['value_as_number_before'] = m3['value_as_number_before'].replace(0, 0.00000000000001) 
-    m4['rate']= (m4['value_as_number_after'] - m4['value_as_number_before']) /m4['value_as_number_before'] *100
-    m4['diff'] = m4['value_as_number_after'] - m4['value_as_number_before']
+#     condition = m3['rrow']==1
+#     m4 = m3.loc[condition, :]
+#     del m3
+#     # ### 통계에 필요한 컬럼만 추출 --> na 제거(자동으로 simplify N )
+#     m4 = m4[['subject_id', 'cohort_type', 'measurement_type', 'value_as_number_before', 'value_as_number_after', 'dose_type', 'drug_group', 'egfr']]
+#     m4.drop_duplicates(inplace =True)
+#     m4.dropna(inplace =True)
+#     # m4['value_as_number_before'] = m3['value_as_number_before'].replace(0, 0.00000000000001) 
+#     m4['rate']= (m4['value_as_number_after'] - m4['value_as_number_before']) /m4['value_as_number_before'] *100
+#     m4['diff'] = m4['value_as_number_after'] - m4['value_as_number_before']
 
-    # ### n수 확인 ( simplify 이후 )
-    n4 = ff.count_measurement(m4, '4: after Simplify N')
-    print(n4.head())
+#     # ### n수 확인 ( simplify 이후 )
+#     n4 = ff.count_measurement(m4, '4: after Simplify N')
+#     print(n4.head())
 
-#  ## python stat 차이나는지 이후 검정 https://techbrad.tistory.com/6..안되면 python으로? 
-    count_N = pd.concat([n1, n2, n3, n4], axis =0)
-    count_N.to_csv("/home/syk/count_N.csv")
-#      ## latest 
-     ### ttest type별로 등분산성, 정규성, t-test
-    test = st.test(m4) #rate
-    test2 = st.test2(m4) #diff
-    test.to_csv("/home/syk/ttest.csv")
-    test2.to_csv("/home/syk/ttest2.csv")
-    ### type별로 describe()
-    condition = (m4['cohort_type']!= 1)
-    control = m4.loc[~condition,:]
-    target = m4.loc[condition,:]
-    print(control.head())
-    print(target.head())
-    target_describe = st.describe(target,'latest_target')
-    control_describe = st.describe(control, 'latest_control')
-    total_describe = pd.concat([target_describe, control_describe], axis=0)
-    total_describe.to_csv("/home/syk/total_describe.csv")
-    ### 용량별 t-test
-    del m4
-    ##용량별 psmtching  
-    condition = (m2['cohort_type']== 0) & (m2['rrow']==1)
-    m5 = m2.loc[condition,:]
-    m5['dose_type']= m5['dose_type'].replace('high',1)
-    m5['dose_type']= m5['dose_type'].replace('low',0)
-    ps = m5[['subject_id','dose_type', 'age', 'gender', 'egfr','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine', 'MI',
-             'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']]
-    ps.drop_duplicates(inplace=True)
-    ps.dropna(inplace = True)
-    m_data= st.psmatch2(ps, False, 1) # 2nd , 3rd arguments = replacement, ps matching ratio
-    m_data.drop_duplicates(inplace =True)
-    m6 =pd.merge(m_data[['subject_id', 'dose_type']], m5, on =['subject_id','dose_type'], how='left')
-    m6.drop_duplicates(inplace=True)
-    file_size = sys.getsizeof(m6)
-    print("after dose psmatch  file size: ", ff.convert_size(file_size), "bytes")
-    print(m6.head())
-    print(m6.columns)
-    m6.to_csv("/home/syk/m6.csv")
-     ## ttest rate & diff
-    dose_ttest_rate = st.dose_test(m6)
-    dose_ttest_diff = st.dose_test2(m6)
-    dose_ttest_rate.to_csv("/home/syk/dose_ttest_rate.csv")
-    dose_ttest_diff.to_csv("/home/syk/dose_ttest_diff.csv")
-    ## dose paired test 
-    condition = m6['dose_type']==1
-    high= m6.loc[condition,:]
-    low= m6.loc[~condition,:]
-    names = ['high', 'low']  
-    dose_list = [high, low]
-    paired_results=[]
-    dose_describes=[]
-    for result, name in zip( dose_list, names):
-        if len(result)==0:
-            empty = pd.DataFrame({'type': [0], 'shapiro_pvalue_post':[0], 'shapiro_pvalue_pre':[0], 'var_pvalue':[0], 'ttest_F_stat':[0], 'ttest_P_value':[0], 'wilcox_F_stat':[0], 'wilcox_P_value': [0], 'drug_type': [name]})
-            paired_results.append(empty)
-            empty2 = pd.DataFrame({'measurement_type':[0], 'count':[0], 'mean':[0], '25%':[0], '50%':[0], '75%':[0], 'max':[0]})
-            dose_describes.append(empty2)
-        else: 
-            paired_result = st.pairedtest(result)
-            paired_result['dose_type']= name
-            paired_results.append(paired_result) 
-            dose_describe = st.describe(result,'latest_dose_target')
-            dose_describe['dose_type']= name
-            dose_describes.append(dose_describe)
-    dose_paired_results = pd.concat(paired_results, axis =0 )
-    dose_describes_ = pd.concat(dose_describes, axis=0)
-    dose_paired_results.to_csv("/home/syk/dose_p_results.csv")  
-    dose_describes_.to_csv("/home/syk/dose_p_describes.csv")  
+# #  ## python stat 차이나는지 이후 검정 https://techb
+# rad.tistory.com/6..안되면 python으로? 
+#     count_N = pd.concat([n1, n2, n3, n4], axis =0)
+#     count_N.to_csv("/home/syk/count_N.csv")
+# #      ## latest 
+#      ### ttest type별로 등분산성, 정규성, t-test
+#     test = st.test(m4) #rate
+#     test2 = st.test2(m4) #diff
+#     test.to_csv("/home/syk/ttest.csv")
+#     test2.to_csv("/home/syk/ttest2.csv")
+#     ### type별로 describe()
+#     condition = (m4['cohort_type']!= 1)
+#     control = m4.loc[~condition,:]
+#     target = m4.loc[condition,:]
+#     print(control.head())
+#     print(target.head())
+#     target_describe = st.describe(target,'latest_target')
+#     control_describe = st.describe(control, 'latest_control')
+#     total_describe = pd.concat([target_describe, control_describe], axis=0)
+#     total_describe.to_csv("/home/syk/total_describe.csv")
+#     ### 용량별 t-test
+#     del m4
+#     ##용량별 psmtching  
+#     condition = (m2['cohort_type']== 0) & (m2['rrow']==1)
+#     m5 = m2.loc[condition,:]
+#     m5['dose_type']= m5['dose_type'].replace('high',1)
+#     m5['dose_type']= m5['dose_type'].replace('low',0)
+#     ps = m5[['subject_id','dose_type', 'age', 'gender', 'egfr','SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine', 'MI',
+#              'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']]
+#     ps.drop_duplicates(inplace=True)
+#     ps.dropna(inplace = True)
+#     m_data= st.psmatch2(ps, False, 1) # 2nd , 3rd arguments = replacement, ps matching ratio
+#     m_data.drop_duplicates(inplace =True)
+#     m6 =pd.merge(m_data[['subject_id', 'dose_type']], m5, on =['subject_id','dose_type'], how='left')
+#     m6.drop_duplicates(inplace=True)
+#     file_size = sys.getsizeof(m6)
+#     print("after dose psmatch  file size: ", ff.convert_size(file_size), "bytes")
+#     print(m6.head())
+#     print(m6.columns)
+#     m6.to_csv("/home/syk/m6.csv")
+#      ## ttest rate & diff
+#     dose_ttest_rate = st.dose_test(m6)
+#     dose_ttest_diff = st.dose_test2(m6)
+#     dose_ttest_rate.to_csv("/home/syk/dose_ttest_rate.csv")
+#     dose_ttest_diff.to_csv("/home/syk/dose_ttest_diff.csv")
+#     ## dose paired test 
+#     condition = m6['dose_type']==1
+#     high= m6.loc[condition,:]
+#     low= m6.loc[~condition,:]
+#     names = ['high', 'low']  
+#     dose_list = [high, low]
+#     paired_results=[]
+#     dose_describes=[]
+#     for result, name in zip( dose_list, names):
+#         if len(result)==0:
+#             empty = pd.DataFrame({'type': [0], 'shapiro_pvalue_post':[0], 'shapiro_pvalue_pre':[0], 'var_pvalue':[0], 'ttest_F_stat':[0], 'ttest_P_value':[0], 'wilcox_F_stat':[0], 'wilcox_P_value': [0], 'drug_type': [name]})
+#             paired_results.append(empty)
+#             empty2 = pd.DataFrame({'measurement_type':[0], 'count':[0], 'mean':[0], '25%':[0], '50%':[0], '75%':[0], 'max':[0]})
+#             dose_describes.append(empty2)
+#         else: 
+#             paired_result = st.pairedtest(result)
+#             paired_result['dose_type']= name
+#             paired_results.append(paired_result) 
+#             dose_describe = st.describe(result,'latest_dose_target')
+#             dose_describe['dose_type']= name
+#             dose_describes.append(dose_describe)
+#     dose_paired_results = pd.concat(paired_results, axis =0 )
+#     dose_describes_ = pd.concat(dose_describes, axis=0)
+#     dose_paired_results.to_csv("/home/syk/dose_p_results.csv")  
+#     dose_describes_.to_csv("/home/syk/dose_p_describes.csv")  
     
-### paired ttest
-    results = st.drug_preprocess(m5) # ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
-    names = ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
-    paired_results=[]
-    describe_results=[]
-    for result, name in zip(results, names):
-        if len(result)==0:
-            empty = pd.DataFrame({'type': [0], 'shapiro_pvalue_post':[0], 'shapiro_pvalue_pre':[0], 'var_pvalue':[0], 'ttest_F_stat':[0], 'ttest_P_value':[0], 'wilcox_F_stat':[0], 'wilcox_P_value': [0], 'drug_type': [name]})
-            paired_results.append(empty)
-            empty2 = pd.DataFrame({'measurement_type':[0], 'count':[0], 'mean':[0], '25%':[0], '50%':[0], '75%':[0], 'max':[0]})
-            describe_results.append(empty2)
-        else: 
-            paired_result = st.pairedtest(result)
-            paired_result['drug_type']= name
-            paired_results.append(paired_result) 
-            describe_result = st.describe(result,'latest_target_paired')
-            describe_result['drug_type']= name
-            describe_results.append(describe_result)
-    p_results = pd.concat(paired_results, axis=0)
-    paired_describe = pd.concat(describe_results, axis=0)
-    p_results.to_csv("/home/syk/p_results.csv")  
-    paired_describe.to_csv("/home/syk/p_describe.csv") 
+# ### paired ttest
+#     results = st.drug_preprocess(m5) # ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+#     names = ['metformin', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd']
+#     paired_results=[]
+#     describe_results=[]
+#     for result, name in zip(results, names):
+#         if len(result)==0:
+#             empty = pd.DataFrame({'type': [0], 'shapiro_pvalue_post':[0], 'shapiro_pvalue_pre':[0], 'var_pvalue':[0], 'ttest_F_stat':[0], 'ttest_P_value':[0], 'wilcox_F_stat':[0], 'wilcox_P_value': [0], 'drug_type': [name]})
+#             paired_results.append(empty)
+#             empty2 = pd.DataFrame({'measurement_type':[0], 'count':[0], 'mean':[0], '25%':[0], '50%':[0], '75%':[0], 'max':[0]})
+#             describe_results.append(empty2)
+#         else: 
+#             paired_result = st.pairedtest(result)
+#             paired_result['drug_type']= name
+#             paired_results.append(paired_result) 
+#             describe_result = st.describe(result,'latest_target_paired')
+#             describe_result['drug_type']= name
+#             describe_results.append(describe_result)
+#     p_results = pd.concat(paired_results, axis=0)
+#     paired_describe = pd.concat(describe_results, axis=0)
+#     p_results.to_csv("/home/syk/p_results.csv")  
+#     paired_describe.to_csv("/home/syk/p_describe.csv") 
     
