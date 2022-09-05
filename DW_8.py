@@ -186,39 +186,6 @@ if __name__=='__main__' :
     ps2.drop_duplicates(inplace =True)
     ps3 = pd.merge(ps2, History,on='subject_id', how='left' )
     ps3.drop_duplicates(inplace =True)
-# ################### egfr describe_1###############################################
-#     ## ps매칭에 필요한 eGFR 계산  (MDRD 공식 사용)
-#     EGFR =  ps3[['subject_id', 'age', 'gender', 'Creatinine','cohort_type']]
-#     EGFR.drop_duplicates(inplace =True)
-#     EGFR.dropna(inplace =True)
-#     EGFR['gender'] = EGFR['gender'].replace({1.0: 0.742,  0.0: 1.0})
-#     EGFR['Creatinine'] = EGFR['Creatinine'].astype(int)
-#     EGFR['age'] = EGFR['age'].astype(int)
-#     EGFR['egfr'] = 175* (EGFR['Creatinine']**-1.154) * (EGFR['age']**-0.203) * EGFR['gender'] 
-#     print("EGFR")
-#     print(EGFR.head())   
-    
-#     ###  trim 하기 전 fig 
-#     sns.histplot(data = EGFR, x ='egfr', hue='cohort_type')
-#     plt.savefig("/data/results/egfr_1_before.png", dpi= 300)
-#     sns.histplot(data = EGFR, x ='Creatinine', hue='cohort_type')
-#     plt.savefig("/data/results/Cr_1_before.png", dpi= 300)    
-# #     ################### egfr describe_1###############################################
-#     condition = EGFR['cohort_type']== 0
-#     target = EGFR.loc[condition,:]
-#     control = EGFR.loc[~condition,:]
-#     t_ = target['egfr'].describe().to_frame().transpose()
-#     t_['measurement_type']= 'egfr'
-#     t_['group']= 'target'
-#     c_ = control['egfr'].describe().to_frame().transpose()
-#     c_['measurement_type']= 'egfr'
-#     c_['group']= 'control'
-#     egfr_describe_1 = pd.concat([t_, c_], axis=0)
-#     egfr_describe_1['step'] = 'before trim'
-#     egfr_describe_1.to_csv("/data/results/egfr_describe_1.csv")
-# #####################################################################################
-#     ps4 = pd.merge(ps3, EGFR[['subject_id', 'egfr']], on ='subject_id', how = 'left')
-#     ps4.drop_duplicates(inplace=True)
     print("before ps matching")
     print(ps3.head())
     del ps
@@ -227,7 +194,7 @@ if __name__=='__main__' :
  # [1/4 ] Tagging Dose type 
  # dose_type 
     dose = d.dose(m1, t1)
-    m2= pd.merge(m1, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id','drug_concept_id'], how= 'left')
+    m2= pd.merge(m1, dose[['subject_id', 'drug_concept_id','dose_type']], on=['subject_id', 'drug_concept_id'], how= 'left')
     m2.drop_duplicates(inplace=True)
     print("add high, low data: m2")
     print(m2.columns)
@@ -253,7 +220,7 @@ if __name__=='__main__' :
 # subject_id, measurement_type, value_as_number_before, value_as_number_after, rate, dose_type, drug_group 
     final.drop_duplicates(inplace=True)
     final = ff.delete_none(final)
-#    final['value_as_number_before'] = final['value_as_number_before'].replace(0, 0.00000000000001) 
+#   final['value_as_number_before'] = final['value_as_number_before'].replace(0, 0.00000000000001) 
     final['rate']= (final['value_as_number_after'] - final['value_as_number_before']) /final['value_as_number_before'] *100
     final['diff'] = final['value_as_number_after'] - final['value_as_number_before']
     final['rate'] = final['rate'].round(2)
@@ -269,7 +236,7 @@ if __name__=='__main__' :
     print(final2.head())
     del final
 #######################################################################################################################################
-# 16개 병원 데이터를 합치기 위한 코드 
+# 16 개 병원 데이터를 합치기 위한 코드 
 ## 1사람당 여러줄로 데이터 가져나오기 
 #### 1) before, after, rate, diff, ps, drug_group, dose_type
     data= pd.merge(ps3, final2, on=['subject_id', 'cohort_type'], how='left')

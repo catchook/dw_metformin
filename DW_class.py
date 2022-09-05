@@ -12,6 +12,7 @@ from psmpy.functions import cohenD
 from psmpy.plotting import *
 import seaborn as sns
 import statsmodels.formula.api as smf
+import statsmodels.api as sm 
 import matplotlib.pyplot as plt
 import math
 from scipy import stats
@@ -469,6 +470,37 @@ class Stats:
         result = pd.concat(results, axis=0)
         result['group']= group
         return  result
+    def describe_pvalue(data, lists):
+        tstats=[]
+        pvalues=[]
+        for i in lists:
+            control = data.loc[data['cohort_type']==1, i]
+            target = data.loc[data['cohort_type']==0, i]
+            tstat, pvalue, df = sm.stats.ttest_ind(control, target)
+            tstats.append(tstat)
+            pvalues.append(pvalue)
+        df = pd.DataFrame({'type': lists, 'tstat': tstats, 'pvalue':pvalues})
+        return df 
+    def renal_describe(data, steps):
+        condition = data['cohort_type']== 0
+        target = data.loc[condition,:]
+        control = data.loc[~condition,:]
+        t_1 = target['egfr'].describe().to_frame().transpose()
+        t_2 = target['Creatinine'].describe().to_frame().transpose()
+        t_3 = target['BUN'].describe().to_frame().transpose()
+        t_ = pd.concat([t_1, t_2, t_3], axis=0)
+        t_['measurement_type']= ['egfr', 'Creatinine', 'BUN']
+        t_['group']= 'target'
+        c_1 = control['egfr'].describe().to_frame().transpose()
+        c_2 = control['Creatinine'].describe().to_frame().transpose()
+        c_3 = control['BUN'].describe().to_frame().transpose()
+        c_ = pd.concat([c_1, c_2, c_3], axis=0)
+        c_['measurement_type']= ['egfr', 'Creatinine', 'BUN']
+        c_['group']= 'control'
+        df = pd.concat([t_, c_], axis=0)
+        df['step'] = steps
+        return df  
+        
 
     # def dose_preprocess(data):
     #     ## T (high dose) vs Control  
