@@ -538,7 +538,7 @@ renal$Creatinine[is.na(renal$Creatinine)] <- 1
 renal$BUN[is.na(renal$BUN)] <- 10
 # eGFR 계산
 renal$gender <- ifelse(renal$gender ==1, 0.742, 1)
-renal$egfr <- round(175* (as.numeric(renal$Creatinine^(-1.154)))* (as.numeric(renal$age^(-0.203)))* renal$gender, 2)
+renal$egfr <- round(175* (as.numeric(renal$Creatinine)^(-1.154))* (as.numeric(renal$age)^(-0.203))* renal$gender, 2)
 renal <- unique(renal[, c("ID",  "BUN", "Creatinine", "egfr") ])
 return(renal)
 }
@@ -567,9 +567,7 @@ pair<- function(data){
                     # pair 
                     before <-  unique(data[which(data$measurement_date < data$cohort_start_date), c("ID", "measurement_type", "value_as_number", "measurement_date","cohort_type")])
                     before <- before %>% group_by(ID) %>% filter(measurement_date == max(measurement_date))
-
                     after <-  unique(data[which(data$measurement_date >= data$cohort_start_date), ])
-
                     pair = inner_join(before, after, by= c("ID","measurement_type","cohort_type"), suffix =c(".before", ".after"))
                     return(pair)
                     }
