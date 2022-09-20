@@ -538,7 +538,8 @@ renal$Creatinine[is.na(renal$Creatinine)] <- 1
 renal$BUN[is.na(renal$BUN)] <- 10
 # eGFR 계산
 renal$gender <- ifelse(renal$gender ==1, 0.742, 1)
-renal$egfr <- round(175* (as.numeric(renal$Creatinine)^(-1.154))* (as.numeric(renal$age)^(-0.203))* renal$gender, 2)
+renal[,c("Creatinine", "age")] <- as.numeric( renal[, c("Creatinine", "age")])
+renal$egfr <- round(175* (renal$Creatinine^(-1.154))* (renal$age^(-0.203))* renal$gender, 2)
 renal <- unique(renal[, c("ID",  "BUN", "Creatinine", "egfr") ])
 return(renal)
 }
