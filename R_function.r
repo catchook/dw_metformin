@@ -539,14 +539,14 @@ renal$BUN[is.na(renal$BUN)] <- 10
 # eGFR 계산
 renal$gender <- ifelse(renal$gender ==1, 0.742, 1)
 renal$egfr <- round(175* (as.numeric(renal$Creatinine^(-1.154)))* (as.numeric(renal$age^(-0.203)))* renal$gender, 2)
-renal <- unique(renal[, c("ID", "measurement_date", "BUN", "Creatinine", "egfr") ])
+renal <- unique(renal[, c("ID",  "BUN", "Creatinine", "egfr") ])
 return(renal)
 }
 ## CCI 계산
 ## disease_history 결과값을 INPUT 값으로 넣기. 
 cci<- function(sample2){  
-  sample2$cci <-sample2$MI + sample2$HF + sample2$PV + sample2$CV + sample2$Dementia + sample2$CPD + sample2$RD + sample2$PUD + sample2$MLD + sample2$D + sample2$DCC *2 + sample2$HP*2 +
-  sample2$RD.1*2 + sample2$M*2 + sample2$MSLD*3 + sample2$MST*6 + sample2$AIDS*6
+  sample2$cci <-sample2$MI + sample2$HF + sample2$PV + sample2$CV + sample2$Dementia + sample2$CPD + sample2$Rheuma + sample2$PUD + sample2$MLD + sample2$D + sample2$DCC *2 + sample2$HP*2 +
+  sample2$Renal*2 + sample2$M*2 + sample2$MSLD*3 + sample2$MST*6 + sample2$AIDS*6
   # sample2$cci <-sample2$MI + sample2$HF + sample2$PV + sample2$CV +  sample2$CPD + sample2$RD + sample2$PUD + sample2$D + sample2$DCC *2 + sample2$RD*2  + sample2$MSLD*3 + sample2$MST*6 + sample2$AIDS*6
   # sample2 <-sample2[,c("ID", "cci")]
   return(sample2)

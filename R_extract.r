@@ -217,3 +217,6 @@ head(total)
 ## file 내보내기 
 # total 
 write.csv(total, "home/syk/results/total.csv")
+file_size <- object.size(total)
+print("final sql data file size is  ")
+print(file_size, units = "auto")
