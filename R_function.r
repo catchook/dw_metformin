@@ -530,15 +530,33 @@ disease_history <- function(data){
 #신기능 수치 추출  #ID, 날짜, 신기능 수치들..
 renal <- function(data){
 # Before, Cr, BUN 추출 
+print("start extract bun, cr")
 renal <-data[which((data$measurement_date <= data$cohort_start_date) & (data$measurement_type %in% c("BUN","Creatinine"))), c("ID", "measurement_type", "value_as_number", "measurement_date","gender","age") ]
 renal <-renal %>% group_by(ID) %>% filter(measurement_date == max(measurement_date))
 renal <-renal %>%  pivot_wider(names_from = measurement_type, values_from= value_as_number )
-#null값은 1, 10 로 대체. 
+print("complete, extract latest bun, cr")
+#null, na 값은 1, 10 로 대체. 
 renal$Creatinine[is.na(renal$Creatinine)] <- 1
+renal$Creatinine[renal$Creatinine== 'None'] <-1
 renal$BUN[is.na(renal$BUN)] <- 10
+renal$BUN[renal$BUN =='None'] <-10
+print("replace completet")
 # eGFR 계산
+print("ifelse")
 renal$gender <- ifelse(renal$gender ==1, 0.742, 1)
-renal[,c("Creatinine", "age")] <- as.numeric( renal[, c("Creatinine", "age")])
+print("as.numeric")
+print(class(renal$age))
+print(class(renal$Creatinine))
+#class(renal$age) ='Numeric'
+print("apply function")
+renal[,c("age","Creatinine")] <- lapply(renal, function(x) as.numeric(as.character(x)))
+print(class(renal$age))
+print(class(renal$Creatinine))
+# renal<-transform(renal, Creatinine = as.numeric(Creatinine),
+#                 age = as.numeric(age))
+#renal$Creatinine <- as.numeric(renal$Creatinine)
+#renal$age <- as.numeric(renal$age)
+print("calculate egfr")
 renal$egfr <- round(175* (renal$Creatinine^(-1.154))* (renal$age^(-0.203))* renal$gender, 2)
 renal <- unique(renal[, c("ID",  "BUN", "Creatinine", "egfr") ])
 return(renal)
