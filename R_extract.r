@@ -86,28 +86,7 @@ sql  <- " select distinct (case when a.cohort_definition_id = target then 'T'
               when d.gender_concept_id = 8532 then 'F' 
         else '' END) as gender
       , (EXTRACT(YEAR FROM a.cohort_start_date)-d.year_of_birth) as age 
-       ,(case       when e.ancestor_concept_id = 4329847 then 'MI'
-                    when e.ancestor_concept_id = 316139 then 'HF'
-                    when e.ancestor_concept_id = 321052 then 'PV'
-                    when e.ancestor_concept_id in (381591, 434056 ) then 'CV'
-                    when e.ancestor_concept_id = 4182210 then 'Dementia'
-                    when e.ancestor_concept_id = 4063381 then 'CPD'
-                    when e.ancestor_concept_id in (257628, 134442, 80800, 80809, 256197, 255348)  then 'Rheuma'
-                    when e.ancestor_concept_id = 4247120 then 'PUD'
-                    when e.ancestor_concept_id in (4064161, 4212540)  then 'MLD'
-                    when e.ancestor_concept_id = 201820 then 'D'
-                    when e.ancestor_concept_id in (443767,442793 ) then 'DCC'
-                    when e.ancestor_concept_id in (192606, 374022) then HP'
-                    when e.ancestor_concept_id in (4030518,	4239233, 4245042 ) then 'Renal'
-                    when e.ancestor_concept_id = 443392 then 'M'
-                    when e.ancestor_concept_id in (4245975, 4029488, 192680, 24966) then 'MSLD'
-                    when e.ancestor_concept_id = 432851 then 'MST'
-                    when e.ancestor_concept_id = 439727 then 'AIDS'
-                    when e.ancestor_concept_id = 316866 then 'HT'
-                    when e.ancestor_concept_id = 432867 then 'HL'
-                    when e.ancestor_concept_id = 132797 then 'Sepsis'
-                    when e.ancestor_concept_id = 4254542 then 'HTT'
-                    else '' END) as condition_type
+      , e.ancestor_concept_id 
       from cdm_hira_2017_results_fnet_v276.cohort as a
       join
       (select * from cdm_hira_2017.drug_exposure where drug_concept_id in (select distinct descendant_concept_id
