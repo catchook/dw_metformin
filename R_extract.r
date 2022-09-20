@@ -50,6 +50,7 @@ print( paste("hospital : ", db_hospital, "schema: ", schema))
 setDTthreads(percent = 100)
 
 print(c(schema, db_target, db_control ))
+source("home/syk/R_function.r")
 ####SQL 
 sql  <- " select distinct (case when a.cohort_definition_id = target then 'T'
     when a.cohort_definition_id = control then 'C' else '' end) as cohort_type
@@ -121,93 +122,98 @@ where a.cohort_definition_id in (target, control)
 
 # save query 
  ## female ='1' , male =0 
-#data <- ff$save_query(sql, schema, db_target, db_control, con)
-sql <- gsub("_results_fnet_v276", "_results_dq_v276", sql)
-sql <- gsub("cdm_hira_2017", schema, sql) 
-sql <- gsub("target", db_target, sql)
-sql <- gsub("control", db_control, sql)
-result <- dbGetQuery(con, sql)
-result <- unique(result)
-data <- data.table::as.data.table(result)
-#return(result)
 
-
-
+data <- ff$save_query(sql, schema, db_target, db_control, con)
 file_size <- object.size(data)
 print("first sql data file size is  ")
 print(file_size, units = "auto")
-#rename(data, ID = subject_id)
+names(data)[names(data)=='subject_id'] <-  c("ID")
 head(data)
 
-source("home/syk/R_function.r")
-
-# #check N 
-check_n1 <- ff$count_n
-print("check whole number ")
-head(check_n1)
 # # 1. extract for PS mathcing; drug, disease history, renal values(BUN, Creatinine, eGFR), cci 
 #  ## (1) drug history # nolint
-# drug_history <- ps$drug_history(data, t1) # variables: id, type(all drug list), dummmies variable( SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd )
-# print("drug history")
-# head(drug_history)
+drug_history <- ps$drug_history(data, t1) # variables: id, type(all drug list), dummmies variable( SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd )
+print("drug history")
+head(drug_history)
 # ## (2) disease history
-# disease_history <- ps$disease_history(data) # variables: id, type(all disease list), dummies variabel: codition_types
-# print("disease history")
-# head(disease_history)
-# ## (3)  renal values # V : "ID", "measurement_date", "BUN", "Creatinine", "egfr"
-# renal <- ps$renal(data)
-# print("renal")
-# head(renal)
-# ## (4) cci 
-# cci <- ps$cci(disease_history)
-# print("cci")
-# head(cci)
-# ## (5) combind
-# n1 <- length(unique(drug_history$ID))
-# n2 <- length(unique(disease_history$ID))
-# n3 <- length(unique(renal$ID))
-# n4 <- length(unique(cci$ID))
-# print( paste0("total N, drug_history: ",n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
-# ps <- join_all(list(drug_history, disease_history, renal, cci))
+# make dummies 
+data<-data %>% mutate (condition_type = case_when(ancestor_concept_id == 4329847 ~ "MI",
+                                            ancestor_concept_id == 316139  ~ "HF",
+ancestor_concept_id == 321052  ~ "PV",
+ancestor_concept_id %in% c(381591, 434056)  ~ "CV",
+ancestor_concept_id == 4182210 ~ 'Dementia',
+ancestor_concept_id == 4063381 ~ 'CPD',
+ancestor_concept_id %in% c(257628, 134442, 80800, 80809, 256197, 255348) ~ 'Rheuma',
+ancestor_concept_id == 4247120 ~ 'PUD',
+ancestor_concept_id %in% c(4064161, 4212540) ~ 'MLD',
+ancestor_concept_id == 201820 ~ 'D',
+ancestor_concept_id %in% c(443767,442793) ~ 'DCC',
+ancestor_concept_id %in% c(192606, 374022) ~ 'HP',
+ancestor_concept_id %in% c(4030518,	4239233, 4245042) ~ 'Renal',
+ancestor_concept_id == 443392  ~ 'M',
+ancestor_concept_id %in% c(4245975, 4029488, 192680, 24966) ~ 'MSLD',
+ancestor_concept_id == 432851  ~ 'MST',
+ancestor_concept_id == 439727  ~ 'AIDS',
+ancestor_concept_id == 316866  ~ 'HT',
+ancestor_concept_id == 432867  ~ 'HL',
+ancestor_concept_id == 132797  ~ 'Sepsis',
+ancestor_concept_id == 4254542 ~ 'HTT',
+TRUE ~ 'error'
+))
+disease_history <- ps$disease_history(data) # variables: id, type(all disease list), dummies variabel: codition_types
+print("disease history")
+head(disease_history)
+## (3)  renal values # V : "ID", "measurement_date", "BUN", "Creatinine", "egfr"
+renal <- ps$renal(data)
+print("renal")
+head(renal)
+## (4) cci 
+cci <- ps$cci(disease_history)
+print("cci")
+head(cci)
+## (5) combind
+n1 <- length(unique(drug_history$ID))
+n2 <- length(unique(disease_history$ID))
+n3 <- length(unique(renal$ID))
+n4 <- length(unique(cci$ID))
+print( paste0("total N, drug_history: ",n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
+ps <- join_all(list(drug_history, disease_history, renal, cci))
 
-# # 2. Simplify 
-# #(1) pair 
-# pair <- simplify$pair(data)
-# print("pair")
-# head(pair)
-# check_n2 <- ff$count_n(pair, "pair")
-# #(2) exposure
-# exposure <- simplify$exposure(pair)
-# check_n3 <- ff$count_n(exposre, "exposure")
-# print("exposure")
-# head(exposure)
-# #(3) rule out 
-# ruleout<- simplify$ruleout(exposure, t1)
-# check_n4 <- ff$count_n(ruleout)
-# print("ruleout")
-# head(ruleout)
-# # 3. combine data
-# total  <- left_join(ruleout, ps, by= "ID")
-# check_n5 <- ff$count_n(total)
-# print("total")
-# head(total)
+# 2. Simplify 
+#(1) pair 
+pair <- simplify$pair(data)
+print("pair")
+head(pair)
 
-# # id -> 난수로 대체. 
-# id <-total$ID
-# new_ids <-c()
-# while (TRUE) {
-#   new_ids <- append(new_ids, random_id(n=1))
-#   if (length(new_ids) == length(id)){
-#     break
-#   }}
-# total$ID <- new_ids
-# total$hospital <- db_hospital
-# print("total")
-# head(total)
+#(2) exposure
+exposure <- simplify$exposure(pair)
 
-# ## file 내보내기 
-# #(1) count_n 
-# N <- rbind(check_n1, check_n2, check_n3, check_n4, check_n5)
-# write.csv(N, "home/syk/results/total_n.csv")
-# #(2) total 
-# write.csv(total, "home/syk/results/total.csv")
+print("exposure")
+head(exposure)
+#(3) rule out 
+ruleout<- simplify$ruleout(exposure, t1)
+
+print("ruleout")
+head(ruleout)
+# 3. combine data
+total  <- left_join(ruleout, ps, by= "ID")
+
+print("total")
+head(total)
+
+# id -> 난수로 대체. 
+id <-total$ID
+new_ids <-c()
+while (TRUE) {
+  new_ids <- append(new_ids, random_id(n=1))
+  if (length(new_ids) == length(id)){
+    break
+  }}
+total$ID <- new_ids
+total$hospital <- db_hospital
+print("total")
+head(total)
+
+## file 내보내기 
+# total 
+write.csv(total, "home/syk/results/total.csv")

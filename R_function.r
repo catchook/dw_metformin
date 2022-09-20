@@ -77,24 +77,19 @@ save_query <- function(sql, schema, db_target, db_control, con){
     result <- data.table::as.data.table(result)
     return(result)
     } 
-count_n <- function(df, step){
-  count <- function(x, na.rm=TRUE){
-  if(na.rm)x <- x[!is.na(x)]
-   n<-length(unique(x))
-  return (n)}
-  table<-aggregate(df$ID, by = list(df$measurement_type, df$cohort_type),count)
-  tt<-as.data.frame.matrix(table)
-  groups<-split(tt, tt$`Group.2`)
-  test<-rbind(t(groups[[1]][,c("Group.1","x")]) , t(groups[[2]]["x"]))
-  table<-merge(groups[[1]], groups[[2]], by.x="Group.1", by.y="Group.1")
-  names(table) <- c("measurement_type", "t", "target","c", "control")
-  table2 <- subset(table, select= c("measurement_type","target","control"))
-  t<-as.data.frame(t(table2))
-  t$step<- step
-  a<-aggregate(df$ID, by = list( df$cohort_type),count)
-  t$total <- c("total",a$x)
-  return(t) }
-
+# count_n <- function(df, step){
+#   table<-aggregate(df$ID, by = list(df$measurement_type, df$cohort_type), count)
+#   tt<-as.data.frame.matrix(table)
+#   groups<-split(tt, tt$`Group.2`)
+#   test<-rbind(t(groups[[1]][,c("Group.1","x")]) , t(groups[[2]]["x"]))
+#   table<-merge(groups[[1]], groups[[2]], by.x="Group.1", by.y="Group.1")
+#   names(table) <- c("measurement_type", "t", "target","c", "control")
+#   table2 <- subset(table, select= c("measurement_type","target","control"))
+#   t<-as.data.frame(t(table2))
+#   t$step<- step
+#   a<-aggregate(df$ID, by = list( df$cohort_type),count)
+#   t$total <- c("total",a$x)
+#   return(t) }
 })
 
 
@@ -514,7 +509,7 @@ drug_history <- function(data, t1){
   dc <- left_join(data, t1[,c("drug_concept_id","Name","type1","type2")], by = c("drug_concept_id") ) 
   dc<- unique(dc)
 ## get dummies 
-  dc2 <- melt(dc[c("ID", "type1","type2")], id =c("ID"))
+  dc2 <- melt(dc[,c("ID", "type1","type2")], id.vars =c("ID"), measure.vars=c("type1", "type2"))
   dc2<-dc2 %>% group_by(ID) %>% summarise(type = list(unique(value)))
   columns = c("SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd")
   dc3 <- sapply(dc2$type, function(x) table(factor(x, levels= columns)))
@@ -524,7 +519,7 @@ drug_history <- function(data, t1){
 }
 disease_history <- function(data){
 # disease history 
-  dd <- melt(data[c("ID", "condition_type")] , id =c ("ID"))
+  dd <- melt(data[,c("ID", "condition_type")], id.vars = "ID" , measure.vars="condition_type") 
   l<- unique(dd$value)
   dd2<-dd %>% group_by(ID) %>% summarise(dtype = list(unique(value)))
   dd3<- sapply(dd2$dtype ,function(x) table(factor(x, levels =l)) )
@@ -543,7 +538,7 @@ renal$Creatinine[is.na(renal$Creatinine)] <- 1
 renal$BUN[is.na(renal$BUN)] <- 10
 # eGFR 계산
 renal$gender <- ifelse(renal$gender ==1, 0.742, 1)
-renal$egfr <- round(175* (renal$Creatinine^(-1.154))* (renal$age^(-0.203))* renal$gender, 2)
+renal$egfr <- round(175* (as.numeric(renal$Creatinine^(-1.154)))* (as.numeric(renal$age^(-0.203)))* renal$gender, 2)
 renal <- unique(renal[, c("ID", "measurement_date", "BUN", "Creatinine", "egfr") ])
 return(renal)
 }
@@ -569,74 +564,72 @@ simplify <- module({
   import("tidyr")
   import('data.table')
 pair<- function(data){
-# pair 
-before <-  unique(data[which(data$measurement_date < data$cohort_start_date), c("ID", "measurement_type", "value_as_number", "measurement_date","cohort_type")])
-before <- before %>% group_by(ID) %>% filter(measurement_date == max(measurement_date))
+                    # pair 
+                    before <-  unique(data[which(data$measurement_date < data$cohort_start_date), c("ID", "measurement_type", "value_as_number", "measurement_date","cohort_type")])
+                    before <- before %>% group_by(ID) %>% filter(measurement_date == max(measurement_date))
 
-after <-  unique(data[which(data$measurement_date >= data$cohort_start_date), ])
+                    after <-  unique(data[which(data$measurement_date >= data$cohort_start_date), ])
 
-pair = inner_join(before, after, by= c("ID","measurement_type","cohort_type"), suffix =c(".before", ".after"))
-return(pair)
-}
+                    pair = inner_join(before, after, by= c("ID","measurement_type","cohort_type"), suffix =c(".before", ".after"))
+                    return(pair)
+                    }
 exposure <- function(pair){
-#exposure 
-exposure <- unique(pair[which((pair$drug_exposure_start_date <= pair$measurement_date.after ) & (pair$measurement_date.after <= pair$drug_exposure_end_date)), ])
-# exposure 중에 가장 최근걸로. 고르기. 
-exposure2 <- exposure %>% group_by(ID) %>% filter(measurement_date.after == max(measurement_date.after))
-return(exposure2)
-}
+                    #exposure 
+                    exposure <- unique(pair[which((pair$drug_exposure_start_date <= pair$measurement_date.after ) & (pair$measurement_date.after <= pair$drug_exposure_end_date)), ])
+                    # exposure 중에 가장 최근걸로. 고르기. 
+                    exposure2 <- exposure %>% group_by(ID) %>% filter(measurement_date.after == max(measurement_date.after))
+                    return(exposure2)
+                    }
+
 # # # rule out 
-ruleout <- function(exposure2, t1) {
-# # # 1) ingredient 3 out 
-dc <- left_join(exposure2, t1[,c("drug_concept_id","Name","type1","type2")], by = c("drug_concept_id") ) 
-dc<- unique(dc)
-
-# ## 측정날짜 기준으로 약물 취합. 
-# ## 용량군 정의 
-  fun<- function(x) {str_extract_numbers(x, decimals =TRUE)}
-  dose_list <- lapply(dc["Name"],  fun )
-  results <- list()
-  for( i in dose_list$Name){
-    if(length(i)==1){
-      x= as.numeric(i)
-      results <- append(results, x)
-    } else if (length(i)==2){ 
-      x= as.numeric(i[1])
-      y=as.numeric(i[2])
-      if(x > y){
-        results <-append(results, x)
-      }else{results<- append(results, y)}
-
-    }else{
-      results<-append(results, "error")
-    }    }
-  dc$dose <- unlist(results)
-#   ##계산
-dc$total_dose <- (dc$dose * as.numeric(dc$quantity)) / as.numeric(dc$days_supply)
-  ## 용량군 정의 
-  results <- list()
-  for( i in dc$total_dose ){
-    if(i >= 1000){
-      results <- append(results, "high")
-      }else{
-        results<- append(results, "low")}
-    }
-dc$dose_type <- unlist(results) 
-  ## 성분 만 추출
-    dc <- as.data.frame(dc) # error 방지용 
-    dc2 <- reshape::melt(data= dc[c("ID", "measurement_date.after","type1","type2")], id.vars =c("ID", "measurement_date.after"), measure.vars = c("type1", "type2"))
-    dc2<-dc2 %>% group_by(ID, measurement_date.after) %>% summarise( drug_list = list(unique(value)))
-    #성분 / metformin 갯수/ 병용 약물군 정의  
-    dc2$ingredient_count <- length(unique(unlist(dc2$drug_list)))
-    dc2$metformin_count<- lapply(   dc2$drug_list,  function(x) length(grep( "metformin", x) ))
-    dc2$drug_group <- lapply(dc2$drug_list, function(x) paste(x, collapse="/"))
-
-#합치기. 
-dc3 <-left_join(dc, dc2[c("ID","measurement_date.after","ingredient_count","metformin_count","drug_group")], by=c("ID", "measurement_date.after"))
-## 필터링.
-exposure3 <-unique(dc3[which(dc3$ingredient_count<3) & ((dc3$cohort_type==0)& (dc3$metformin_count !=0 )) ],)
-return(exposure3)
-}
+ruleout <- function(exposure2, t1){
+          # # # 1) ingredient 3 out 
+                  dc <- left_join(exposure2, t1[,c("drug_concept_id","Name","type1","type2")], by = c("drug_concept_id") ) 
+                  dc<- unique(dc)
+                  # ## 측정날짜 기준으로 약물 취합. 
+                  # ## 용량군 정의 
+                  fun<- function(x){str_extract_numbers(x, decimals =TRUE)}
+                  dose_list <- lapply(dc["Name"],  fun )
+                  results <- list()
+                  for( i in dose_list$Name){
+                      if(length(i)==1){
+                        x= as.numeric(i)
+                        results <- append(results, x)
+                      } else if (length(i)==2){ 
+                        x= as.numeric(i[1])
+                        y=as.numeric(i[2])
+                            if(x > y){
+                              results <-append(results, x)
+                            }else{results<- append(results, y)}
+                      }else{
+                        results<-append(results, "error")
+                      }    }
+                    dc$dose <- unlist(results)
+                  #   ##계산
+                    dc$total_dose <- (dc$dose * as.numeric(dc$quantity)) / as.numeric(dc$days_supply)
+                    ## 용량군 정의 
+                    results <- list()
+                    for( i in dc$total_dose ){
+                          if(i >= 1000){
+                                  results <- append(results, "high")
+                          }else{
+                            results<- append(results, "low")}
+                        }
+                      dc$dose_type <- unlist(results) 
+                    ## 성분 만 추출
+                      dc <- as.data.frame(dc) # error 방지용 
+                      dc2 <- reshape::melt(data= dc[,c("ID", "measurement_date.after","type1","type2")], id.vars =c("ID", "measurement_date.after"), measure.vars = c("type1", "type2"))
+                      dc2<-dc2 %>% group_by(ID, measurement_date.after) %>% summarise( drug_list = list(unique(value)))
+                      #성분 / metformin 갯수/ 병용 약물군 정의  
+                      dc2$ingredient_count <- length(unique(unlist(dc2$drug_list)))
+                      dc2$metformin_count<- lapply(   dc2$drug_list,  function(x) length(grep( "metformin", x) ))
+                      dc2$drug_group <- lapply(dc2$drug_list, function(x) paste(x, collapse="/"))
+                  #합치기. 
+                      dc3 <-left_join(dc, dc2[c("ID","measurement_date.after","ingredient_count","metformin_count","drug_group")], by=c("ID", "measurement_date.after"))
+                      ## 필터링.
+                      exposure3 <-unique(dc3[which(dc3$ingredient_count<3) & ((dc3$cohort_type==0)& (dc3$metformin_count !=0 )) ],)
+                      return(exposure3)
+                  }
 })
 
 
