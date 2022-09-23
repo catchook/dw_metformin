@@ -23,7 +23,7 @@
 # install.packages("reshape")
 # install.packages("strex")
 
-# library 
+##library 
 library(moonBook)
 library(MatchIt)
 library(dplyr)
@@ -49,7 +49,8 @@ library(strex)
 library(modules)
 library(data.table)
 library(RPostgreSQL)
-## 기본 함수 
+
+# ## 기본 함수
 ff <- module({
     import("DBI") 
     import("RSQLite")
@@ -67,6 +68,7 @@ ff <- module({
     import("nortest")
     import('data.table')
     import('RPostgreSQL')
+
 save_query <- function(sql, schema, db_target, db_control, con){
     sql <- gsub("_results_fnet_v276", "_results_dq_v276", sql)
     sql <- gsub("cdm_hira_2017", schema, sql) 
@@ -76,25 +78,25 @@ save_query <- function(sql, schema, db_target, db_control, con){
     result <- unique(result)
     result <- data.table::as.data.table(result)
     return(result)
-    } 
-# count_n <- function(df, step){
-#   table<-aggregate(df$ID, by = list(df$measurement_type, df$cohort_type), count)
-#   tt<-as.data.frame.matrix(table)
-#   groups<-split(tt, tt$`Group.2`)
-#   test<-rbind(t(groups[[1]][,c("Group.1","x")]) , t(groups[[2]]["x"]))
-#   table<-merge(groups[[1]], groups[[2]], by.x="Group.1", by.y="Group.1")
-#   names(table) <- c("measurement_type", "t", "target","c", "control")
-#   table2 <- subset(table, select= c("measurement_type","target","control"))
-#   t<-as.data.frame(t(table2))
-#   t$step<- step
-#   a<-aggregate(df$ID, by = list( df$cohort_type),count)
-#   t$total <- c("total",a$x)
-#   return(t) }
+    }
+
+count_n <- function(df, step){
+  table <- aggregate(df$ID, by = list(df$measurement_type, df$cohort_type), count)
+  tt <- as.data.frame.matrix(table)
+  groups <- split(tt, tt$`Group.2`)
+  test<-rbind(t(groups[[1]][,c("Group.1","x")]) , t(groups[[2]]["x"]))
+  table<-merge(groups[[1]], groups[[2]], by.x = "Group.1", by.y = "Group.1")
+  names(table) <- c("measurement_type", "t", "target","c", "control")
+  table2 <- subset(table, select = c("measurement_type", "target", "control"))
+  t <- as.data.frame(t(table2))
+  t$step <- step
+  a <- aggregate(df$ID, by = list( df$cohort_type),count)
+  t$total <- c("total",a$x)
+  return(t) }
 })
 
 
-
-## Stat module 
+# ## Stat module 
 stat <- module({
   import("dplyr")
   import("ggplot2")
@@ -111,7 +113,7 @@ stat <- module({
 
 ## 시각화 , 단계별로 
 fig2 <- function(df, step) {
-  df<-df %>% mutate( cohort_type2 = recode(cohort_type,  "1"="control", "0" ="target"))
+  df <- df %>% mutate( cohort_type2 = recode(cohort_type,  "1"="control", "0" ="target"))
   cohort_type_ = as.factor(df$cohort_type2)
   options(repr.plot.width=15, repr.plot.height =5)
   a1=df %>% ggplot(aes(x=BUN, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins=100) 
@@ -188,7 +190,7 @@ shapiro <- function(stat){
   return(results)
 }
 
-## rate: 정규성, 등분산성, ttest, wilcox
+# ## rate: 정규성, 등분산성, ttest, wilcox
 test_rate <- function(stat){
   results<- data.frame( m_type= NA, normality_pvalue_target= NA, normality_pvalue_control= NA, var_pvalue= NA, ttest_pvalue = NA,  wilcoxon_pvalue = NA, target_mean = NA, control_mean = NA)
   m_list <- unique(stat$measurement_type)
@@ -236,6 +238,7 @@ test_rate <- function(stat){
       results <- na.omit(results)
       return(results)
   }
+
 ## diff: 정규성, 등분산성, ttest, wilcox, describe 
 test_diff <- function(stat){
   results<- data.frame( m_type= NA, normality_pvalue_target= NA, normality_pvalue_control= NA, var_pvalue= NA, ttest_pvalue = NA,  wilcoxon_pvalue = NA, target_mean = NA, control_mean = NA)
@@ -284,8 +287,8 @@ test_diff <- function(stat){
       results <- na.omit(results)
       return(results)
   }
-## paired ttest rate test: 등분산성, 정규성, t-test, wilcox test 
-## target +  병용 약물 별  
+# ## paired ttest rate test: 등분산성, 정규성, t-test, wilcox test 
+# ## target +  병용 약물 별  
 ptest_drug <- function(stat){
   total=  unique(subset(stat[which(stat$cohort_type==0)] ))
   results<- data.frame(d_type=NA,  m_type= NA, normality_pvalue_pre= NA, normality_pvalue_post= NA, var_pvalue= NA, ttest_pvalue = NA,  wilcoxon_pvalue = NA, pre_mean = NA, post_mean = NA, mean_diff= NA)
@@ -338,7 +341,6 @@ ptest_drug <- function(stat){
           out<- data.frame(i,j, NA, NA,NA, NA,NA, NA, NA, NA )
           names(out)<-names(results)
           results<- rbind(results, out)
-
             } else {      
           normality_pre <- shapiro.test(target$value_as_number_before)
           normality_post <- shapiro.test(target$value_as_number_after)
@@ -436,7 +438,6 @@ dose_diff_rate <- function(stat){
         barplot2(r_bars, space=0.4, xlim=c(0,3.0), plot.ci=TRUE, ci.l = r_lower, ci.u= r_upper, ci.color ="maroon", ci.lwd=4, names.arg=c("high","low"), col=c("coral", "darkkhaki"), xlab ="dose type", ylab= "rate", 
         main=paste0(j," rate by dose type with Confidence Interval" ) )
         dev.off()
-
         d_bars <- tapply(total_m$diff, total_m$dose_type, function(x) mean(x, na.rm=TRUE))
         d_lower<- tapply(total_m$diff, total_m$dose_type, function(x) t.test(x)$conf.int[1])
         d_upper<- tapply(total_m$diff, total_m$dose_type, function(x) t.test(x)$conf.int[2])
@@ -494,15 +495,13 @@ dose_ptest <- function(total, type){
           }
 })
 
-
-## ps매칭에 필요한 변수 정의 : drug, disease history, Renal 수치  
+# ## ps매칭에 필요한 변수 정의 : drug, disease history, Renal 수치  
 ps <- module({
   import("strex")
   import("reshape")
   import("dplyr")
   import("tidyr")
   import('data.table')
-
 # drug history # ps_1st
 ##파일 합치기. 
 drug_history <- function(data, t1){
@@ -517,23 +516,60 @@ drug_history <- function(data, t1){
   dc4<-cbind(dc2, dc3)  #id, type(all drug list ), dummmies variable SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd
   return(dc4)
 }
-disease_history <- function(data){
-# disease history 
+
+disease_history <- function(data, data2, data3){
+data <- data %>% mutate (condition_type = case_when(.$ancestor_concept_id == 4329847 ~ "MI",
+                                                .$ancestor_concept_id == 316139  ~ "HF",
+                                                .$ancestor_concept_id == 321052  ~ "PV",
+                                                .$ancestor_concept_id %in% c(381591, 434056)  ~ "CV",
+                                                .$ancestor_concept_id == 4182210 ~ 'Dementia',
+                                                .$ancestor_concept_id == 4063381 ~ 'CPD',
+                                                .$ancestor_concept_id %in% c(257628, 134442, 80800, 80809, 256197, 255348) ~ 'Rheuma',
+                                                .$ancestor_concept_id == 4247120 ~ 'PUD',
+                                                .$ancestor_concept_id %in% c(4064161, 4212540) ~ 'MLD',
+                                                .$ancestor_concept_id == 201820 ~ 'D',
+                                                .$ancestor_concept_id %in% c(443767,442793) ~ 'DCC',
+                                                .$ancestor_concept_id %in% c(192606, 374022) ~ 'HP',
+                                                .$ancestor_concept_id %in% c(4030518,	4239233, 4245042) ~ 'Renal',
+                                                .$ancestor_concept_id == 443392  ~ 'M',
+                                                .$ancestor_concept_id %in% c(4245975, 4029488, 192680, 24966) ~ 'MSLD',
+                                                .$ancestor_concept_id == 432851  ~ 'MST',
+                                                .$ancestor_concept_id == 439727  ~ 'AIDS',
+                                                .$ancestor_concept_id == 316866  ~ 'HT',
+                                                .$ancestor_concept_id == 432867  ~ 'HL',
+                                                .$ancestor_concept_id == 132797  ~ 'Sepsis',
+                                                .$ancestor_concept_id == 4254542 ~ 'HTT',
+                                                TRUE ~ 'error'))  
+# # disease history 
   dd <- melt(data[,c("ID", "condition_type")], id.vars = "ID" , measure.vars="condition_type") 
   l<- unique(dd$value)
   dd2<-dd %>% group_by(ID) %>% summarise(dtype = list(unique(value)))
   dd3<- sapply(dd2$dtype ,function(x) table(factor(x, levels =l)) )
   dd4 <- t(dd3)
   dd4 <- cbind(dd2, dd4)
-  return(dd4) 
-}  # id, type(all disease list), dummies variabel: codition_types
-#신기능 수치 추출  #ID, 날짜, 신기능 수치들..
+## 고혈압 데이터랑 합치기 
+  d_hp <- left_join(dd4, data2, by = 'ID') 
+## 합친 데이터가 0이상이면 1로 변경. 
+  d_hp <- d_hp %>% mutate( HT2 = HT + hypertension_drug )
+  d_hp$HT2[d_hp$HT2 > 0] <- 1
+
+## 고지혈증 데이터랑 합치기 
+  dd5 <- left_join(d_hp, data3, by = 'ID') 
+## 합친 데이터가 0이상이면 1로 변경. 
+  dd5 <- dd5 %>% mutate( HL2 = HL + hyperlipidemia_drug )
+  dd5$HL2[dd5$HL2 > 0] <- 1  
+  return(dd5)
+} 
+# id, type(all disease list), dummies variabel: codition_types
+# #신기능 수치 추출  #ID, 날짜, 신기능 수치들..
+
 renal <- function(data){
 # Before, Cr, BUN 추출 
-print("start extract bun, cr")
 renal <-data[which((data$measurement_date <= data$cohort_start_date) & (data$measurement_type %in% c("BUN","Creatinine"))), c("ID", "measurement_type", "value_as_number", "measurement_date","gender","age") ]
+
+renal <- data %>% filter( (measurement_date < cohort_start_date) & (measurement_type %in% c("BUN","Creatinine"))) %>% select( ID, measurement_type, value_as_number, measurement_date, gender, age)
 renal <-renal %>% group_by(ID) %>% filter(measurement_date == max(measurement_date))
-renal <-renal %>%  pivot_wider(names_from = measurement_type, values_from= value_as_number )
+renal <-renal %>% pivot_wider(names_from = measurement_type, values_from= value_as_number )
 print("complete, extract latest bun, cr")
 #null, na 값은 1, 10 로 대체. 
 renal$Creatinine[is.na(renal$Creatinine)] <- 1
@@ -545,27 +581,22 @@ print("replace completet")
 print("ifelse")
 renal$gender <- ifelse(renal$gender ==1, 0.742, 1)
 print("as.numeric")
-print(class(renal$age))
-print(class(renal$Creatinine))
 #class(renal$age) ='Numeric'
-print("apply function")
-renal[,c("age","Creatinine")] <- lapply(renal, function(x) as.numeric(as.character(x)))
-print(class(renal$age))
-print(class(renal$Creatinine))
+# print("apply function")
+renal[,c("age","Creatinine")] <- lapply(renal[,c("age","Creatinine")], as.numeric)
 # renal<-transform(renal, Creatinine = as.numeric(Creatinine),
 #                 age = as.numeric(age))
-#renal$Creatinine <- as.numeric(renal$Creatinine)
-#renal$age <- as.numeric(renal$age)
-print("calculate egfr")
+# renal$Creatinine <- as.numeric(renal$Creatinine)
+# #renal$age <- as.numeric(renal$age)
+ print("calculate egfr")
 renal$egfr <- round(175* (renal$Creatinine^(-1.154))* (renal$age^(-0.203))* renal$gender, 2)
-renal <- unique(renal[, c("ID",  "BUN", "Creatinine", "egfr") ])
+renal <- unique(renal[, c("ID", "BUN", "Creatinine") ])
 return(renal)
 }
 ## CCI 계산
 ## disease_history 결과값을 INPUT 값으로 넣기. 
 cci<- function(sample2){  
-  sample2$cci <-sample2$MI + sample2$HF + sample2$PV + sample2$CV + sample2$Dementia + sample2$CPD + sample2$Rheuma + sample2$PUD + sample2$MLD + sample2$D + sample2$DCC *2 + sample2$HP*2 +
-  sample2$Renal*2 + sample2$M*2 + sample2$MSLD*3 + sample2$MST*6 + sample2$AIDS*6
+  sample2$cci <-sample2$MI + sample2$HF + sample2$PV + sample2$CV + sample2$Dementia + sample2$CPD + sample2$Rheuma + sample2$PUD + sample2$MLD + sample2$D + sample2$DCC *2 + sample2$HP*2 + sample2$Renal*2 + sample2$M*2 + sample2$MSLD*3 + sample2$MST*6 + sample2$AIDS*6
   # sample2$cci <-sample2$MI + sample2$HF + sample2$PV + sample2$CV +  sample2$CPD + sample2$RD + sample2$PUD + sample2$D + sample2$DCC *2 + sample2$RD*2  + sample2$MSLD*3 + sample2$MST*6 + sample2$AIDS*6
   # sample2 <-sample2[,c("ID", "cci")]
   return(sample2)
