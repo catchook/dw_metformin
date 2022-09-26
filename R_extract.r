@@ -18,6 +18,8 @@ library(DBI)
 library(stringr)
 library(utils)
 library(data.table)
+library(plyr)
+library(ids)
 
 ## 접속 정보 
 # (1) DB 접속
@@ -129,6 +131,11 @@ print(file_size, units = "auto")
 names(data1)[names(data1)== 'subject_id' ] <-  c("ID")
 head(data1)
 
+##check n 
+check_n1<-ff$count_n(data1, '1. total') 
+print('check n : 1. total N  ')
+print(check_n1)
+
 ## 고혈압 약제 추가 
 sql2 = "
       SELECT a.subject_id, count(b.drug_concept_id) as hypertension_drug 
@@ -170,57 +177,71 @@ print(file_size, units = "auto")
 names(data3)[names(data3) == 'subject_id'] <-  c("ID")
 head(data3)
 
-# # 1. extract for PS mathcing; drug, disease history, renal values(BUN, Creatinine, eGFR), cci 
-# # (1) drug history 
+# # # 1. extract for PS mathcing; drug, disease history, renal values(BUN, Creatinine, eGFR), cci 
+# # # (1) drug history 
 drug_history <- ps$drug_history(data1, t1) # variables: id, type(all drug list), dummmies variable( SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd )
 print("drug history")
 head(drug_history)
 # # ## (2) disease history
-disease_history <- ps$disease_history(data, data2, data3) # variables: id, type(all disease list), dummies variabel: codition_types
+disease_history <- ps$disease_history(data1, data2, data3) # variables: id, type(all disease list), dummies variabel: codition_types
 print("disease history")
 head(disease_history)
-
 # ## (3)  renal values # V : "ID", "measurement_date", "BUN", "Creatinine", "egfr"
 renal <- ps$renal(data)
 print("renal")
 head(renal)
-# ## (4) cci 
+# # ## (4) cci 
 cci <- ps$cci(disease_history)
 print("cci")
 head(cci)
-
-# ## (5) combind
+# # ## (5) combind
 n1 <- length(unique(drug_history$ID))
 n2 <- length(unique(disease_history$ID))
 n3 <- length(unique(renal$ID))
 n4 <- length(unique(cci$ID))
 print( paste0("total N, drug_history: ",n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
-ps <- join_all(list(drug_history, disease_history, renal, cci))
-
-# # 2. Simplify 
+ps <- plyr::join_all(list(drug_history, disease_history, renal, cci))
+ps <- unique(ps)
+# # # 2. Simplify 
 #(1) pair 
-pair <- simplify$pair(data)
+pair <- simplify$pair(data1)
 print("pair")
 head(pair)
+
+###check n 
+check_n2<-ff$count_n( pair, '2. pair') 
+print('check n : 2. pair N  ')
+print(check_n2)
+
 # #(2) exposure
 exposure <- simplify$exposure(pair)
 print("exposure")
 head(exposure)
+###check n 
+check_n3<-ff$count_n( exposure, '3. exposure') 
+print('check n : 3. exposure N  ')
+print(check_n3)
+
 # #(3) rule out 
 ruleout<- simplify$ruleout(exposure, t1)
 print("ruleout")
 head(ruleout)
+###check n 
+check_n4<-ff$count_n( ruleout, '4. ruleout') 
+print('check n : 4. ruleout N  ')
+print(check_n4)
 
-# # 3. combine data
-total  <- left_join(ruleout, ps, by= "ID")
+# # # 3. combine data
+total  <- left_join( ruleout, ps, by= "ID")
 print("total")
 head(total)
+check_n5 <- ff$count_n(total, '5. final merge')
 
 # # id -> 난수로 대체. 
 id <-total$ID
 new_ids <-c()
 while (TRUE) {
-  new_ids <- append(new_ids, random_id(n=1))
+  new_ids <- append(new_ids, ids::random_id(n=1))
   if (length(new_ids) == length(id)){
     break
   }}
@@ -230,12 +251,12 @@ print("total")
 head(total)
 
 ## file 내보내기 
-# total 
-write.csv(total, "home/syk/total.csv")
 file_size <- object.size(total)
 print("final sql data file size is  ")
 print(file_size, units = "auto")
 
 ##sample 
-sample <- total[1:100]
-write.csv(sample, "home/syk/sample.csv")
+sample <- total[1:1000]
+write.csv(sample, "/data/results/sample.csv")
+write.csv(total, paste0("/data/results/", db_hospital ,".csv")) 
+#write.csv(test_count_n, "home/syk/count.csv")

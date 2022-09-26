@@ -81,18 +81,17 @@ save_query <- function(sql, schema, db_target, db_control, con){
     }
 
 count_n <- function(df, step){
-  table <- aggregate(df$ID, by = list(df$measurement_type, df$cohort_type), count)
-  tt <- as.data.frame.matrix(table)
-  groups <- split(tt, tt$`Group.2`)
-  test<-rbind(t(groups[[1]][,c("Group.1","x")]) , t(groups[[2]]["x"]))
-  table<-merge(groups[[1]], groups[[2]], by.x = "Group.1", by.y = "Group.1")
-  names(table) <- c("measurement_type", "t", "target","c", "control")
-  table2 <- subset(table, select = c("measurement_type", "target", "control"))
-  t <- as.data.frame(t(table2))
-  t$step <- step
-  a <- aggregate(df$ID, by = list( df$cohort_type),count)
-  t$total <- c("total",a$x)
-  return(t) }
+  table<-df %>% group_by(measurement_type, cohort_type) %>% summarise(pl = n_distinct(ID)) %>% arrange(measurement_type)
+  tt <- as.data.table(table)
+  groups <- split(tt, tt$cohort_type)
+  test <- as.data.frame(rbind( t(groups$C[, c("measurement_type","pl")]) , t(groups$T[,"pl"] )) )
+  names(test) <- as.character(unlist(test[1,]))
+## delete rows,  add columns 
+  test<- test[-1,]
+  test[,'cohort_type']<- c( 'Control', 'Target' )
+  test[,'step'] <- step 
+  return(test)
+  }
 })
 
 
@@ -517,44 +516,47 @@ drug_history <- function(data, t1){
   return(dc4)
 }
 
-disease_history <- function(data, data2, data3){
-data <- data %>% mutate (condition_type = case_when(.$ancestor_concept_id == 4329847 ~ "MI",
-                                                .$ancestor_concept_id == 316139  ~ "HF",
-                                                .$ancestor_concept_id == 321052  ~ "PV",
-                                                .$ancestor_concept_id %in% c(381591, 434056)  ~ "CV",
-                                                .$ancestor_concept_id == 4182210 ~ 'Dementia',
-                                                .$ancestor_concept_id == 4063381 ~ 'CPD',
-                                                .$ancestor_concept_id %in% c(257628, 134442, 80800, 80809, 256197, 255348) ~ 'Rheuma',
-                                                .$ancestor_concept_id == 4247120 ~ 'PUD',
-                                                .$ancestor_concept_id %in% c(4064161, 4212540) ~ 'MLD',
-                                                .$ancestor_concept_id == 201820 ~ 'D',
-                                                .$ancestor_concept_id %in% c(443767,442793) ~ 'DCC',
-                                                .$ancestor_concept_id %in% c(192606, 374022) ~ 'HP',
-                                                .$ancestor_concept_id %in% c(4030518,	4239233, 4245042) ~ 'Renal',
-                                                .$ancestor_concept_id == 443392  ~ 'M',
-                                                .$ancestor_concept_id %in% c(4245975, 4029488, 192680, 24966) ~ 'MSLD',
-                                                .$ancestor_concept_id == 432851  ~ 'MST',
-                                                .$ancestor_concept_id == 439727  ~ 'AIDS',
-                                                .$ancestor_concept_id == 316866  ~ 'HT',
-                                                .$ancestor_concept_id == 432867  ~ 'HL',
-                                                .$ancestor_concept_id == 132797  ~ 'Sepsis',
-                                                .$ancestor_concept_id == 4254542 ~ 'HTT',
-                                                TRUE ~ 'error'))  
+disease_history <- function(df, data2, data3){
+df$condition_type  <-  case_when(df$ancestor_concept_id == 4329847 ~ "MI",
+                                                df$ancestor_concept_id == 316139  ~ "HF",
+                                                df$ancestor_concept_id == 321052  ~ "PV",
+                                                df$ancestor_concept_id %in% c(381591, 434056)  ~ "CV",
+                                                df$ancestor_concept_id == 4182210 ~ 'Dementia',
+                                                df$ancestor_concept_id == 4063381 ~ 'CPD',
+                                                df$ancestor_concept_id %in% c(257628, 134442, 80800, 80809, 256197, 255348) ~ 'Rheuma',
+                                                df$ancestor_concept_id == 4247120 ~ 'PUD',
+                                                df$ancestor_concept_id %in% c(4064161, 4212540) ~ 'MLD',
+                                                df$ancestor_concept_id == 201820 ~ 'D',
+                                                df$ancestor_concept_id %in% c(443767,442793) ~ 'DCC',
+                                                df$ancestor_concept_id %in% c(192606, 374022) ~ 'HP',
+                                                df$ancestor_concept_id %in% c(4030518,	4239233, 4245042) ~ 'Renal',
+                                                df$ancestor_concept_id == 443392  ~ 'M',
+                                                df$ancestor_concept_id %in% c(4245975, 4029488, 192680, 24966) ~ 'MSLD',
+                                                df$ancestor_concept_id == 432851  ~ 'MST',
+                                                df$ancestor_concept_id == 439727  ~ 'AIDS',
+                                                df$ancestor_concept_id == 316866  ~ 'HT',
+                                                df$ancestor_concept_id == 432867  ~ 'HL',
+                                                df$ancestor_concept_id == 132797  ~ 'Sepsis',
+                                                df$ancestor_concept_id == 4254542 ~ 'HTT',
+                                                TRUE ~ 'error')
 # # disease history 
-  dd <- melt(data[,c("ID", "condition_type")], id.vars = "ID" , measure.vars="condition_type") 
-  l<- unique(dd$value)
-  dd2<-dd %>% group_by(ID) %>% summarise(dtype = list(unique(value)))
-  dd3<- sapply(dd2$dtype ,function(x) table(factor(x, levels =l)) )
+  dd <- melt(df[,c("ID", "condition_type")], id.vars = "ID" , measure.vars="condition_type") 
+  l <- unique(dd$value)
+  dd2 <-dd %>% group_by(ID) %>% summarise(dtype = list(unique(value)))
+  dd3 <- sapply(dd2$dtype ,function(x) table(factor(x, levels =l)) )
   dd4 <- t(dd3)
   dd4 <- cbind(dd2, dd4)
 ## 고혈압 데이터랑 합치기 
-  d_hp <- left_join(dd4, data2, by = 'ID') 
+  d_hp <- left_join(dd4, data2, by = 'ID')
+  d_hp$hypertension_drug[is.na(d_hp$hypertension_drug)] <-0
+
 ## 합친 데이터가 0이상이면 1로 변경. 
   d_hp <- d_hp %>% mutate( HT2 = HT + hypertension_drug )
   d_hp$HT2[d_hp$HT2 > 0] <- 1
 
 ## 고지혈증 데이터랑 합치기 
-  dd5 <- left_join(d_hp, data3, by = 'ID') 
+  dd5 <- left_join(d_hp, data3, by = 'ID')
+  dd5$hyperlipidemia_drug[is.na(dd5$hyperlipidemia_drug)] <-0 
 ## 합친 데이터가 0이상이면 1로 변경. 
   dd5 <- dd5 %>% mutate( HL2 = HL + hyperlipidemia_drug )
   dd5$HL2[dd5$HL2 > 0] <- 1  
@@ -565,11 +567,7 @@ data <- data %>% mutate (condition_type = case_when(.$ancestor_concept_id == 432
 
 renal <- function(data){
 # Before, Cr, BUN 추출 
-renal <-data[which((data$measurement_date <= data$cohort_start_date) & (data$measurement_type %in% c("BUN","Creatinine"))), c("ID", "measurement_type", "value_as_number", "measurement_date","gender","age") ]
-
-renal <- data %>% filter( (measurement_date < cohort_start_date) & (measurement_type %in% c("BUN","Creatinine"))) %>% select( ID, measurement_type, value_as_number, measurement_date, gender, age)
-renal <-renal %>% group_by(ID) %>% filter(measurement_date == max(measurement_date))
-renal <-renal %>% pivot_wider(names_from = measurement_type, values_from= value_as_number )
+renal <- data %>% dplyr::distinct( ID, cohort_start_date, measurement_type, value_as_number, measurement_date, gender, age) %>% dplyr::filter( (measurement_date < cohort_start_date) & (measurement_type %in% c("BUN","Creatinine")))  %>% dplyr::group_by(ID,measurement_type ) %>% dplyr::filter(measurement_date == max(measurement_date)) %>% tidyr::pivot_wider(names_from = measurement_type, values_from= value_as_number )
 print("complete, extract latest bun, cr")
 #null, na 값은 1, 10 로 대체. 
 renal$Creatinine[is.na(renal$Creatinine)] <- 1
@@ -579,7 +577,7 @@ renal$BUN[renal$BUN =='None'] <-10
 print("replace completet")
 # eGFR 계산
 print("ifelse")
-renal$gender <- ifelse(renal$gender ==1, 0.742, 1)
+renal$gender <- ifelse(renal$gender == 'M', 0.742, 1)
 print("as.numeric")
 #class(renal$age) ='Numeric'
 # print("apply function")
@@ -619,6 +617,7 @@ pair<- function(data){
                     before <- before %>% group_by(ID) %>% filter(measurement_date == max(measurement_date))
                     after <-  unique(data[which(data$measurement_date >= data$cohort_start_date), ])
                     pair = inner_join(before, after, by= c("ID","measurement_type","cohort_type"), suffix =c(".before", ".after"))
+                    pair = unique(pair)
                     return(pair)
                     }
 exposure <- function(pair){
@@ -626,6 +625,7 @@ exposure <- function(pair){
                     exposure <- unique(pair[which((pair$drug_exposure_start_date <= pair$measurement_date.after ) & (pair$measurement_date.after <= pair$drug_exposure_end_date)), ])
                     # exposure 중에 가장 최근걸로. 고르기. 
                     exposure2 <- exposure %>% group_by(ID) %>% filter(measurement_date.after == max(measurement_date.after))
+                    exposure2 = unique(exposure2)
                     return(exposure2)
                     }
 
