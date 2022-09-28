@@ -738,7 +738,7 @@ ruleout <- function(exposure, t1){
                   #합치기. 
                       dc3 <-left_join(dc, dc2[c("ID","measurement_date.after","ingredient_count","metformin_count","drug_group")], by=c("ID", "measurement_date.after"))
                       ## 필터링.
-                      exposure3 <-unique(dc3[which(dc3$ingredient_count<3) & ((dc3$cohort_type==0)& (dc3$metformin_count !=0 )) ],)
+                      exposure3 <-unique(dc3[which(dc3$ingredient_count<3) & ((dc3$cohort_type=='T')& (dc3$metformin_count !=0 )) ],)
                       return(exposure3)
                   }
 })
