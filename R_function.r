@@ -660,11 +660,14 @@ simplify <- module({
   import("dplyr")
   import("tidyr")
   import('data.table')
+  import('stats')
+  import('base')
+  import('utils')
 pair<- function(data){
                     # pair 
-                    before <- data %>% dplyr::distinct(ID, measurement_type, value_as_number, measurement_date, cohort_type) %>% dplyr::filter(measurement_date < cohort_start_date)%>% aggregate(.$measurement_date, by= list(.$ID, .$measurement_type), FUN= max)  
+                    before <- data %>% dplyr::distinct(ID, measurement_type, value_as_number, measurement_date, cohort_type, cohort_start_date) %>% dplyr::filter(measurement_date < cohort_start_date)%>% stats::aggregate(.$measurement_date, by= list(.$ID, .$measurement_type), FUN= max)  
                     before <- as.data.frame(before)
-                    print("unique before")
+                 
                     before <- unique(before)
                     print("check before:::")
                     str(before)
@@ -677,17 +680,19 @@ pair<- function(data){
                     print("unique pair")
                     pair = unique(pair)
                     print("check pair")
+                    pair <-pair %>% select(-Group.1, -Group.2)
                     str(pair)
                     return(pair)
                     }
 exposure <- function(pair){
                     #exposure
                     print("start exposure, filter latest") 
-                    exposure <- pair %>% dplyr::filter(drug_exposure_start_date <= measurement_date.after & measurement_date.after <= drug_exposure_end_date) %>% aggregate(.$measurement_date.after , by= list(.$ID, .$measurement_type), FUN = max)
+                    exposure <- pair %>% dplyr::filter(drug_exposure_start_date <= measurement_date.after & measurement_date.after <= drug_exposure_end_date) %>% stats::aggregate(.$measurement_date.after , by= list(.$ID, .$measurement_type), FUN = max)
                     exposure <- as.data.frame(exposure)
                     print("start unique exposure")
                     exposure <- unique(exposure)
                     print("check exposure")
+                    exposure <-exposure %>% select(-Group.1, -Group.2)
                     str(exposure)
                     return(exposure)
                     }
@@ -703,37 +708,29 @@ ruleout <- function(exposure, t1){
                   # ## 측정날짜 기준으로 약물 취합. 
                   # ## 용량군 정의 
                   fun<- function(x){strex::str_extract_numbers(x, decimals =TRUE)}
-                  dose_list <- lapply(dc["Name"],  fun )
-                  results <- list()
-                  for( i in dose_list$Name){
-                      if(length(i)==1){
-                        x= as.numeric(i)
-                        results <- append(results, x)
-                      } else if (length(i)==2){ 
-                        x= as.numeric(i[1])
-                        y=as.numeric(i[2])
-                            if(x > y){
-                              results <-append(results, x)
-                            }else{results<- append(results, y)}
-                      }else{
-                        results<-append(results, "error")
-                      }    }
-                    dc$dose <- unlist(results)
+                  dose_list <- lapply(dc$Name,  fun )
+                  n= length(dose_list)
+                  results <- vector(length = n)
+                  for( i in 1:n){
+                      num <- length(unlist(dose_list[[i]]))
+                      if(num == 1){
+                        x= unlist(dose_list[[i]] )
+                        results[[i]] <- x
+                      } else if (num == 2){ 
+                        x= max(unlist(dose_list[[i]]))
+                        results[[i]] <- x
+                        }else{
+                        results[[i]] <- 1 
+                      }  }
+                    dc$dose <- results
                   #   ##계산
                     dc$total_dose <- (dc$dose * as.numeric(dc$quantity)) / as.numeric(dc$days_supply)
                     ## 용량군 정의 
-                    results <- list()
-                    for( i in dc$total_dose ){
-                          if(i >= 1000){
-                                  results <- append(results, "high")
-                          }else{
-                            results<- append(results, "low")}
-                        }
-                      dc$dose_type <- unlist(results) 
+                    dc$dose_type <- ifelse(dc$total_dose >= 1000, "high", "low")
                     ## 성분 만 추출
-                      dc <- as.data.frame(dc) # error 방지용 
+                      dc2 <- as.data.frame(dc) # error 방지용 
                       dc2 <- reshape2::melt(data= dc[,c("ID", "measurement_date.after","type1","type2")], id.vars =c("ID", "measurement_date.after"), measure.vars = c("type1", "type2"))
-                      dc2<-dc2 %>% group_by(ID, measurement_date.after) %>% summarise( drug_list = list(unique(value)))
+                      dc2 <- dc2 %>% group_by(ID, measurement_date.after) %>% summarise( drug_list = list(unique(value)))
                       #성분 / metformin 갯수/ 병용 약물군 정의  
                       dc2$ingredient_count <- length(unique(unlist(dc2$drug_list)))
                       dc2$metformin_count<- lapply(   dc2$drug_list,  function(x) length(grep( "metformin", x) ))
