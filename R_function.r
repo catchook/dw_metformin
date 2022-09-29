@@ -87,7 +87,7 @@ save_query <- function(sql, schema, db_target, db_control, con){
 
 count_n <- function(df, step){
   table<-df %>% group_by(measurement_type, cohort_type) %>% summarise(pl = n_distinct(ID)) %>% arrange(measurement_type)
-  tt <- as.data.table(table)
+  tt <- as.data.frame(table)
   groups <- split(tt, tt$cohort_type)
   print("start header.true function")
   header.true <- function(df) {
@@ -707,39 +707,66 @@ ruleout <- function(exposure, t1){
                   str(dc)
                   # ## 측정날짜 기준으로 약물 취합. 
                   # ## 용량군 정의 
-                  fun<- function(x){strex::str_extract_numbers(x, decimals =TRUE)}
-                  dose_list <- lapply(dc$Name,  fun )
+                  print("fill NA of Name to  error_1  " )
+                  dc$Name[is.na(dc$Name)] <- "no name"
+                  print("start:: define dose group")
+                  #fun<- function(x){strex::str_extract_numbers(x, decimals =TRUE)}
+                  dose_list <- sapply(dc$Name, function(x) {strex::str_extract_numbers(x, decimals =TRUE)})
                   n= length(dose_list)
                   results <- vector(length = n)
-                  for( i in 1:n){
-                      num <- length(unlist(dose_list[[i]]))
+                  print("complete extract dose from Name")
+                  for( i in 1:n) {
+                      num <- length(dose_list[[i]])
                       if(num == 1){
-                        x= unlist(dose_list[[i]] )
-                        results[[i]] <- x
-                      } else if (num == 2){ 
-                        x= max(unlist(dose_list[[i]]))
-                        results[[i]] <- x
-                        }else{
+                        results[[i]] <- dose_list[[i]]
+                      } else if(num == 2){ 
+                        results[[i]] <- max(dose_list[[i]])
+                      }else{
                         results[[i]] <- 1 
-                      }  }
+                      }  
+                      }
+                    print("complete extract only one dose  ")
                     dc$dose <- results
+                    print("put dose columns in data frame ")
                   #   ##계산
                     dc$total_dose <- (dc$dose * as.numeric(dc$quantity)) / as.numeric(dc$days_supply)
+                   print("complete put total_dose columns in data frame")
                     ## 용량군 정의 
                     dc$dose_type <- ifelse(dc$total_dose >= 1000, "high", "low")
+                  print("complete put dose_type columns in data frame")
+                    
                     ## 성분 만 추출
-                      dc2 <- as.data.frame(dc) # error 방지용 
-                      dc2 <- reshape2::melt(data= dc[,c("ID", "measurement_date.after","type1","type2")], id.vars =c("ID", "measurement_date.after"), measure.vars = c("type1", "type2"))
-                      dc2 <- dc2 %>% group_by(ID, measurement_date.after) %>% summarise( drug_list = list(unique(value)))
-                      #성분 / metformin 갯수/ 병용 약물군 정의  
-                      dc2$ingredient_count <- length(unique(unlist(dc2$drug_list)))
-                      dc2$metformin_count<- lapply(   dc2$drug_list,  function(x) length(grep( "metformin", x) ))
-                      dc2$drug_group <- lapply(dc2$drug_list, function(x) paste(x, collapse="/"))
+                  print("start:::extract ingredient")
+                    dc2 <- as.data.frame(dc) # error 방지용 
+                  print("start reshpae2::melt")
+                    dc2 <- reshape2::melt(data= dc[,c("ID", "measurement_date.after","type1","type2")], id.vars =c("ID", "measurement_date.after"), measure.vars = c("type1", "type2"))
+                  print("start making drug_list")
+                    dc2 <- dc2 %>% group_by(ID, measurement_date.after) %>% summarise( drug_list = list(unique(value)))
+                  
+                    #성분 / metformin 갯수/ 병용 약물군 정의  
+                  print("count ingredient")
+                  fun <- function(x){
+                    x1 = x[x !='']
+                    n= length(x1)
+                    return(n)
+                  }
+                  count_ <- sapply(dc2$drug_list, fun)
+                  print("put ingredient_count columns in df")
+                  dc2$ingredient_count <- count_
+                  print("put metformin_count")
+                  dc2$metformin_count <- sapply(  dc2$drug_list,  function(x) length(grep( "metformin", x)))
+                  print("put drug_group")
+                  dc2$drug_group <- sapply(dc2$drug_list, function(x) paste(x, collapse="/"))
                   #합치기. 
-                      dc3 <-left_join(dc, dc2[c("ID","measurement_date.after","ingredient_count","metformin_count","drug_group")], by=c("ID", "measurement_date.after"))
+                  dc3 <-left_join(dc, dc2[,c("ID","measurement_date.after","ingredient_count","metformin_count","drug_group")], by=c("ID", "measurement_date.after"))
                       ## 필터링.
-                      exposure3 <-unique(dc3[which(dc3$ingredient_count<3) & ((dc3$cohort_type=='T')& (dc3$metformin_count !=0 )) ],)
-                      return(exposure3)
+                  ruleout <- dc3 %>% dplyr::filter(ingredient_count < 3 )
+                  ruleout <- ruleout %>% dplyr::filter((cohort_type=='T' & metformin_count !=0) | cohort_type=='C') 
+                  #                  unique(dc3[which(dc3$ingredient_count<3) & ((dc3$cohort_type=='T')& (dc3$metformin_count !=0 )) ],)
+                  ruleout <- unique(ruleout)
+                  pkrint('check ruleout')
+                  str(ruleout)
+                  return(ruleout)
                   }
 })
 

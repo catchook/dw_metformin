@@ -50,7 +50,7 @@ setDTthreads(percent = 100)
 
 print(c(schema, db_target, db_control))
 source("home/syk/R_function.r")
-####SQL 
+######################################################################## SQL ############################################################################# 
 sql1 <-"SELECT distinct (case when a.cohort_definition_id = target then 'T'
                                when a.cohort_definition_id = control then 'C' else '' end) as cohort_type
       ,a.subject_id
@@ -177,7 +177,7 @@ print(file_size, units = "auto")
 names(data3)[names(data3) == 'subject_id'] <-  c("ID")
 head(data3)
 
-# # # # 1. extract for PS mathcing; drug, disease history, renal values(BUN, Creatinine, eGFR), cci 
+#########################################################################  1. extract for PS mathcing ##########################################################
 # # # # (1) drug history 
 drug_history <- ps$drug_history(data1, t1) # variables: id, type(\all drug list), dummmies variable( SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd )
 print("drug history")
@@ -204,12 +204,11 @@ n1 <- length(unique(drug_history$ID))
 n2 <- length(unique(disease_history$ID))
 n3 <- length(unique(renal$ID))
 n4 <- length(unique(cci$ID))
-print( paste("total N, drug_history: ",n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
-ps <- plyr::join_all(list(drug_history, disease_history, cci), by ='ID')
+print( paste("total N, drug_history: ", n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
+ps <- plyr::join_all(list(drug_history, disease_history, renal, cci), by ='ID')
 ps <- left_join(ps, renal, by='ID')
 ps <- unique(ps)
-
-# # # 2. Simplify 
+######################################################################### 2. Simplify ######################################################################
 #(1) pair 
 pair <- simplify$pair(data1)
 print("pair")
@@ -217,7 +216,6 @@ head(pair)
 # ###check n 
 check_n2 <- ff$count_n( pair, '2. pair') 
 print('check n : 2. pair N ')
-
 # # #(2) exposure
 exposure <- simplify$exposure(pair)
 print("exposure")
@@ -225,37 +223,19 @@ head(exposure)
 # ###check n 
 check_n3<-ff$count_n( exposure, '3. exposure') 
 print('check n : 3. exposure N  ')
-
 # # # #(3) rule out 
 ruleout<- simplify$ruleout(exposure, t1)
 print("ruleout")
 head(ruleout)
-# # ###check n 
-check_n4<-ff$count_n( ruleout, '4. ruleout') 
+####check n 
+check_n4<- ff$count_n( ruleout, '4. ruleout') 
 print('check n : 4. ruleout N  ')
-
-# # ### new columns: rate, diff
-print("check before making rate, diff columns ")
-str(ruleout)
-# ## new columns: rate, diff
-ruleout$diff <- ruleout$value_as_number.after - ruleout$value_as_number.before
-ruleout$rate  <- ruleout$diff / ruleout$value_as_number.before  
-print("check after making rate, diff columns")
-str(ruleout)
-
-# # # # 3. combine data
+######################################################################### 3. combine data ######################################################################
 total  <- left_join( ruleout, ps, by= "ID")
 print("total")
 head(total)
 check_n5 <- ff$count_n(total, '5. final merge')
-
-
-# 합쳐 
-# total <- plyr::join_all( list(data1, data2, data3), by ='ID')
-total <- plyr::join_all(list(ruleout, ps), by= 'ID')
-count <- rbind(check_n1, check_n2, check_n3, check_n4, check_n4)
-#count <- plyr::join_all(list(check_n1, check_n2, check_n3, check_n4, check_n4))
-# # ps <- plyr::join_all(list(drug_history, disease_history, renal, cci))
+count <- rbind(check_n1, check_n2, check_n3, check_n4, check_n5)
 
 id <- total$ID
 new_ids <- c()
@@ -267,15 +247,13 @@ while (TRUE) {
  total$ID <- new_ids
  total$hospital <- db_hospital
 
-
 # ## file 내보내기 
 file_size <- object.size(total)
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success simplify step !!!!!!!!!!!!!!!!!!!!!!!  sql data file size is  ")
 print(file_size, units = "auto")
 
-
 # ##sample 
-sample <- total[1:10000]
+sample <- total[1:1000]
 write.csv(sample, paste0("/data/results/sample_", db_hospital ,".csv")) 
 write.csv(total, paste0("/data/results/total_", db_hospital ,".csv")) 
 write.csv(count, paste0("/data/results/count_", db_hospital ,".csv")) 
