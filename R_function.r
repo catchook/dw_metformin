@@ -764,7 +764,7 @@ ruleout <- function(exposure, t1){
                   ruleout <- ruleout %>% dplyr::filter((cohort_type=='T' & metformin_count !=0) | cohort_type=='C') 
                   #                  unique(dc3[which(dc3$ingredient_count<3) & ((dc3$cohort_type=='T')& (dc3$metformin_count !=0 )) ],)
                   ruleout <- unique(ruleout)
-                  pkrint('check ruleout')
+                  print('check ruleout')
                   str(ruleout)
                   return(ruleout)
                   }

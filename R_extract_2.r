@@ -12,13 +12,13 @@
 library(reshape)
 library(lubridate)
 library(ggplot2)
+library(plyr)
 library(dplyr)
-library(RPostgreSQL)
 library(DBI)
+library(RPostgreSQL)
 library(stringr)
 library(utils)
 library(data.table)
-library(plyr)
 library(ids)
 
 ## 접속 정보 
@@ -237,15 +237,15 @@ head(total)
 check_n5 <- ff$count_n(total, '5. final merge')
 count <- rbind(check_n1, check_n2, check_n3, check_n4, check_n5)
 
-id <- total$ID
-new_ids <- c()
-while (TRUE) {
-  new_ids <- append(new_ids, ids::random_id(n=1))
-  if (length(new_ids) == length(id)){
-    break
-   }}
- total$ID <- new_ids
- total$hospital <- db_hospital
+# id <- total$ID
+# new_ids <- c()
+# while (TRUE) {
+#   new_ids <- append(new_ids, ids::random_id(n=1))
+#   if (length(new_ids) == length(id)){
+#     break
+#    }}
+#  total$ID <- new_ids
+#  total$hospital <- db_hospital
 
 # ## file 내보내기 
 file_size <- object.size(total)
@@ -253,7 +253,7 @@ print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success simplify step !!!!!!!!!!!!
 print(file_size, units = "auto")
 
 # ##sample 
-sample <- total[1:1000]
+sample <- total[1:1000,]
 write.csv(sample, paste0("/data/results/sample_", db_hospital ,".csv")) 
 write.csv(total, paste0("/data/results/total_", db_hospital ,".csv")) 
 write.csv(count, paste0("/data/results/count_", db_hospital ,".csv")) 
