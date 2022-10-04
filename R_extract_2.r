@@ -207,7 +207,8 @@ n2 <- length(unique(disease_history$ID))
 n3 <- length(unique(renal$ID))
 n4 <- length(unique(cci$ID))
 print( paste("total N, drug_history: ", n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
-ps <- plyr::join_all(list(drug_history, disease_history, renal, cci), by ='ID')
+ps <- plyr::join_all(list(drug_history, disease_history, cci), by ='ID')
+ps <- plyr::left_join(ps, renal, by='ID')
 ps <- unique(ps)
 
 ######################################################################### 2. Simplify ######################################################################

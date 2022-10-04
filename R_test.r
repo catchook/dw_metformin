@@ -211,7 +211,8 @@ n2 <- length(unique(disease_history$ID))
 n3 <- length(unique(renal$ID))
 n4 <- length(unique(cci$ID))
 print( paste("total N, drug_history: ", n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
-ps <- plyr::join_all(list(drug_history, disease_history, renal, cci), by ='ID')
+ps <- plyr::join_all(list(drug_history, disease_history, cci), by ='ID')
+ps <- plyr::left_join(ps, renal, by='ID')
 ps <- unique(ps)
 
 ######################################################################### 2. Simplify ######################################################################
@@ -335,12 +336,12 @@ dose_paired_test <- stat$ptest_drug(data3)
 
 #################################################################### 4. save ############################################################################
 
-write.csv(test_rate, paste0("/data/results/test_rate_", db_hospital".csv")) 
-write.csv(test_diff, paste0("/data/results/test_diff_", db_hospital,".csv")) 
+write.csv(test_rate, paste0("/data/results/test_rate_", db_hospital, ".csv")) 
+write.csv(test_diff, paste0("/data/results/test_diff_", db_hospital, ".csv")) 
 write.csv(paired_test, paste0("/data/results/paired_test_", db_hospital,".csv")) 
 write.csv(dose_diff_rate, paste0("/data/results/dose_diff_rate_", db_hospital,".csv")) 
 write.csv(dose_paired_test, paste0("/data/results/dose_paired_test_", db_hospital,".csv")) 
 count_extract <- rbind(check_n1, check_n2, check_n3, check_n4, check_n5)
 write.csv(count_extract, paste0("/data/results/count_extract_", db_hospital ,".csv")) 
 count_stat <- rbind(N1, N2, N3, N4 , N5)
-write.csv(count_stat, paste0("/data/results/count_stat_", db_hospital ,".csv")) 
+write.csv(count_stat, paste0("/data/results/count_stat_", db_hospital ,".csv"))

@@ -707,10 +707,13 @@ simplify <- module({
   import('utils')
 pair<- function(data){
                     # pair 
-                    before <- data %>% dplyr::distinct(ID, measurement_type, value_as_number, measurement_date, cohort_type, cohort_start_date) %>% dplyr::filter(measurement_date < cohort_start_date)%>% stats::aggregate(.$measurement_date, by= list(.$ID, .$measurement_type), FUN= max)  
+                    before <- data %>% dplyr::filter(measurement_date < cohort_start_date) %>% dplyr::distinct(ID, measurement_type, value_as_number, measurement_date, cohort_type, cohort_start_date) 
                     before <- as.data.frame(before)
-                 
-                    before <- unique(before)
+                    before2 <- before %>% dplyr::arrange(ID, measurement_type, desc(measurement_date)) %>% group_by(ID, measurement_type) %>% mutate( row = row_number())
+                    before2<- as.data.frame(before2)
+                    before2 <- as.data.frame(before2)
+                    before3 <- before2 %>% dplyr::filter(row ==1)
+                    before <- unique(before3)
                     print("check before:::")
                     str(before)
                     after <- data %>% dplyr::filter(measurement_date >= cohort_start_date) 
@@ -722,19 +725,19 @@ pair<- function(data){
                     print("unique pair")
                     pair = unique(pair)
                     print("check pair")
-                    pair <-pair %>% select(-Group.1, -Group.2)
                     str(pair)
                     return(pair)
                     }
 exposure <- function(pair){
                     #exposure
                     print("start exposure, filter latest") 
-                    exposure <- pair %>% dplyr::filter(drug_exposure_start_date <= measurement_date.after & measurement_date.after <= drug_exposure_end_date) %>% stats::aggregate(.$measurement_date.after , by= list(.$ID, .$measurement_type), FUN = max)
-                    exposure <- as.data.frame(exposure)
+                    exposure <- pair %>% dplyr::filter(drug_exposure_start_date <= measurement_date.after & measurement_date.after <= drug_exposure_end_date) 
+                    exposure <- as.data.frame(exposure)      
+                    exposure2 <- exposure %>% arrange(ID, measurement_type, desc(measurement_date.after)) %>% group_by(ID, measurement_type) %>% mutate(row= row_number())
+                    exposure <- as.data.frame(exposure2)               
                     print("start unique exposure")
                     exposure <- unique(exposure)
                     print("check exposure")
-                    exposure <-exposure %>% select(-Group.1, -Group.2)
                     str(exposure)
                     return(exposure)
                     }
