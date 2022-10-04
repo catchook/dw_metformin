@@ -154,37 +154,55 @@ stat <- module({
 fig <- function(df, step) {
   df <- df %>% mutate( cohort_type2 = recode(cohort_type,  "C"="control", "T" ="target"))
   cohort_type_ = as.factor(df$cohort_type2)
+  print("options")
   options(repr.plot.width=15, repr.plot.height =5)
+  print("ggplot")
   a1 <- df %>% ggplot(aes(x=BUN, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins=100) 
   a2 <- df %>% ggplot(aes(x=Creatinine, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins= 100)
   a3 <- df %>% ggplot(aes(x=age, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins=100)
-
+  print("grid1")
   fig <- plot_grid(a1, a2, a3, labels =c("BUN", "Creatinine", "Age"), align = "h", ncol=3)
   title <- ggdraw() + draw_label( paste0(step, " numeric variable") , fontface = "bold") 
+  print("grid2")
   fig <- plot_grid(title, fig, cols = 1, rel_heights = c(0.1, 1))
+  print("ggsave")
   ggsave(paste0("/data/results/", step ,"_numeric.png"), fig, device = "png",  dpi=300, width=15, height=5)
   options(repr.plot.width = 15, repr.plot.height = 10)
+  print("b1")
   b1=df %>% ggplot(aes(x=SU, fill= cohort_type_ )) + theme_classic() + geom_bar()
+  print("b2")
   b2=df %>% ggplot(aes(x= alpha, fill= cohort_type_)) + theme_classic()+ geom_bar()
+  print("b3")
   b3=df %>% ggplot(aes(x=dpp4i, fill= cohort_type_)) + theme_classic()+ geom_bar()
+  print("b4")
   b4=df %>% ggplot(aes(x=gnd, fill= cohort_type_)) + theme_classic()  + geom_bar()
+  print("b5")  
   b5=df %>% ggplot(aes(x=sglt2, fill= cohort_type_)) + theme_classic()+ geom_bar()
+  print("b6")
   b6=df %>% ggplot(aes(x=tzd, fill= cohort_type_)) + theme_classic()  + geom_bar()
+  print("fig")
   fig<- plot_grid(b1, b2 ,b3, b4, b5, b6,labels=c("SU", "Alpha", "DPP-4I", "GND", "SGLT2","TZD") , ncol=3)
   title<-ggdraw() + draw_label( paste0(step, " co-medication "),  fontface = "bold") 
+  print("fig2")
   fig<-plot_grid(title, fig, cols = 1, rel_heights = c(0.1, 1))
+  print("ggsave")
   ggsave(paste0("/data/results/",step,"_co_drug.png"),fig, device = "png",  dpi=300, width=15, height=10)
 }
 ## ps매칭 전후, smd
 smd <- function( DF, step ){
   # label생성 
+  print("start smd")
   DF$gender <- set_label(DF$gender, label ="gender")
   DF$gender<- set_labels(DF$gender, labels=c("male", "female"))
+  print("gender done")
   DF$cohort_type <- set_label(DF$cohort_type, label ="cohort_type")
   DF$cohort_type<- set_labels(DF$cohort_type, labels=c("target", "control"))
+  print("cohort_type done")
   out = mytable(cohort_type~ age + gender + BUN +  Creatinine  + egfr +  SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + 
                     CV + CPD + RD+ PUD +MLD + DCC +HP + MSLD + AIDS + HT2+ HL2 + Sepsis+ HTT + cci  , data =DF)
+  print("out done")
   mycsv(out, file = paste0("/data/results/smd_", step, ".csv"))
+  print("mycsv done")
 } ##이후 mycsv(out, file="") 파일명으로 단계 구분하기. 
 ## dose type version: ps매칭 전후, smd
 dose_smd <- function(DF, step ){
@@ -624,19 +642,43 @@ renal <- function(data){
 data$value_as_number[data$value_as_number == 'None'] <-1
 
 # Before, Cr, BUN 추출 
+renal1 <- data %>% dplyr::filter(measurement_type %in% c("BUN","Creatinine") & measurement_date < cohort_start_date) %>% dplyr::distinct(ID, cohort_start_date, measurement_type, value_as_number, measurement_date, gender, age)
+renal1 <- as.data.frame(renal1) 
+#check n 수 
+print('renal 1: filter data')
+N1=length(unique(renal1$ID))
+print(N1)
 
-renal  <-  data %>% dplyr::distinct( ID, cohort_start_date, measurement_type, value_as_number, measurement_date, gender, age) %>% dplyr::filter( (measurement_date < cohort_start_date) & (measurement_type %in% c("BUN","Creatinine"))) %>% aggregate(.$measurement_date, by= list(.$ID, .$measurement_type), FUN= max) %>% tidyr::pivot_wider(names_from = measurement_type, values_from = value_as_number )
-renal  <- as.data.frame(renal)
+renal2 <- renal1 %>% arrange(ID, measurement_type, desc(measurement_date)) %>% group_by(ID, measurement_type) %>% mutate(row = row_number() )
+renal2<- as.data.frame(renal2)
+print('renal 2; new column row ')
+str(renal2)   
+N2=length(unique(renal2$ID))
+print(N2)
+print("renal 3: select row ==1")
+renal3 <- renal2 %>% dplyr::filter(row ==1)
+str(renal3)   
+N3=length(unique(renal3$ID))
+print(N3)
+print("start renal4; pivot ")
+renal4 <- renal3 %>% distinct(ID, measurement_type, value_as_number, age, gender) %>% tidyr::pivot_wider(names_from = measurement_type, values_from = value_as_number)
+renal4 <- as.data.frame(renal4)
+N4=length(unique(renal4$ID))
+print(N4)
+print('renal4; pivot_wider')
+str(renal4)
+print("extract before bun, cr done")
+
 #null, na 값은 1, 10 로 대체. 
-renal$Creatinine[is.na(renal$Creatinine)] <- 1
-renal$BUN[is.na(renal$BUN)] <- 10
+renal4$Creatinine[is.na(renal4$Creatinine)] <- 1
+renal4$BUN[is.na(renal4$BUN)] <- 10
 # eGFR 계산
-renal$gender <- ifelse(renal$gender == 'M', 0.742, 1)
-renal$egfr <- round(175* (renal$Creatinine^(-1.154))* (renal$age^(-0.203))* renal$gender, 2)
-renal <- unique(renal[, c("ID", "BUN", "Creatinine") ])
+renal4$gender <- ifelse(renal4$gender == 'M', 0.742, 1)
+renal4$egfr <- round(175* (renal4$Creatinine^(-1.154))* (renal4$age^(-0.203))* renal4$gender, 2)
+renal4 <- unique(renal4[, c("ID", "BUN", "Creatinine",'egfr') ])
 print('describe renal::')
-str(renal)
-return(renal)
+str(renal4)
+return(renal4)
 }
 ## CCI 계산
 ## disease_history 결과값을 INPUT 값으로 넣기. 

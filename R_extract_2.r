@@ -178,20 +178,22 @@ names(data3)[names(data3) == 'subject_id'] <-  c("ID")
 head(data3)
 
 #########################################################################  1. extract for PS mathcing ##########################################################
+# # ## (3)  renal values # V : "ID",  "BUN", "Creatinine", "egfr"
+# # str(data1)
+renal <- ps$renal(data1)
+print("renal")
+head(renal)
+
 # # # # (1) drug history 
 drug_history <- ps$drug_history(data1, t1) # variables: id, type(\all drug list), dummmies variable( SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd )
 print("drug history")
 head(drug_history)
 
 # # # ## (2) disease history
-disease_history <- ps$disease_history(data1, data2, data3) # variables: id, type(all disease list), dummies variabel: codition_types
+disease_history <- ps$disease_history(data1, data2, data3) # variables: id, dummies variabel: codition_types
 print("disease history")
 head(disease_history)
-# # ## (3)  renal values # V : "ID", "measurement_date", "BUN", "Creatinine", "egfr"
-# # str(data1)
-renal <- ps$renal(data1)
-print("renal")
-head(renal)
+
 # # ## (4) cci
 print("check before calculating cci ")
 str(disease_history) 
@@ -206,8 +208,8 @@ n3 <- length(unique(renal$ID))
 n4 <- length(unique(cci$ID))
 print( paste("total N, drug_history: ", n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
 ps <- plyr::join_all(list(drug_history, disease_history, renal, cci), by ='ID')
-ps <- left_join(ps, renal, by='ID')
 ps <- unique(ps)
+
 ######################################################################### 2. Simplify ######################################################################
 #(1) pair 
 pair <- simplify$pair(data1)
@@ -237,15 +239,15 @@ head(total)
 check_n5 <- ff$count_n(total, '5. final merge')
 count <- rbind(check_n1, check_n2, check_n3, check_n4, check_n5)
 
-# id <- total$ID
-# new_ids <- c()
-# while (TRUE) {
-#   new_ids <- append(new_ids, ids::random_id(n=1))
-#   if (length(new_ids) == length(id)){
-#     break
-#    }}
-#  total$ID <- new_ids
-#  total$hospital <- db_hospital
+id <- total$ID
+new_ids <- c()
+while (TRUE) {
+  new_ids <- append(new_ids, ids::random_id(n=1))
+  if (length(new_ids) == length(id)){
+    break
+   }}
+ total$ID <- new_ids
+ total$hospital <- db_hospital
 
 # ## file 내보내기 
 file_size <- object.size(total)
