@@ -58,7 +58,7 @@ print(c(schema, db_target, db_control))
 source("home/syk/R_function.r")
 ######################################################################## SQL ############################################################################# 
 sql1 <-"SELECT distinct (case when a.cohort_definition_id = target then 'T'
-                               when a.cohort_definition_id = control then 'C' else '' end) as cohort_type
+                               when a.cohort_definition_id = control then 'C' else 'error' end) as cohort_type
       ,a.subject_id
       ,a.cohort_start_date
       ,(a.cohort_start_date + 455) as cohort_end_date
@@ -85,7 +85,7 @@ sql1 <-"SELECT distinct (case when a.cohort_definition_id = target then 'T'
                     when c.measurement_concept_id = 3027114 then 'Total cholesterol'
                     when c.measurement_concept_id = 3028437 then 'LDL'       
                     when c.measurement_concept_id in (42529224, 3029187, 42870364) then 'NT-proBNP'
-                    else ''  END) as measurement_type
+                    else 'error'  END) as measurement_type
       ,c.measurement_date
       ,c.value_as_number
       , (case when d.gender_concept_id = 8507 then 'M' 
@@ -137,10 +137,14 @@ print(file_size, units = "auto")
 names(data1)[names(data1)== 'subject_id' ] <-  c("ID")
 head(data1)
 
-#change chr to date class
-data1 <- ff$chr_to_date(data1)
+# delete no measurement_Type (error)
+data1<- data1[!(data1$measurement_type == 'error'), ]
+# delete no cohort_type (error)
+data1<- data1[!(data1$cohort_type == 'error'), ]
+
 ##check n 
 check_n1 <- ff$count_n(data1, '1. total') 
+check_n1_t <- ff$count_total(data1, '1. total')
 print('check n : 1. total N  ')
 
 ## 고혈압 약제 추가 
@@ -212,7 +216,7 @@ n3 <- length(unique(renal$ID))
 n4 <- length(unique(cci$ID))
 print( paste("total N, drug_history: ", n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
 ps <- plyr::join_all(list(drug_history, disease_history, cci), by ='ID')
-ps <- plyr::left_join(ps, renal, by='ID')
+ps <- left_join(ps, renal, by='ID')
 ps <- unique(ps)
 
 ######################################################################### 2. Simplify ######################################################################
@@ -222,6 +226,7 @@ print("pair")
 head(pair)
 # ###check n 
 check_n2 <- ff$count_n( pair, '2. pair') 
+check_n2_t <- ff$count_total(pair, '2. pair') 
 print('check n : 2. pair N ')
 # # #(2) exposure
 exposure <- simplify$exposure(pair)
@@ -229,6 +234,7 @@ print("exposure")
 head(exposure)
 # ###check n 
 check_n3<-ff$count_n( exposure, '3. exposure') 
+check_n3_t <- ff$count_total( exposure, '3. exposure') 
 print('check n : 3. exposure N  ')
 # # # #(3) rule out 
 ruleout<- simplify$ruleout(exposure, t1)
@@ -236,29 +242,30 @@ print("ruleout")
 head(ruleout)
 ####check n 
 check_n4<- ff$count_n( ruleout, '4. ruleout') 
+check_n4_t<- ff$count_total( ruleout, '4. ruleout') 
 print('check n : 4. ruleout N  ')
 ######################################################################### 3. combine data ######################################################################
-total  <- left_join( ruleout, ps, by= "ID")
+total  <- left_join( ps, ruleout,  by= "ID")
 print("total")
 head(total)
-check_n5 <- ff$count_n(total, '5. final merge')
-
 file_size <- object.size(total)
-print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success simplify step !!!!!!!!!!!!!!!!!!!!!!!  sql data file size is  ")
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success extract step !!!!!!!!!!!!! !!!!!!!!!!!!!!!!!!!!!!!  sql data file size is  ")
 print(file_size, units = "auto")
 
 #########################################################################  4. delete outlier  ##########################################################
 ## before trim 
 ### check_n: original N / figure / smd  
 N1 <- ff$count_n( total, '1. Total(original)')
+N1_t <- ff$count_total( total, '1. Total(original)')
 stat$fig(total,  '1_Total')
 stat$smd(total, '1_Total')
 print("check original::")
 ## trim n%
 ### check_n: trim N / figure / smd
-data <- ff$trim( total, 3)
+total <- ff$trim( total, 3)
 print("trim done")
 N2 <- ff$count_n( total, "2. trim 3%")
+N2_t <- ff$count_total( total, '2. trim 3%')
 print("check_n2:: trim 3%")
 stat$fig(total, "2_trim")
 stat$smd(total, "2_trim")
@@ -266,11 +273,13 @@ stat$smd(total, "2_trim")
 ## delete value_as_number.before 0 values
 total <- total %>% filter(value_as_number.before != 0)
 N3 <- ff$count_n( total, "3. delete outlier")
+N3_t <- ff$count_total( total, "3. delete outlier")
 stat$fig( total, "3_delete_outlier")
 stat$smd( total, "3_delte_outlier")
 ## new columns: rate, diff
 total$diff <- total$value_as_number.after - total$value_as_number.before
 total$rate <- total$diff/ total$value_as_number.before  
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success delete outlier  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 #################################################################### 5. propensity score matching  ######################################
 ## select columsn for ps matching
 ps <-  unique( total[, c("cohort_type", "age",  "gender", "SU", "alpha"   ,"dpp4i", "gnd", "sglt2" ,  "tzd" ,  
@@ -291,8 +300,10 @@ id <- m.data %>% distinct(ID)
 data2 <- left_join(id,total, by = 'ID')
 ## check n / figure /smd 
 N4 <- ff$count_n(data2, "4. ps_matching")
+N4_t <- ff$count_total(data2, "4. ps_matching")
 stat$fig(data2, "4_psmatch")
 stat$smd(data2, "4_psmatch")
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 #################################################################### 6. stat  ############################################################################
 print("check stat data:::")
 str(data2)
@@ -341,7 +352,9 @@ write.csv(test_diff, paste0("/data/results/test_diff_", db_hospital, ".csv"))
 write.csv(paired_test, paste0("/data/results/paired_test_", db_hospital,".csv")) 
 write.csv(dose_diff_rate, paste0("/data/results/dose_diff_rate_", db_hospital,".csv")) 
 write.csv(dose_paired_test, paste0("/data/results/dose_paired_test_", db_hospital,".csv")) 
-count_extract <- rbind(check_n1, check_n2, check_n3, check_n4, check_n5)
-write.csv(count_extract, paste0("/data/results/count_extract_", db_hospital ,".csv")) 
+count <- rbind(check_n1, check_n2, check_n3, check_n4)
+count_t <- rbind(check_n1_t, check_n2_t, check_n3_t, check_n4_t)
+write.csv(count, paste0("/data/results/count_", db_hospital ,".csv")) 
+write.csv(count_t, paste0("/data/results/count_t_", db_hospital ,".csv")) 
 count_stat <- rbind(N1, N2, N3, N4 , N5)
 write.csv(count_stat, paste0("/data/results/count_stat_", db_hospital ,".csv"))
