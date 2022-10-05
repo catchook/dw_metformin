@@ -52,7 +52,7 @@ print(c(schema, db_target, db_control))
 source("home/syk/R_function.r")
 ######################################################################## SQL ############################################################################# 
 sql1 <-"SELECT distinct (case when a.cohort_definition_id = target then 'T'
-                               when a.cohort_definition_id = control then 'C' else '' end) as cohort_type
+                               when a.cohort_definition_id = control then 'C' else 'error' end) as cohort_type
       ,a.subject_id
       ,a.cohort_start_date
       ,(a.cohort_start_date + 455) as cohort_end_date
@@ -79,7 +79,7 @@ sql1 <-"SELECT distinct (case when a.cohort_definition_id = target then 'T'
                     when c.measurement_concept_id = 3027114 then 'Total cholesterol'
                     when c.measurement_concept_id = 3028437 then 'LDL'       
                     when c.measurement_concept_id in (42529224, 3029187, 42870364) then 'NT-proBNP'
-                    else ''  END) as measurement_type
+                    else 'error'  END) as measurement_type
       ,c.measurement_date
       ,c.value_as_number
       , (case when d.gender_concept_id = 8507 then 'M' 
@@ -133,8 +133,16 @@ head(data1)
 
 #change chr to date class
 data1 <- ff$chr_to_date(data1)
+
+# delete no measurement_Type (error)
+data1<- data1[!(data1$measurement_type == 'error'), ]
+# delete no cohort_type (error)
+data1<- data1[!(data1$cohort_type == 'error'), ]
+
+
 ##check n 
 check_n1 <- ff$count_n(data1, '1. total') 
+check_n1_t <- ff$count_total(data1, '1. total')
 print('check n : 1. total N  ')
 
 ## 고혈압 약제 추가 
@@ -208,7 +216,7 @@ n3 <- length(unique(renal$ID))
 n4 <- length(unique(cci$ID))
 print( paste("total N, drug_history: ", n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
 ps <- plyr::join_all(list(drug_history, disease_history, cci), by ='ID')
-ps <- plyr::left_join(ps, renal, by='ID')
+ps <- left_join(ps, renal, by='ID')
 ps <- unique(ps)
 
 ######################################################################### 2. Simplify ######################################################################
@@ -218,6 +226,7 @@ print("pair")
 head(pair)
 # ###check n 
 check_n2 <- ff$count_n( pair, '2. pair') 
+check_n2_t <- ff$count_total(pair, '2. pair') 
 print('check n : 2. pair N ')
 # # #(2) exposure
 exposure <- simplify$exposure(pair)
@@ -225,6 +234,7 @@ print("exposure")
 head(exposure)
 # ###check n 
 check_n3<-ff$count_n( exposure, '3. exposure') 
+check_n3_t <- ff$count_total( exposure, '3. exposure') 
 print('check n : 3. exposure N  ')
 # # # #(3) rule out 
 ruleout<- simplify$ruleout(exposure, t1)
@@ -232,31 +242,44 @@ print("ruleout")
 head(ruleout)
 ####check n 
 check_n4<- ff$count_n( ruleout, '4. ruleout') 
+check_n4_t<- ff$count_total( ruleout, '4. ruleout') 
 print('check n : 4. ruleout N  ')
+
 ######################################################################### 3. combine data ######################################################################
-total  <- left_join( ruleout, ps, by= "ID")
+total  <- left_join( ps, ruleout, by= "ID")
 print("total")
 head(total)
-check_n5 <- ff$count_n(total, '5. final merge')
-count <- rbind(check_n1, check_n2, check_n3, check_n4, check_n5)
 
-id <- total$ID
+print("rbind count_n")
+count <- rbind(check_n1, check_n2, check_n3, check_n4)
+print("rbind count_total")
+count_t <- rbind(check_n1_t, check_n2_t, check_n3_t, check_n4_t)
+
+ids <- unique(total$ID)
 new_ids <- c()
 while (TRUE) {
   new_ids <- append(new_ids, ids::random_id(n=1))
-  if (length(new_ids) == length(id)){
+  if (length(new_ids) == length(ids)){
     break
    }}
- total$ID <- new_ids
- total$hospital <- db_hospital
-
+IDS <- as.data.frame(cbind(ids, new_ids))
+print("merge id, new_ids")
+total1 <- merge(total, IDS, by.x ='ID', by.y= 'ids')
+total1$hospital <- db_hospital
+print("show:: after merge")
+str(total1)
+print("delete original ID")
+total1 = subset(total1,select = -c(ID))
+names(total1)[names(total1)=='new_ids'] <-c("ID")
+print("REPLACE new_ids TO ID")
 # ## file 내보내기 
-file_size <- object.size(total)
-print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success simplify step !!!!!!!!!!!!!!!!!!!!!!!  sql data file size is  ")
+file_size <- object.size(total1)
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success extract step !!!!!!!!!!!!!!!!!!!!!!!  sql data file size is  ")
 print(file_size, units = "auto")
 
 # ##sample 
-sample <- total[1:1000,]
+sample <- total1[1:1000,]
 write.csv(sample, paste0("/data/results/sample_", db_hospital ,".csv")) 
-write.csv(total, paste0("/data/results/total_", db_hospital ,".csv")) 
+write.csv(total1, paste0("/data/results/total_", db_hospital ,".csv")) 
 write.csv(count, paste0("/data/results/count_", db_hospital ,".csv")) 
+write.csv(count_t, paste0("/data/results/count_t_", db_hospital ,".csv")) 
