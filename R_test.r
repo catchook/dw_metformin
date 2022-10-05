@@ -255,27 +255,27 @@ print(file_size, units = "auto")
 #########################################################################  4. delete outlier  ##########################################################
 ## before trim 
 ### check_n: original N / figure / smd  
-N1 <- ff$count_n( total, '1. Total(original)')
-N1_t <- ff$count_total( total, '1. Total(original)')
-stat$fig(total,  '1_Total')
-stat$smd(total, '1_Total')
+N1 <- ff$count_n( total, '5. before trim')
+N1_t <- ff$count_total( total, '5. before trim')
+stat$fig(total,  '5_before_trim')
+stat$smd(total, '5_before_trim')
 print("check original::")
 ## trim n%
 ### check_n: trim N / figure / smd
 total <- ff$trim( total, 3)
 print("trim done")
-N2 <- ff$count_n( total, "2. trim 3%")
-N2_t <- ff$count_total( total, '2. trim 3%')
+N2 <- ff$count_n( total, "6. trim 3%")
+N2_t <- ff$count_total( total, '6. trim 3%')
 print("check_n2:: trim 3%")
-stat$fig(total, "2_trim")
-stat$smd(total, "2_trim")
+stat$fig(total, "6_trim")
+stat$smd(total, "6_trim")
 
 ## delete value_as_number.before 0 values
 total <- total %>% filter(value_as_number.before != 0)
-N3 <- ff$count_n( total, "3. delete outlier")
-N3_t <- ff$count_total( total, "3. delete outlier")
-stat$fig( total, "3_delete_outlier")
-stat$smd( total, "3_delte_outlier")
+N3 <- ff$count_n( total, "7. delete outlier")
+N3_t <- ff$count_total( total, "7. delete outlier")
+stat$fig( total, "7_delete_outlier")
+stat$smd( total, "7_delte_outlier")
 ## new columns: rate, diff
 total$diff <- total$value_as_number.after - total$value_as_number.before
 total$rate <- total$diff/ total$value_as_number.before  
@@ -286,6 +286,7 @@ ps <-  unique( total[, c("cohort_type", "age",  "gender", "SU", "alpha"   ,"dpp4
                   "BUN",  "Creatinine" , "egfr",  "MI"   , "HF"   ,   "PV"     ,   "CV"    ,   "CPD" ,   "Rheuma" , 
                   "PUD",    "MLD"      ,   "DCC" ,  "HP"  ,  "Renal",  "MSLD"  ,  "AIDS"   ,   "HT2" ,   "HL2",   
                   "Sepsis" ,  "HTT"    ,  "ID"   ,  'cci' )])   
+ps$egfr[is.na(ps$egfr)] <- 90
 colSums(is.na(ps))
 ps[is.na(ps)] <- 0
 ## convert cohort_Type, age; chr to numeric
@@ -299,27 +300,33 @@ m.data <- match.data(m.out, data = ps, distance = 'prop.score')
 id <- m.data %>% distinct(ID)
 data2 <- left_join(id,total, by = 'ID')
 ## check n / figure /smd 
-N4 <- ff$count_n(data2, "4. ps_matching")
-N4_t <- ff$count_total(data2, "4. ps_matching")
-stat$fig(data2, "4_psmatch")
-stat$smd(data2, "4_psmatch")
+N4 <- ff$count_n(data2, "8. ps_matching")
+N4_t <- ff$count_total(data2, "8. ps_matching")
+stat$fig(data2, "8_psmatch")
+stat$smd(data2, "8_psmatch")
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 #################################################################### 6. stat  ############################################################################
 print("check stat data:::")
 str(data2)
 ## 6-1) target vs control  
 ### normality, var, t-test, wilcox
+print("start test rate ")
 test_rate <- stat$test_rate(data2)
+print("start test diff ")
 test_diff <- stat$test_diff(data2)
-### paired t-test (t vs c, sub analysis by dose type)
+### paired t-test (t vs c)
+print("start paired_test")
 paired_test <- stat$ptest_drug(data2)
-
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!success target vs control stat!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
 ## 6-2) high vs low 
 ###################### ps matching 
-ps <-  unique(data[, c("cohort_type", "age",  "gender", "SU", "alpha"   ,"dpp4i", "gnd", "sglt2" ,  "tzd" ,  
+## select only target 
+target <- data %>% dplyr::filter(cohort_type=='T') 
+ps <-  unique(target[, c("age",  "gender", "SU", "alpha"   ,"dpp4i", "gnd", "sglt2" ,  "tzd" ,  
                   "BUN",  "Creatinine" ,  "MI"   , "HF"   ,   "PV"     ,   "CV"    ,   "CPD" ,   "Rheuma" , 
                   "PUD",    "MLD"      ,   "DCC" ,  "HP"  ,  "Renal",  "MSLD"  ,  "AIDS"   ,   "HT2" ,   "HL2",   
                   "Sepsis" ,  "HTT"    ,   "ID"  ,    "egfr",  'cci' , 'dose_type' )])   
+ps$egfr[is.na(ps$egfr)] <- 90
 colSums(is.na(ps))
 ps[is.na(ps)] <- 0
 ## convert cohort_Type, age; chr to numeric
@@ -332,11 +339,15 @@ summary(m.out)
 m.data <- match.data(m.out, data = ps, distance = 'prop.score')
 id <- m.data %>% distinct(ID)
 data3 <- left_join(id, data, by = 'ID')
-## check n / figure /smd 
-## check n / figure /smd 
-N5 <- ff$count_n(data3, "1. dose_type_psmatch")
-stat$fig(data3, "1_dose_type_psmatch")
-stat$smd(data3, "1_dose_type_psmatch")
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  HIGH VS LOW ::: success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+## check n / figure /smd
+N5 <- ff$dose_count_n( data3, "1. dose_type_psmatch")
+N5_t <- ff$dose_count_total( data3, "1. dose_type_psmatch")
+print("N5_t")
+str(N5_t)
+stat$dose_fig(data3, "1_dose_type_psmatch")
+stat$dose_smd(data3, "1_dose_type_psmatch")
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  HIGH VS LOW ::: SUCCESS check N , FIG, SMD  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 ###################### dose stat 
 print("check dose data:::")
 str(data3)
@@ -344,7 +355,7 @@ str(data3)
 dose_diff_rate <- stat$dose_diff_rate(data3)
 ### paired t-test (t vs c, sub analysis by dose type)
 dose_paired_test <- stat$ptest_drug(data3)
-
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  HIGH VS LOW ::: SUCCESS dose stat !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 #################################################################### 4. save ############################################################################
 
 write.csv(test_rate, paste0("/data/results/test_rate_", db_hospital, ".csv")) 
@@ -352,9 +363,10 @@ write.csv(test_diff, paste0("/data/results/test_diff_", db_hospital, ".csv"))
 write.csv(paired_test, paste0("/data/results/paired_test_", db_hospital,".csv")) 
 write.csv(dose_diff_rate, paste0("/data/results/dose_diff_rate_", db_hospital,".csv")) 
 write.csv(dose_paired_test, paste0("/data/results/dose_paired_test_", db_hospital,".csv")) 
-count <- rbind(check_n1, check_n2, check_n3, check_n4)
-count_t <- rbind(check_n1_t, check_n2_t, check_n3_t, check_n4_t)
+count <- rbind(check_n1, check_n2, check_n3, check_n4,N1, N2, N3, N4)
+count_t <- rbind(check_n1_t, check_n2_t, check_n3_t, check_n4_t, N1_t, N2_t, N3_t, N4_t)
 write.csv(count, paste0("/data/results/count_", db_hospital ,".csv")) 
 write.csv(count_t, paste0("/data/results/count_t_", db_hospital ,".csv")) 
-count_stat <- rbind(N1, N2, N3, N4 , N5)
-write.csv(count_stat, paste0("/data/results/count_stat_", db_hospital ,".csv"))
+##dose type
+write.csv(N5, paste0("/data/results/dose_stat_count_",db_hospital".csv")) 
+write.csv(N5_t, paste0("/data/results/dose_stat_count_t_",db_hospital,".csv")) 

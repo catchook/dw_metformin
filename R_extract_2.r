@@ -269,14 +269,15 @@ total1$hospital <- db_hospital
 print("show:: after merge")
 str(total1)
 print("delete original ID")
-total1 = subset(total1,select = -c(ID))
+total1 <- total1 %>% select(-ID)
+total1 <- as.data.frame(total1)
 names(total1)[names(total1)=='new_ids'] <-c("ID")
 print("REPLACE new_ids TO ID")
 # ## file 내보내기 
 file_size <- object.size(total1)
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success extract step !!!!!!!!!!!!!!!!!!!!!!!  sql data file size is  ")
 print(file_size, units = "auto")
-
+######################################################################### 4. save ######################################################################
 # ##sample 
 sample <- total1[1:1000,]
 write.csv(sample, paste0("/data/results/sample_", db_hospital ,".csv")) 

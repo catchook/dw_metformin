@@ -126,6 +126,7 @@ count_n <- function(df, step){
   df[-1,] }
   table  <- header.true(ttable)
   table$step <- step
+  table <- subset(table, select = c( T, C , step))
   print("show count_total")
   str(table)
   return(table)
@@ -973,10 +974,11 @@ ruleout <- function(exposure, t1){
                   #                  unique(dc3[which(dc3$ingredient_count<3) & ((dc3$cohort_type=='T')& (dc3$metformin_count !=0 )) ],)
                   ruleout <- ruleout %>% dplyr::distinct(ID, cohort_type, measurement_type, value_as_number.before, value_as_number.after, gender, age, dose_type, drug_group, measurement_date.before, measurement_date.after)
                   ## select latest measurement_data
-                  ruleout2 <- ruleout %>% dplyr::arrange(ID, measurement_type, desc(measurement_date.after)) %>% group_by(ID, measurement_type) %>% mutate( row = row_number())
+                  print("ruleout:: select latest data")
+                  ruleout2 <- ruleout %>% dplyr::arrange(ID, measurement_type, desc(measurement_date.after)) %>% group_by(ID, measurement_type) %>% dplyr::mutate( row = row_number())
                   ruleout2<- as.data.frame(ruleout2)
                   ruleout3 <- ruleout2 %>% dplyr::filter(row ==1)
-                  ruleout3 <- subset(ruleout3, select = -c("row"))
+                  ruleout3 <- ruleout3 %>% select(-row)
                   print("ruleout3:::")
                   str(ruleout3)
                   return(ruleout3)
