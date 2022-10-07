@@ -54,20 +54,31 @@ class Simplify:
         before['row'] = before.sort_values(['measurement_date'], ascending =False).groupby(['subject_id', 'measurement_type']).cumcount()+1
         condition = before['row']== 1
         before = before.loc[condition,['subject_id','measurement_type','measurement_date','cohort_type','value_as_number']]
-       
-        condition= (data['measurement_date'] >= data['drug_exposure_start_date']) & (data['measurement_date'] <= data['drug_exposure_end_date'])
-        after = data.loc[condition,['subject_id','cohort_type','measurement_type','measurement_date','value_as_number','drug_concept_id','drug_exposure_start_date','drug_exposure_end_date','cohort_start_date','dose_type']]
+        before.drop_duplicates(inplace= True)
+        print("before")
+        before.info()
+        condition= ( data['measurement_date'] >= data['cohort_start_date'] )
+        after = data.loc[condition, :]
         after.dropna(inplace=True)
+        after.drop_duplicates(inplace =True)
+        print("pair::: join start")
         pair = pd.merge(before, after, on=['subject_id','measurement_type','cohort_type'], how ='inner', suffixes=('_before','_after'))
         pair=ff.delete_none(pair)
-        return pair 
+        pair.drop_duplicates(inplace =True)
+        print("check pair")
+        pair.info()
+############## delete intermediate file #################
+        del before
+        del after        
+#########################################################        
+        return pair
     def Exposure(data):
-        pair33 = Simplify.Pair(data)
-        condition = (pair33['drug_exposure_start_date'] <= pair33['measurement_date_after']) & (pair33['measurement_date_after'] <= pair33['drug_exposure_end_date'])
-        exposure = pair33.loc[condition,:]
+        condition = (data['drug_exposure_start_date'] <= data['measurement_date_after']) & (data['measurement_date_after'] <= data['drug_exposure_end_date'])
+        exposure = data.loc[condition,:]
         exposure=ff.delete_none(exposure)
+        exposure.drop_duplicates(inplace =True)
         return exposure 
-    def Ingredient(data, t1):
+    def Ruleout(data, t1):
         ## Step3 : 3 ingredient out (control, target 공통) &  target = metformin 포함 한 것만 추출 
         exposure=Simplify.Exposure(data)
         exposure['drug_concept_id'] = exposure['drug_concept_id'].astype(int)
@@ -145,31 +156,57 @@ class Drug:
                 PS_1st[index] = 0
         PS_1st['subject_id']= PS['subject_id']
         print("PS_1st columns are {}".format(PS_1st.columns))
+ ####### delete intermediate data
+        del dc
+        del dc2
+        del PS
+ ###################################       
         return PS_1st     
-    def buncr(data):
+    def renal(data):
         # [2/3] 1st PS matching: BUN, Creatinine
+        # before cr, bun 추출 
+        print("renal:: filter data")
         condition= (data['measurement_date'] < data['cohort_start_date']) & (data['measurement_type'].isin(['Creatinine', 'BUN']))
-        before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','value_as_number']]
+        before  = data.loc[condition, ['subject_id','measurement_type','measurement_date','value_as_number', 'age','gender']]
         before.dropna(inplace=True)
+        # select latest measurement
+        print("renal:: new columns row, select row ==1, latest data")
         before['row'] = before.sort_values(['measurement_date'], ascending =False).groupby(['subject_id', 'measurement_type']).cumcount()+1
         condition = before['row']== 1
-        before = before.loc[condition,['subject_id','measurement_type','value_as_number']]
+        before = before.loc[condition,['subject_id','measurement_type','value_as_number', 'age', 'gender']]
+        print("renal:: start pivot")
         before_pivot = before.pivot(values ='value_as_number', index='subject_id', columns ='measurement_type')
         before_pivot.columns = before_pivot.columns.values
         before_pivot.reset_index(level=0, inplace =True)  
-        before_pivot.fillna(1, inplace= True)  
-        print("this is buncr pivot table ")
-        print(before_pivot.head())       
-        return before_pivot 
-    def history(data):
+        #before_pivot.fillna(1, inplace= True)  
+        print("this is renal  table ")
+        print(before_pivot.head())
+        # #null, na 값은 1, 10 로 대체
+        before_pivot['BUN'].fillna(10, inplace = True)
+        before_pivot['Creatinine'].fillna(1, inplace = True)
+        ## eGFR 계산 
+        print("renal:: start egfr")
+        before2 = pd.merge(before_pivot, before[['subject_id', 'age', 'gender']], on ='subject_id', how='inner')
+        before2['gender'] = before2['gender'].replace(['M', 'F'], [0.742, 1])
+        before2['egfr'] = round(175 * pow(before2['Creatinine'], -1.154) * pow(before2['age'], -0.203) * before2['gender'], 2 )
+        before = before2[['subject_id', 'BUN','Creatinine', 'egfr']]
+        print("describe renal::")
+        before.info()
+ ####### delete intermediate data
+        del before_pivot
+        del before2
+ ###################################    
+        return before
+    
+    def disease_history(data, data22, data33):
         data2 = data[['subject_id', 'condition_type']].drop_duplicates()
         dc = data2.groupby('subject_id')['condition_type'].agg(lambda x: ",".join(list(set(x)))).reset_index()
         dc.set_index('subject_id', inplace = True)
         PS = pd.get_dummies(dc['condition_type'].str.split(',\s*', expand=True).stack()).groupby(level='subject_id').sum().astype(int).reset_index()
         # condition= PS_1st['error']==0
         # PS_1st= PS_1st.loc[condition,:].drop(columns='error')
-        PS_1st = pd.DataFrame(columns=['subject_id','MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'RD', 'PUD', 'MLD', 'D', 'DCC', 'HP', 'RD', 'M', 'MSLD', 'MST', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT'])
-        columns = ['MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'RD', 'PUD', 'MLD', 'D', 'DCC', 'HP', 'RD', 'M', 'MSLD', 'MST', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']
+        PS_1st = pd.DataFrame(columns=['subject_id','MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'Rheuma', 'PUD', 'MLD', 'D', 'DCC', 'HP', 'Renal', 'M', 'MSLD', 'MST', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT'])
+        columns = ['MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'Rheuma', 'PUD', 'MLD', 'D', 'DCC', 'HP', 'Renal', 'M', 'MSLD', 'MST', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']
         for index in columns:
             if index in PS.columns:
                 PS_1st[index] = PS[index]
@@ -177,7 +214,37 @@ class Drug:
                 PS_1st[index] = 0
         PS_1st['subject_id']= PS['subject_id']
         print("History columns are {}".format(PS_1st.columns))
+        ## 고혈압 데이터랑 합치기 
+        d_hp = PS_1st.merge(data22, on = 'subject_id', how ='left')
+        d_hp['hypertension_drug'] = d_hp['hypertension_drug'].fillna(0)
+        ## 합친 데이터가 0 이상이면 1로 변경 
+        d_hp['HT2'] = d_hp['HT'] + d_hp['hypertension_drug']
+        d_hp['HT2'].mask(d_hp['HT2'] > 0, 1, inplace = True)
+        ## 고지혈증 데이터랑 합치기 
+        d_hphl = d_hp.merge(data33, on ='subject_id', how='left')
+        d_hphl['hyperlipidemia_drug'] = d_hphl['hyperlipidemia_drug'].fillna(0)
+        ## 합친 데이터가 0 이상이면 1로 변경 
+        d_hphl['HL2'] = d_hphl['HL'] + d_hphl['hyperlipidemia_drug']
+        d_hphl['HL2'].mask(d_hphl['HL2'] > 0, 1, inplace = True)
+        PS_1st = d_hphl[['subject_id','MI', 'HF', 'PV', 'CV', 'Dementia', 'CPD', 'Rheuma', 'PUD', 'MLD', 'D', 'DCC', 'HP', 'Renal', 'M', 'MSLD', 'MST', 'AIDS', 'HT2', 'HL2', 'Sepsis', 'HTT']]
+ ############## delete intermediate data
+        del data2
+        del dc
+        del PS
+        del d_hp
+        del d_hphl
+        del data22
+        del data33 
+ ######################################                   
         return PS_1st     
+    def cci(data):
+        data['cci'] = data['MI'] + data['HF'] + data['PV'] + data['CV'] + data['Dementia'] + data['CPD'] + data['Rheuma'] + data['PUD'] + data['MLD'] + data['D'] + data['DCC']*2 + data['HP']*2 + data['Renal']*2 + data['M']*2 + data['MSLD']*3 + data['MST']*6 + data['AIDS']*6
+        data = data[['subject_id', 'cci']]
+        print("describe cci:::")
+        data.info()
+        return data
+    
+    
 class Stats:
     def __init__(self, data):
         self.data = data
@@ -720,7 +787,6 @@ class Stats:
 #                             't_stat':t_stats,
 #                             'p_val': p_vals })
 #         return df
-
 
 
 
