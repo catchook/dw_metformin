@@ -20,6 +20,7 @@ library(stringr)
 library(utils)
 library(data.table)
 library(ids)
+library(pryr)
 
 ## stat library 
 library(MatchIt)
@@ -90,7 +91,7 @@ sql1 <-"SELECT distinct (case when a.cohort_definition_id = target then 'T'
       ,c.value_as_number
       , (case when d.gender_concept_id = 8507 then 'M' 
               when d.gender_concept_id = 8532 then 'F' 
-        else '' END) as gender
+        else 'error' END) as gender
       , (EXTRACT(YEAR FROM a.cohort_start_date)-d.year_of_birth) as age 
       , e.ancestor_concept_id
       
@@ -137,10 +138,16 @@ print(file_size, units = "auto")
 names(data1)[names(data1)== 'subject_id' ] <-  c("ID")
 head(data1)
 
+# 전처리 
 # delete no measurement_Type (error)
 data1<- data1[!(data1$measurement_type == 'error'), ]
 # delete no cohort_type (error)
 data1<- data1[!(data1$cohort_type == 'error'), ]
+# delete no gender(error)
+data1<- data1[!(data1$gender == 'error'), ]
+# delete value_as_number == 0
+data1 <- data1[!(data1$value_as_number == 0),]
+
 
 ##check n 
 check_n1 <- ff$count_n(data1, '1. total') 
@@ -185,29 +192,25 @@ file_size <- object.size(data3)
 print("3rd sql data file (hyperlipidemia) size is  ")
 print(file_size, units = "auto")
 names(data3)[names(data3) == 'subject_id'] <-  c("ID")
-head(data3)
+#head(data3)
 
+##############check memory 1 #########################
+print("check memory::: sql ")
+mem_used()
 #########################################################################  1. extract for PS mathcing ##########################################################
 # # # # (1) drug history 
 drug_history <- ps$drug_history(data1, t1) # variables: id, type(\all drug list), dummmies variable( SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd )
 print("drug history")
-head(drug_history)
-
 # # # ## (2) disease history
 disease_history <- ps$disease_history(data1, data2, data3) # variables: id, dummies variabel: codition_types
 print("disease history")
-head(disease_history)
 # # ## (3)  renal values # V : "ID",  "BUN", "Creatinine", "egfr"
 # # str(data1)
 renal <- ps$renal(data1)
 print("renal")
-head(renal)
 # # ## (4) cci
-print("check before calculating cci ")
-str(disease_history) 
 cci <- ps$cci(disease_history)
 print("cci")
-head(cci)
 
 # # # ## (5) combind
 n1 <- length(unique(drug_history$ID))
@@ -218,12 +221,16 @@ print( paste("total N, drug_history: ", n1, "disease_history : ", n2, "renal :",
 ps <- plyr::join_all(list(drug_history, disease_history, cci), by ='ID')
 ps <- left_join(ps, renal, by='ID')
 ps <- unique(ps)
-
+##############check memory 2 #########################
+print("check memory::: ps ")
+rm(data2)
+rm(data3)
+mem_used()
 ######################################################################### 2. Simplify ######################################################################
 #(1) pair 
 pair <- simplify$pair(data1)
 print("pair")
-head(pair)
+
 # ###check n 
 check_n2 <- ff$count_n( pair, '2. pair') 
 check_n2_t <- ff$count_total(pair, '2. pair') 
@@ -231,7 +238,6 @@ print('check n : 2. pair N ')
 # # #(2) exposure
 exposure <- simplify$exposure(pair)
 print("exposure")
-head(exposure)
 # ###check n 
 check_n3<-ff$count_n( exposure, '3. exposure') 
 check_n3_t <- ff$count_total( exposure, '3. exposure') 
@@ -239,19 +245,36 @@ print('check n : 3. exposure N  ')
 # # # #(3) rule out 
 ruleout<- simplify$ruleout(exposure, t1)
 print("ruleout")
-head(ruleout)
 ####check n 
 check_n4<- ff$count_n( ruleout, '4. ruleout') 
 check_n4_t<- ff$count_total( ruleout, '4. ruleout') 
 print('check n : 4. ruleout N  ')
+##############check memory 3 #########################
+print("check memory::: simplify")
+rm(pair)
+rm(exposure)
+mem_used()
 ######################################################################### 3. combine data ######################################################################
 total  <- left_join( ps, ruleout,  by= "ID")
+# 전처리 
+# delete no measurement_Type (error)
+total<- total[!(total$measurement_type == 'error'), ]
+# delete no cohort_type (error)
+total<- total[!(total$cohort_type == 'error'), ]
+# delete no gender(error)
+total<- total[!(total$gender == 'error'), ]
+# delete value_as_number == 0
+total <- total[!(total$value_as_number.before == 0),]
 print("total")
 head(total)
 file_size <- object.size(total)
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success extract step !!!!!!!!!!!!! !!!!!!!!!!!!!!!!!!!!!!!  sql data file size is  ")
 print(file_size, units = "auto")
-
+##############check memory 4 #########################
+print("check memory::: combine data")
+rm(ruleout)
+rm(ps)
+mem_used()
 #########################################################################  4. delete outlier  ##########################################################
 ## before trim 
 ### check_n: original N / figure / smd  
@@ -273,7 +296,7 @@ stat$smd(total, "6_trim")
 ## delete value_as_number.before 0 values
 total <- total %>% filter(value_as_number.before != 0)
 N3 <- ff$count_n( total, "7. delete outlier")
-N3_t <- ff$count_total( total, "7. delete outlier")
+N3_t <- ff$count_total( total, "7. delete outlier") 
 stat$fig( total, "7_delete_outlier")
 stat$smd( total, "7_delte_outlier")
 ## new columns: rate, diff
@@ -298,12 +321,24 @@ m.out <- matchit(cohort_type ~ cci + age + gender + Creatinine + BUN + egfr + SU
 summary(m.out)
 m.data <- match.data(m.out, data = ps, distance = 'prop.score')
 id <- m.data %>% distinct(ID)
-data2 <- left_join(id,total, by = 'ID')
+data2 <- left_join(id, total, by = 'ID')
+
+## delete who do not have measurement data 
+data2 <- data2[!is.na(data2$measurement_date.before),]
+data2 <- data2[!is.na(data2$measurement_date.after),]
+
 ## check n / figure /smd 
 N4 <- ff$count_n(data2, "8. ps_matching")
 N4_t <- ff$count_total(data2, "8. ps_matching")
 stat$fig(data2, "8_psmatch")
 stat$smd(data2, "8_psmatch")
+
+##############check memory 5 #########################
+print("check memory::: ps matching ")
+rm(ps)
+rm(m.out)
+rm(m.data)
+mem_used()
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 #################################################################### 6. stat  ############################################################################
 print("check stat data:::")
@@ -317,31 +352,44 @@ test_diff <- stat$test_diff(data2)
 ### paired t-test (t vs c)
 print("start paired_test")
 paired_test <- stat$ptest_drug(data2)
+##############check memory 6 #########################
+print("check memory::: STAT ")
+rm(data2)
+mem_used()
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!success target vs control stat!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
-## 6-2) high vs low 
-###################### ps matching 
-## select only target 
-target <- data %>% dplyr::filter(cohort_type=='T') 
+# # ## 6-2) high vs low 
+# # # ###################### ps matching 
+# # ## select only target 
+target <- total %>% dplyr::filter(cohort_type =='T') 
 ps <-  unique(target[, c("age",  "gender", "SU", "alpha"   ,"dpp4i", "gnd", "sglt2" ,  "tzd" ,  
                   "BUN",  "Creatinine" ,  "MI"   , "HF"   ,   "PV"     ,   "CV"    ,   "CPD" ,   "Rheuma" , 
                   "PUD",    "MLD"      ,   "DCC" ,  "HP"  ,  "Renal",  "MSLD"  ,  "AIDS"   ,   "HT2" ,   "HL2",   
                   "Sepsis" ,  "HTT"    ,   "ID"  ,    "egfr",  'cci' , 'dose_type' )])   
 ps$egfr[is.na(ps$egfr)] <- 90
-colSums(is.na(ps))
-ps[is.na(ps)] <- 0
-## convert cohort_Type, age; chr to numeric
-#ps$cohort_type <- ifelse(ps$cohort_type =='C', 1, 0)
+
+# # ## convert cohort_Type, age; chr to numeric
 ps$gender <- ifelse(ps$gender =='M', 0, 1)
 ps$dose_type <- ifelse(ps$dose_type =='high', 1 , 0)
-## 1 : 1 matching
+print("ps matching")
+#### 1 : 1 matching
 m.out <- matchit(dose_type ~ cci + age + gender + Creatinine + BUN + egfr + SU + alpha+ dpp4i + gnd + sglt2 + tzd + MI + HF +PV + CV + CPD + Rheuma + PUD + MLD + DCC + HP + Renal + MSLD + AIDS + HT2+ HL2 + Sepsis+ HTT , data = ps, method ='nearest', distance ='logit',  ratio =1)
 summary(m.out)
 m.data <- match.data(m.out, data = ps, distance = 'prop.score')
 id <- m.data %>% distinct(ID)
-data3 <- left_join(id, data, by = 'ID')
+data3 <- left_join(id, total, by = 'ID')
+### delete who do not have measurement data 
+data3 <- data3[!is.na(data3$measurement_date.before),]
+data3 <- data3[!is.na(data3$measurement_date.after),]
+# # ##############check memory 6 #########################
+print("check memory::: DOSE, psmatching ")
+rm(target)
+rm(ps)
+rm(m.out)
+rm(m.data)
+mem_used()
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  HIGH VS LOW ::: success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 ## check n / figure /smd
-N5 <- ff$dose_count_n( data3, "1. dose_type_psmatch")
+N5 <- ff$dose_count_n(data3, "1. dose_type_psmatch")
 N5_t <- ff$dose_count_total( data3, "1. dose_type_psmatch")
 print("N5_t")
 str(N5_t)
@@ -355,18 +403,19 @@ str(data3)
 dose_diff_rate <- stat$dose_diff_rate(data3)
 ### paired t-test (t vs c, sub analysis by dose type)
 dose_paired_test <- stat$ptest_drug(data3)
+rm(data3)
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  HIGH VS LOW ::: SUCCESS dose stat !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 #################################################################### 4. save ############################################################################
 
-write.csv(test_rate, paste0("/data/results/test_rate_", db_hospital, ".csv")) 
-write.csv(test_diff, paste0("/data/results/test_diff_", db_hospital, ".csv")) 
-write.csv(paired_test, paste0("/data/results/paired_test_", db_hospital,".csv")) 
-write.csv(dose_diff_rate, paste0("/data/results/dose_diff_rate_", db_hospital,".csv")) 
-write.csv(dose_paired_test, paste0("/data/results/dose_paired_test_", db_hospital,".csv")) 
+write.csv(test_rate, paste0("/data/results/test/test_rate_", db_hospital, ".csv")) 
+write.csv(test_diff, paste0("/data/results/test/test_diff_", db_hospital, ".csv")) 
+write.csv(paired_test, paste0("/data/results/test/paired_test_", db_hospital,".csv")) 
 count <- rbind(check_n1, check_n2, check_n3, check_n4,N1, N2, N3, N4)
 count_t <- rbind(check_n1_t, check_n2_t, check_n3_t, check_n4_t, N1_t, N2_t, N3_t, N4_t)
-write.csv(count, paste0("/data/results/count_", db_hospital ,".csv")) 
-write.csv(count_t, paste0("/data/results/count_t_", db_hospital ,".csv")) 
+write.csv(count, paste0("/data/results/test/count_", db_hospital ,".csv")) 
+write.csv(count_t, paste0("/data/results/test/count_t_", db_hospital ,".csv")) 
 ##dose type
-write.csv(N5, paste0("/data/results/dose_stat_count_",db_hospital".csv")) 
-write.csv(N5_t, paste0("/data/results/dose_stat_count_t_",db_hospital,".csv")) 
+write.csv(dose_diff_rate, paste0("/data/results/dose_test/dose_diff_rate_", db_hospital,".csv")) 
+write.csv(dose_paired_test, paste0("/data/results/dose_test/dose_paired_test_", db_hospital,".csv")) 
+write.csv(N5, paste0("/data/results/dose_test/dose_stat_count_",db_hospital,".csv")) 
+write.csv(N5_t, paste0("/data/results/dose_test/dose_stat_count_t_",db_hospital,".csv")) 

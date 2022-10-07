@@ -113,6 +113,13 @@ count_n <- function(df, step){
   total$step <- step
   print("show count_n")
   str(total)
+  ###################### delete intermediate file 
+  rm(table)
+  rm(tt)
+  rm(groups)
+  rm(target)
+  rm(control)
+  ######################
   return(total)
   }
 
@@ -129,6 +136,9 @@ count_n <- function(df, step){
   table <- subset(table, select = c( T, C , step))
   print("show count_total")
   str(table)
+  ###################### delete intermediate file 
+  rm(ttable)
+  ######################
   return(table)
  }
 
@@ -161,6 +171,13 @@ dose_count_n <- function(df, step){
   total$step <- step
   print("show count_n")
   str(total)
+  ###################### delete intermediate file 
+  rm(table)
+  rm(tt)
+  rm(groups)
+  rm(high)
+  rm(low)
+  ######################
   return(total)
   }
 
@@ -176,18 +193,11 @@ dose_count_n <- function(df, step){
   table$step <- step
   print("dose_count_total:::show count_total")
   str(table)
+  ###################### delete intermediate file 
+  rm(ttable)
+  ######################
   return(table)
  }
-
-
-
-
-
-
-
-
-
-
 
 
 chr_to_date <- function(data){
@@ -246,7 +256,7 @@ fig <- function(df, step) {
   print("grid2")
   fig <- plot_grid(title, fig, cols = 1, rel_heights = c(0.1, 1))
   print("ggsave")
-  ggsave(paste0("/data/results/", step ,"_numeric.png"), fig, device = "png",  dpi=300, width=15, height=5)
+  ggsave(paste0("/data/results/fig/", step ,"_numeric.png"), fig, device = "png",  dpi=300, width=15, height=5)
   options(repr.plot.width = 15, repr.plot.height = 10)
   print("b1")
   b1=df %>% ggplot(aes(x=SU, fill= cohort_type_ )) + theme_classic() + geom_bar()
@@ -266,7 +276,7 @@ fig <- function(df, step) {
   print("fig2")
   fig2<-plot_grid(title, fig, ncol = 1, rel_heights = c(0.1, 1))
   print("ggsave")
-  ggsave(paste0("/data/results/",step,"_co_drug.png"), fig2 , device = "png",  dpi=300, width=15, height=10)
+  ggsave(paste0("/data/results/fig/",step,"_co_drug.png"), fig2 , device = "png",  dpi=300, width=15, height=10)
 }
 
 ############################
@@ -285,7 +295,7 @@ dose_fig <- function(df, step) {
   print("grid2")
   fig <- plot_grid(title, fig, cols = 1, rel_heights = c(0.1, 1))
   print("ggsave")
-  ggsave(paste0("/data/results/dose_", step ,"_numeric.png"), fig, device = "png",  dpi=300, width=15, height=5)
+  ggsave(paste0("/data/results/dose_fig/dose_", step ,"_numeric.png"), fig, device = "png",  dpi=300, width=15, height=5)
   options(repr.plot.width = 15, repr.plot.height = 10)
   print("b1")
   b1=df %>% ggplot(aes(x=SU, fill= dose_type_ )) + theme_classic() + geom_bar()
@@ -305,7 +315,7 @@ dose_fig <- function(df, step) {
   print("fig2")
   fig2<-plot_grid(title, fig, ncol = 1, rel_heights = c(0.1, 1))
   print("ggsave")
-  ggsave(paste0("/data/results/dose_",step,"_co_drug.png"), fig2 , device = "png",  dpi=300, width=15, height=10)
+  ggsave(paste0("/data/results/dose_fig/dose_",step,"_co_drug.png"), fig2 , device = "png",  dpi=300, width=15, height=10)
 }
 
 ###############################
@@ -324,6 +334,9 @@ smd <- function( DF, step ){
   print("out done")
   mycsv(out, file = paste0("/data/results/smd_", step, ".csv"))
   print("mycsv done")
+  ###################### delete intermediate file 
+  rm(DF)
+  ######################
 } ##이후 mycsv(out, file="") 파일명으로 단계 구분하기. 
 ## dose type version: ps매칭 전후, smd
 dose_smd <- function(DF, step ){
@@ -337,6 +350,9 @@ dose_smd <- function(DF, step ){
   print("dose_smd::: out done")
   mycsv(out, file = paste0("/data/results/dose_smd_", step, ".csv"))
   print("dose _smd:: mycsv done")
+  ###################### delete intermediate file 
+  rm(DF)
+  ######################
 
 } ##이후 mycsv(out, file="") 파일명으로 단계 구분하기. 
 
@@ -407,14 +423,20 @@ test_rate <- function(stat){
         bars<- tapply(total$rate, total$cohort_type, mean )
         lower<- tapply(total$rate, total$cohort_type, function(x) t.test(x)$conf.int[1])
         upper<- tapply(total$rate, total$cohort_type, function(x) t.test(x)$conf.int[2])
-        
-        png(file=paste0("/data/results/",j,"_rate_test.png"))
-        barplot2(bars, space=0.4, xlim=c(0,3.0), plot.ci=TRUE, ci.l = lower, ci.u= upper, ci.color ="maroon", ci.lwd=4, names.arg=c("target","control"), col=c("coral", "darkkhaki"), xlab ="cohort type", ylab= "rate", 
+        print("check test_Rate:: bars which one are control?, check bars ")
+        print(bars)
+        png(file=paste0("/data/results/test_rate_fig/",j,"_rate_test.png"))
+        barplot2(bars, space=0.4, xlim=c(0,3.0), plot.ci=TRUE, ci.l = lower, ci.u= upper, ci.color ="maroon", ci.lwd=4, names.arg=c("control","target"), col=c("coral", "darkkhaki"), xlab ="cohort type", ylab= "rate", 
         main=paste0(j,"Rate by cohort type with Confidence Interval" ) )
         dev.off()
       }
     }
       results <- na.omit(results)
+      ###################### delete intermediate file 
+      rm(target)
+      rm(control)
+      rm(total)
+      ######################
       return(results)
   }
 
@@ -456,13 +478,18 @@ test_diff <- function(stat){
         bars<- tapply(total$diff, total$cohort_type, mean )
         lower<- tapply(total$diff, total$cohort_type, function(x) t.test(x)$conf.int[1])
         upper<- tapply(total$diff, total$cohort_type, function(x) t.test(x)$conf.int[2])
-        png(file=paste0("/data/results/",j,"_diff_test.png"))
-        barplot2(bars, space=0.4, xlim=c(0,3.0), plot.ci=TRUE, ci.l = lower, ci.u= upper, ci.color ="maroon", ci.lwd=4, names.arg=c("target","control"), col=c("coral", "darkkhaki"), xlab ="cohort type", ylab= "diff", 
+        png(file=paste0("/data/results/test_diff_fig/",j,"_diff_test.png"))
+        barplot2(bars, space=0.4, xlim=c(0,3.0), plot.ci=TRUE, ci.l = lower, ci.u= upper, ci.color ="maroon", ci.lwd=4, names.arg=c("control","target"), col=c("coral", "darkkhaki"), xlab ="cohort type", ylab= "diff", 
         main=paste0(j,"diff by cohort type with Confidence Interval" ) )
         dev.off()
       }
     }
       results <- na.omit(results)
+      ###################### delete intermediate file 
+      rm(target)
+      rm(control)
+      rm(total)
+      ######################
       return(results)
   }
 # ## paired ttest rate test: 등분산성, 정규성, t-test, wilcox test 
@@ -504,7 +531,7 @@ ptest_drug <- function(stat){
           bars<- sapply( sub , function(x) mean(x, na.rm=TRUE))
           lower <- sapply(sub , function(x) t.test(x)$conf.int[1])
           upper<- sapply(sub, function(x) t.test(x)$conf.int[2])
-          png(file=paste0("/data/results/total_",j,"_value_ptest.png"))
+          png(file=paste0("/data/results/ptest_fig/total_",j,"_value_ptest.png"))
           barplot2(bars, space=0.4, plot.ci=TRUE, ci.l= lower, ci.u= upper, ci.color="maroon", ci.lwd=4, names.arg=c("pre","post"), col=c("coral","darkkhaki"), xlab="pre vs post", ylab = "value",  main =paste0("target total  : ",j," value with Confidence Interval"))
           dev.off()
       }} ## drug type별로 paired test
@@ -545,13 +572,18 @@ ptest_drug <- function(stat){
           bars<- sapply( sub , function(x) mean(x, na.rm=TRUE))
           lower <- sapply(sub , function(x) t.test(x)$conf.int[1])
           upper<- sapply(sub, function(x) t.test(x)$conf.int[2])
-          png(file=paste0("/data/results/total_",i,j,"_value_ptest.png"))
+          png(file=paste0("/data/results/ptest_fig/total_",i,"_",j,"_value_ptest.png"))
           barplot2(bars, space=0.4, plot.ci=TRUE, ci.l= lower, ci.u= upper, ci.color="maroon", ci.lwd=4, names.arg=c("pre","post"), col=c("coral","darkkhaki"), xlab="pre vs post", ylab = "value", 
           main =paste0(i," : ",j," value with Confidence Interval"))
           dev.off()
       }}}
 
             results <- na.omit(results)
+            ###################### delete intermediate file 
+            rm(target)
+            rm(target_drug)
+            rm(out)
+            ######################
             return(results)
           }
 # 용량별 t-test, paired t-test
@@ -610,20 +642,25 @@ dose_diff_rate <- function(stat){
         r_bars <- tapply(total_m$rate, total_m$dose_type, function(x) mean(x, na.rm=TRUE))
         r_lower<- tapply(total_m$rate, total_m$dose_type, function(x) t.test(x)$conf.int[1])
         r_upper<- tapply(total_m$rate, total_m$dose_type, function(x) t.test(x)$conf.int[2])
-        png(file=paste0("/data/results/dose_",j,"_rate.png"))
+        png(file=paste0("/data/results/dose_fig/dose_",j,"_rate.png"))
         barplot2(r_bars, space=0.4, xlim=c(0,3.0), plot.ci=TRUE, ci.l = r_lower, ci.u= r_upper, ci.color ="maroon", ci.lwd=4, names.arg=c("high","low"), col=c("coral", "darkkhaki"), xlab ="dose type", ylab= "rate", 
         main=paste0(j," rate by dose type with Confidence Interval" ) )
         dev.off()
         d_bars <- tapply(total_m$diff, total_m$dose_type, function(x) mean(x, na.rm=TRUE))
         d_lower<- tapply(total_m$diff, total_m$dose_type, function(x) t.test(x)$conf.int[1])
         d_upper<- tapply(total_m$diff, total_m$dose_type, function(x) t.test(x)$conf.int[2])
-        png(file=paste0("/data/results/dose_",j,"_diff.png"))
+        png(file=paste0("/data/results/dose_fig/dose_",j,"_diff.png"))
         barplot2(d_bars, space=0.4, xlim=c(0,3.0), plot.ci=TRUE, ci.l = d_lower, ci.u= d_upper, ci.color ="maroon", ci.lwd=4, names.arg=c("high","low"), col=c("coral", "darkkhaki"), xlab ="dose type", ylab= "diff", 
         main=paste0(j," diff by dose type with Confidence Interval" ) )
         dev.off()
       }
     }
       results <- na.omit(results)
+      ###################### delete intermediate file 
+      rm(high)
+      rm(low)
+      rm(outs)
+      ######################
       return(results)
   }
 # paired ttest rate test: 등분산성, 정규성, t-test, wilcox test 
@@ -662,7 +699,7 @@ dose_ptest <- function(total){
         bars<- sapply( sub , function(x) mean(x, na.rm=TRUE))
         lower <- sapply(sub , function(x) t.test(x)$conf.int[1])
         upper<- sapply(sub, function(x) t.test(x)$conf.int[2])
-        png(file=paste0("/data/results/dose_total_",j,"_value_ptest.png"))
+        png(file=paste0("/data/results/dose_fig/dose_total_",j,"_value_ptest.png"))
         barplot2(bars, space=0.4, plot.ci=TRUE, ci.l= lower, ci.u= upper, ci.color="maroon", ci.lwd=4, names.arg=c("pre","post"), col=c("coral","darkkhaki"), xlab="pre vs post", ylab = "value", 
         main =paste0("total_dose : ",j," with Confidence Interval"))
         dev.off()
@@ -704,13 +741,18 @@ dose_ptest <- function(total){
           bars<- sapply( sub , function(x) mean(x, na.rm=TRUE))
           lower <- sapply(sub , function(x) t.test(x)$conf.int[1])
           upper<- sapply(sub, function(x) t.test(x)$conf.int[2])
-          png(file=paste0("/data/results/does_total_",i,j,"_value_ptest.png"))
+          png(file=paste0("/data/results/dose_fig/does_total_",i,"_", j,"_value_ptest.png"))
           barplot2(bars, space=0.4, plot.ci=TRUE, ci.l= lower, ci.u= upper, ci.color="maroon", ci.lwd=4, names.arg=c("pre","post"), col=c("coral","darkkhaki"), xlab="pre vs post", ylab = "value", 
           main =paste0(i," : ",j," value with Confidence Interval"))
           dev.off()
       }}}
 
             results <- na.omit(results)
+            ###################### delete intermediate file 
+            rm(total_m)
+            rm(total)
+            rm(outs)
+            ######################
             return(results)
           }
 })
@@ -739,10 +781,14 @@ drug_history <- function(data, t1){
   dc3 <-t(dc3)
   dc4<-cbind(dc2, dc3)  #id, type(all drug list ), dummmies variable SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd
   print("describe drug_history ")
-
   columns = c("ID","SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd")
   dc4 <- dplyr::select(dc4, all_of(columns))
   str(dc4)
+  ###################### delete intermediate file 
+  rm(dc)
+  rm(dc2)
+  rm(dc3)
+  ###################### delete intermediate file 
   return(dc4)
 }
 
@@ -771,6 +817,7 @@ df$condition_type  <-  case_when(df$ancestor_concept_id == 4329847 ~ "MI",
                                                 TRUE ~ 'error')
 # # disease history 
   dd <- reshape2::melt(df[,c("ID", "condition_type")], id.vars = "ID" , measure.vars="condition_type") 
+
   #l <- unique(dd$value)
   dd2 <-dd %>% group_by(ID) %>% summarise(dtype = list(unique(value)))
   cols = c("MI", "HF", "PV", "CV" , "Dementia","CPD", "Rheuma", "PUD", "MLD", "D", "DCC", "HP", 'Renal', "M", "MSLD","MST", "AIDS",'HT','HL','Sepsis', 'HTT')
@@ -797,6 +844,14 @@ df$condition_type  <-  case_when(df$ancestor_concept_id == 4329847 ~ "MI",
   dd5 <- select(dd5, all_of(cols) )
   print("describe final disease_history: ")
   str(dd5)
+  ###################### delete intermediate file 
+  rm(df)
+  rm(dd)
+  rm(dd2)
+  rm(dd3)
+  rm(dd4)
+  rm(d_hp)
+  ###################### delete intermediate file 
   return(dd5)
 } 
 # id, type(all disease list), dummies variabel: codition_types
@@ -843,6 +898,11 @@ renal4$egfr <- round(175* (renal4$Creatinine^(-1.154))* (renal4$age^(-0.203))* r
 renal4 <- unique(renal4[, c("ID", "BUN", "Creatinine",'egfr') ])
 print('describe renal::')
 str(renal4)
+###################### delete intermediate file 
+rm(renal1)
+rm(renal2)
+rm(renal3)
+###################### delete intermediate file 
 return(renal4)
 }
 ## CCI 계산
@@ -890,6 +950,12 @@ pair<- function(data){
                     pair = unique(pair)
                     print("check pair")
                     str(pair)
+                    ###################### delete intermediate file 
+                    rm(before)
+                    rm(before2)
+                    rm(before3)
+                    rm(after)
+                    ###################### delete intermediate file 
                     return(pair)
                     }
 exposure <- function(pair){
@@ -903,6 +969,9 @@ exposure <- function(pair){
                     exposure <- unique(exposure)
                     print("check exposure")
                     str(exposure)
+                    ###################### delete intermediate file 
+                    rm(exposure2)
+                    ###################### delete intermediate file 
                     return(exposure)
                     }
 # # # rule out 
@@ -916,7 +985,7 @@ ruleout <- function(exposure, t1){
                   str(dc)
                   # ## 측정날짜 기준으로 약물 취합. 
                   # ## 용량군 정의 
-                  print("fill NA of Name to  error_1  " )
+                  print("fill NA of Name to  error_" )
                   dc$Name[is.na(dc$Name)] <- "no name"
                   print("start:: define dose group")
                   #fun<- function(x){strex::str_extract_numbers(x, decimals =TRUE)}
@@ -941,9 +1010,14 @@ ruleout <- function(exposure, t1){
                     dc$total_dose <- (dc$dose * as.numeric(dc$quantity)) / as.numeric(dc$days_supply)
                    print("complete put total_dose columns in data frame")
                     ## 용량군 정의 
-                    dc$dose_type <- ifelse(dc$total_dose >= 1000, "high", "low")
+                    dc$dose_type1 <- ifelse(dc$total_dose >= 1000, "high", "low")
                   print("complete put dose_type columns in data frame")
-                    
+                    ## select only one dose_Type 
+                  print("select only one dose_Type")
+                    dcc <- reshape2::melt(data= dc[,c("ID", "measurement_date.after","dose_type1")], id.vars =c("ID", "measurement_date.after"), measure.vars = "dose_type1")
+                    dcc <-dcc %>% group_by(ID, measurement_date.after) %>% summarise( dose_list = list(unique(value))) %>% mutate(dose_type = case_when(
+                         any(dose_list =='high') ~'high', 
+                         TRUE ~'low'))
                     ## 성분 만 추출
                   print("start:::extract ingredient")
                     dc2 <- as.data.frame(dc) # error 방지용 
@@ -967,7 +1041,8 @@ ruleout <- function(exposure, t1){
                   print("put drug_group")
                   dc2$drug_group <- sapply(dc2$drug_list, function(x) paste(x, collapse="/"))
                   #합치기. 
-                  dc3 <-left_join(dc, dc2[,c("ID","measurement_date.after","ingredient_count","metformin_count","drug_group")], by=c("ID", "measurement_date.after"))
+                  dc3 <- left_join(dc, dcc[,c("ID", "measurement_date.after", 'dose_type')], by =c("ID", "measurement_date.after"))
+                  dc3 <- left_join(dc3, dc2[,c("ID","measurement_date.after","ingredient_count","metformin_count","drug_group")], by=c("ID", "measurement_date.after"))
                       ## 필터링.
                   ruleout <- dc3 %>% dplyr::filter(ingredient_count < 3 )
                   ruleout <- ruleout %>% dplyr::filter((cohort_type=='T' & metformin_count !=0) | cohort_type=='C') 
@@ -981,6 +1056,14 @@ ruleout <- function(exposure, t1){
                   ruleout3 <- ruleout3 %>% select(-row)
                   print("ruleout3:::")
                   str(ruleout3)
+                  ###################### delete intermediate file 
+                  rm(dc)
+                  rm(dc2)
+                  rm(dcc)
+                  rm(dc3)
+                  rm(ruleout)
+                  rm(ruleout2)
+                  ###################### delete intermediate file 
                   return(ruleout3)
                   }
 })
