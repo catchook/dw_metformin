@@ -20,6 +20,7 @@ library(stringr)
 library(utils)
 library(data.table)
 library(ids)
+library(pryr)
 
 ## 접속 정보 
 # (1) DB 접속
@@ -132,17 +133,18 @@ names(data1)[names(data1)== 'subject_id' ] <-  c("ID")
 head(data1)
 
 #change chr to date class
-data1 <- ff$chr_to_date(data1)
-
+data2 <- ff$chr_to_date(data1)
+rm(data1)
 # delete no measurement_Type (error)
-data1<- data1[!(data1$measurement_type == 'error'), ]
+data3 <- data2[!(data2$measurement_type == 'error'), ]
+rm(data2)
 # delete no cohort_type (error)
-data1<- data1[!(data1$cohort_type == 'error'), ]
-
+data4 <- data3[!(data3$cohort_type == 'error'), ]
+rm(data3)
 
 ##check n 
-check_n1 <- ff$count_n(data1, '1. total') 
-check_n1_t <- ff$count_total(data1, '1. total')
+check_n1 <- ff$count_n(data4, '1. total') 
+check_n1_t <- ff$count_total(data4, '1. total')
 print('check n : 1. total N  ')
 
 ## 고혈압 약제 추가 
@@ -183,31 +185,32 @@ file_size <- object.size(data3)
 print("3rd sql data file (hyperlipidemia) size is  ")
 print(file_size, units = "auto")
 names(data3)[names(data3) == 'subject_id'] <-  c("ID")
-head(data3)
-
+# head(data3)
+##############check memory 1 #########################
+print("check memory::: sql ")
+mem_used()
 #########################################################################  1. extract for PS mathcing ##########################################################
 # # ## (3)  renal values # V : "ID",  "BUN", "Creatinine", "egfr"
 # # str(data1)
-renal <- ps$renal(data1)
+renal <- ps$renal(data4)
 print("renal")
-head(renal)
-
+#head(renal)
 # # # # (1) drug history 
-drug_history <- ps$drug_history(data1, t1) # variables: id, type(\all drug list), dummmies variable( SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd )
+drug_history <- ps$drug_history(data4, t1) # variables: id, type(\all drug list), dummmies variable( SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd )
 print("drug history")
-head(drug_history)
+#head(drug_history)
 
 # # # ## (2) disease history
-disease_history <- ps$disease_history(data1, data2, data3) # variables: id, dummies variabel: codition_types
+disease_history <- ps$disease_history(data4, data2, data3) # variables: id, dummies variabel: codition_types
 print("disease history")
-head(disease_history)
+#head(disease_history)
 
 # # ## (4) cci
 print("check before calculating cci ")
 str(disease_history) 
 cci <- ps$cci(disease_history)
 print("cci")
-head(cci)
+#head(cci)
 
 # # # ## (5) combind
 n1 <- length(unique(drug_history$ID))
@@ -216,14 +219,24 @@ n3 <- length(unique(renal$ID))
 n4 <- length(unique(cci$ID))
 print( paste("total N, drug_history: ", n1, "disease_history : ", n2, "renal :", n3, "cci :", n4) )
 ps <- plyr::join_all(list(drug_history, disease_history, cci), by ='ID')
-ps <- left_join(ps, renal, by='ID')
-ps <- unique(ps)
-
+ps2 <- left_join(ps, renal, by='ID')
+rm(ps)
+ps3 <- unique(ps2)
+rm(ps2)
+##############check memory 2 #########################
+print("check memory::: ps ")
+rm(data2)
+rm(data3)
+rm(drug_history)
+rm(disease_history)
+rm(cci)
+rm(renal)
+mem_used()
 ######################################################################### 2. Simplify ######################################################################
 #(1) pair 
-pair <- simplify$pair(data1)
+pair <- simplify$pair(data4)
 print("pair")
-head(pair)
+#head(pair)
 # ###check n 
 check_n2 <- ff$count_n( pair, '2. pair') 
 check_n2_t <- ff$count_total(pair, '2. pair') 
@@ -231,7 +244,7 @@ print('check n : 2. pair N ')
 # # #(2) exposure
 exposure <- simplify$exposure(pair)
 print("exposure")
-head(exposure)
+#head(exposure)
 # ###check n 
 check_n3<-ff$count_n( exposure, '3. exposure') 
 check_n3_t <- ff$count_total( exposure, '3. exposure') 
@@ -239,23 +252,35 @@ print('check n : 3. exposure N  ')
 # # # #(3) rule out 
 ruleout<- simplify$ruleout(exposure, t1)
 print("ruleout")
-head(ruleout)
+#head(ruleout)
 ####check n 
 check_n4<- ff$count_n( ruleout, '4. ruleout') 
 check_n4_t<- ff$count_total( ruleout, '4. ruleout') 
 print('check n : 4. ruleout N  ')
-
+##############check memory 2 #########################
+print("check memory::: simplify")
+rm(pair)
+rm(exposure)
+rm(data4)
+mem_used()
 ######################################################################### 3. combine data ######################################################################
-total  <- left_join( ps, ruleout, by= "ID")
+total  <- left_join( ps3, ruleout, by= "ID")
 print("total")
 head(total)
-
-print("rbind count_n")
-count <- rbind(check_n1, check_n2, check_n3, check_n4)
-print("rbind count_total")
-count_t <- rbind(check_n1_t, check_n2_t, check_n3_t, check_n4_t)
-
-ids <- unique(total$ID)
+# 전처리 
+# delete no measurement_Type (error)
+total1 <- total[!(total$measurement_type == 'error'), ]
+rm(total)
+# delete no cohort_type (error)
+total2 <- total1[!(total1$cohort_type == 'error'), ]
+rm(total1)
+# delete no gender(error)
+total3 <- total2[!(total2$gender == 'error'), ]
+rm(total2)
+# delete value_as_number == 0
+total4 <- total3[!(total3$value_as_number.before == 0),]
+rm(total3)
+ids <- unique(total4$ID)
 new_ids <- c()
 while (TRUE) {
   new_ids <- append(new_ids, ids::random_id(n=1))
@@ -264,23 +289,39 @@ while (TRUE) {
    }}
 IDS <- as.data.frame(cbind(ids, new_ids))
 print("merge id, new_ids")
-total1 <- merge(total, IDS, by.x ='ID', by.y= 'ids')
-total1$hospital <- db_hospital
+total5 <- merge(total4, IDS, by.x ='ID', by.y= 'ids')
+rm(total4)
+total5$hospital <- db_hospital
 print("show:: after merge")
-str(total1)
+str(total5)
 print("delete original ID")
-total1 <- total1 %>% select(-ID)
-total1 <- as.data.frame(total1)
-names(total1)[names(total1)=='new_ids'] <-c("ID")
+total6 <- total5 %>% select(-ID)
+rm(total5)
+total7 <- as.data.frame(total6)
+rm(total6)
+names(total7)[names(total7) == 'new_ids'] <-c("ID")
 print("REPLACE new_ids TO ID")
 # ## file 내보내기 
-file_size <- object.size(total1)
+file_size <- object.size(total7)
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success extract step !!!!!!!!!!!!!!!!!!!!!!!  sql data file size is  ")
 print(file_size, units = "auto")
+##############check memory 3 #########################
+print("check memory::: combine")
+rm(ruleout)
+rm(ps3)
+mem_used()
 ######################################################################### 4. save ######################################################################
 # ##sample 
-sample <- total1[1:1000,]
-write.csv(sample, paste0("/data/results/sample_", db_hospital ,".csv")) 
-write.csv(total1, paste0("/data/results/total_", db_hospital ,".csv")) 
+
+print("rbind count_n")
+count <- rbind(check_n1, check_n2, check_n3, check_n4)
+print("rbind count_total")
+count_t <- rbind(check_n1_t, check_n2_t, check_n3_t, check_n4_t)
+##############check memory 3 #########################
+print("check memory::: combine")
+mem_used()
+#sample <- total1[1:1000,]
+#write.csv(sample, paste0("/data/results/sample_", db_hospital ,".csv")) 
+write.csv(total7, paste0("/data/results/total_", db_hospital ,".csv")) 
 write.csv(count, paste0("/data/results/count_", db_hospital ,".csv")) 
 write.csv(count_t, paste0("/data/results/count_t_", db_hospital ,".csv")) 
