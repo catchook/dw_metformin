@@ -33,6 +33,18 @@ str(data2)
 # ##############check memory 4 #########################
 print("check memory::: combine data")
 mem_used()
+
+################## SELECT LATEST DATA 
+ ## select latest measurement_data
+data2 <- data2 %>% dplyr::arrange( ID, measurement_type, desc(measurement_date.after)) %>% dplyr::group_by(ID, measurement_type) %>% dplyr::mutate( row = row_number())
+print("1")
+data2<- as.data.frame(data2)
+data2 <- data2 %>% dplyr::filter(row == 1)
+print("2")
+data2 <- as.data.frame(data2)
+data2 <- subset(data2, select = -c(row))
+print("select latest data")
+str(data2)
 ##################################################################### 1. delete outlier #################################################################### 
 ## before trim 
 ### check_n: original N / figure / smd  

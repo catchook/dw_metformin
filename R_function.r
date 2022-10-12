@@ -384,14 +384,43 @@ dose_smd <- function(DF, step ){
 #   return(results)
 # }
 
+test_rate_diff <- function(stat){
+  #필요한 값만 추출
+  stat<- stat[,.(ID, cohort_type,   =)]
+dt1 <- dcast(dt1, V1+cohort_type~measurement_type, value.var = c('diff','rate'))
+
+colSums(!is.na(dt1))
+
+# T test
+tb <- mytable(cohort_type~diff_AST+diff_Albumin+diff_BMI+diff_BUN+diff_CRP+diff_Creatinine+diff_DBP+diff_HDL+diff_Hb+diff_HbA1c+diff_SBP+diff_Triglyceride+
+          rate_AST+rate_Albumin+rate_BMI+rate_BUN+rate_CRP+rate_Creatinine+rate_DBP+rate_HDL+rate_Hb+rate_HbA1c+rate_SBP+rate_Triglyceride, data = dt1,
+        method = 3, # performs a Shapiro-Wilk test to decide between normal or non-normal
+        catMethod = 0, # Perform chisq.test first. If warning present, perform fisher test
+        show.all = T)
+print(tb)
+mycsv(tb, file = 'tb.csv')
+
+
+
+}
+
+
+
+
 # ## rate: 정규성, 등분산성, ttest, wilcox
 test_rate <- function(stat){
   results<- data.frame( m_type= NA, normality_pvalue_target= NA, normality_pvalue_control= NA, var_pvalue= NA, ttest_pvalue = NA,  wilcoxon_pvalue = NA, target_mean = NA, control_mean = NA)
-  m_list <- unique(stat$measurement_type)
+#  m_list <- unique(stat$measurement_type)
+  m_list <- c("CRP", "Albumin", "BUN" ,"Creatinine")
   for( j in m_list){
-      target <- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='T') %>% distinct(ID, rate) 
-      control<- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='C') %>% distinct(ID, rate) 
-      total <- stat %>% dplyr::filter(measurement_type == j ) %>% distinct(ID, cohort_type, rate)
+      target <- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='T')  %>% distinct(ID,rate) 
+      control<- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='C')  %>% distinct(ID, rate) 
+      total <- stat %>% dplyr::filter(measurement_type == j )  %>% distinct(ID, cohort_type, rate) 
+      # target <- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='T') %>% distinct(ID, diff) 
+      # control<- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='C') %>% distinct(ID, diff) 
+      # total <- stat %>% dplyr::filter(measurement_type == j ) %>% distinct(ID, cohort_type, diff)
+
+
       target <- as.data.frame(target)  
       control  <- as.data.frame(control) 
       total <- as.data.frame(total) 
@@ -411,7 +440,7 @@ test_rate <- function(stat){
         normality_c <- round(normality_c$p.value , digits = 2)
         variance <- round(variance$p.value , digits = 2)
         ttest_p <- round(ttest$p.value, digits = 2)
-        wilcox <- round(wilcox$p.value, digits = 2) 
+        wilcox <- wilcox$p.value 
         means <- as.numeric(gsub("^[a-z]","", ttest$estimate) )
         targetmean <- round(means[1], digits=2)
         controlmean <- round(means[2], digits=2)
@@ -443,7 +472,9 @@ test_rate <- function(stat){
 ## diff: 정규성, 등분산성, ttest, wilcox, describe 
 test_diff <- function(stat){
   results<- data.frame( m_type= NA, normality_pvalue_target= NA, normality_pvalue_control= NA, var_pvalue= NA, ttest_pvalue = NA,  wilcoxon_pvalue = NA, target_mean = NA, control_mean = NA)
-  m_list <- unique(stat$measurement_type)
+  #m_list <-c("CRP", "AST", "BUN" )
+  m_list <-c("CRP", "Albumin", "BUN" ,"Creatinine")
+#  m_list <- unique(stat$measurement_type)
   for( j in m_list){
       target <- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='T') %>% distinct(ID, diff) 
       control<- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='C') %>% distinct(ID, diff) 
@@ -499,7 +530,9 @@ ptest_drug <- function(stat){
   target <- as.data.frame(target)
   results<- data.frame(d_type=NA,  m_type= NA, normality_pvalue_pre= NA, normality_pvalue_post= NA, var_pvalue= NA, ttest_pvalue = NA,  wilcoxon_pvalue = NA, pre_mean = NA, post_mean = NA, mean_diff= NA)
   drug_list=c("alpha", "SU","metformin", "gnd","tzd","dpp4i", "sglt2")
-  m_list <- unique(target$measurement_type)
+ # m_list <- unique(target$measurement_type)
+  #m_list <-c( 'CRP', "AST", "BUN" )
+  m_list <-c("CRP", "Albumin", "BUN" ,"Creatinine")
   for (j in m_list){  
         total_m  <- target %>% dplyr::filter(measurement_type == j)
         if (nrow(total_m) <3 | nrow(total_m) > 5000) {
@@ -780,10 +813,10 @@ drug_history <- function(data, t1){
   dc3 <- sapply(dc2$type, function(x) table(factor(x, levels= columns)))
   dc3 <-t(dc3)
   dc4<-cbind(dc2, dc3)  #id, type(all drug list ), dummmies variable SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd
-  print("describe drug_history ")
+
   columns = c("ID","SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd")
   dc4 <- dplyr::select(dc4, all_of(columns))
-  str(dc4)
+
   ###################### delete intermediate file 
   rm(dc)
   rm(dc2)
@@ -793,43 +826,43 @@ drug_history <- function(data, t1){
 }
 
 disease_history <- function(df, data2, data3){
-df$condition_type  <-  case_when(df$ancestor_concept_id == 4329847 ~ "MI",
-                                                df$ancestor_concept_id == 316139  ~ "HF",
-                                                df$ancestor_concept_id == 321052  ~ "PV",
-                                                df$ancestor_concept_id %in% c(381591, 434056)  ~ "CV",
-                                                df$ancestor_concept_id == 4182210 ~ 'Dementia',
-                                                df$ancestor_concept_id == 4063381 ~ 'CPD',
-                                                df$ancestor_concept_id %in% c(257628, 134442, 80800, 80809, 256197, 255348) ~ 'Rheuma',
-                                                df$ancestor_concept_id == 4247120 ~ 'PUD',
-                                                df$ancestor_concept_id %in% c(4064161, 4212540) ~ 'MLD',
-                                                df$ancestor_concept_id == 201820 ~ 'D',
-                                                df$ancestor_concept_id %in% c(443767,442793) ~ 'DCC',
-                                                df$ancestor_concept_id %in% c(192606, 374022) ~ 'HP',
-                                                df$ancestor_concept_id %in% c(4030518,	4239233, 4245042) ~ 'Renal',
-                                                df$ancestor_concept_id == 443392  ~ 'M',
-                                                df$ancestor_concept_id %in% c(4245975, 4029488, 192680, 24966) ~ 'MSLD',
-                                                df$ancestor_concept_id == 432851  ~ 'MST',
-                                                df$ancestor_concept_id == 439727  ~ 'AIDS',
-                                                df$ancestor_concept_id == 316866  ~ 'HT',
-                                                df$ancestor_concept_id == 432867  ~ 'HL',
-                                                df$ancestor_concept_id == 132797  ~ 'Sepsis',
-                                                df$ancestor_concept_id == 4254542 ~ 'HTT',
-                                                TRUE ~ 'error')
+# df$condition_type  <-  case_when(df$ancestor_concept_id == 4329847 ~ "MI",
+#                                                 df$ancestor_concept_id == 316139  ~ "HF",
+#                                                 df$ancestor_concept_id == 321052  ~ "PV",
+#                                                 df$ancestor_concept_id %in% c(381591, 434056)  ~ "CV",
+#                                                 df$ancestor_concept_id == 4182210 ~ 'Dementia',
+#                                                 df$ancestor_concept_id == 4063381 ~ 'CPD',
+#                                                 df$ancestor_concept_id %in% c(257628, 134442, 80800, 80809, 256197, 255348) ~ 'Rheuma',
+#                                                 df$ancestor_concept_id == 4247120 ~ 'PUD',
+#                                                 df$ancestor_concept_id %in% c(4064161, 4212540) ~ 'MLD',
+#                                                 df$ancestor_concept_id == 201820 ~ 'D',
+#                                                 df$ancestor_concept_id %in% c(443767,442793) ~ 'DCC',
+#                                                 df$ancestor_concept_id %in% c(192606, 374022) ~ 'HP',
+#                                                 df$ancestor_concept_id %in% c(4030518,	4239233, 4245042) ~ 'Renal',
+#                                                 df$ancestor_concept_id == 443392  ~ 'M',
+#                                                 df$ancestor_concept_id %in% c(4245975, 4029488, 192680, 24966) ~ 'MSLD',
+#                                                 df$ancestor_concept_id == 432851  ~ 'MST',
+#                                                 df$ancestor_concept_id == 439727  ~ 'AIDS',
+#                                                 df$ancestor_concept_id == 316866  ~ 'HT',
+#                                                 df$ancestor_concept_id == 432867  ~ 'HL',
+#                                                 df$ancestor_concept_id == 132797  ~ 'Sepsis',
+#                                                 df$ancestor_concept_id == 4254542 ~ 'HTT',
+#                                                 TRUE ~ 'error')
 # # disease history 
   dd <- reshape2::melt(df[,c("ID", "condition_type")], id.vars = "ID" , measure.vars="condition_type") 
 
   #l <- unique(dd$value)
   dd2 <-dd %>% group_by(ID) %>% summarise(dtype = list(unique(value)))
+  print("renal::dd2")
   cols = c("MI", "HF", "PV", "CV" , "Dementia","CPD", "Rheuma", "PUD", "MLD", "D", "DCC", "HP", 'Renal', "M", "MSLD","MST", "AIDS",'HT','HL','Sepsis', 'HTT')
   dd3 <- sapply(dd2$dtype ,function(x) table(factor(x, levels = cols)) )
   dd4 <- t(dd3)
   dd4 <- cbind(dd2, dd4)
-  print("describe disease_history : ")
-  str(dd4)
+  dd4 <-dd4 %>% select(-dtype)
+  print("renal::dd4")
 ## 고혈압 데이터랑 합치기 
   d_hp <- left_join(dd4, data2, by = 'ID')
   d_hp$hypertension_drug[is.na(d_hp$hypertension_drug)] <-0
-
 ## 합친 데이터가 0이상이면 1로 변경. 
   d_hp <- d_hp %>% mutate( HT2 = HT + hypertension_drug )
   d_hp$HT2[d_hp$HT2 > 0] <- 1
@@ -842,8 +875,6 @@ df$condition_type  <-  case_when(df$ancestor_concept_id == 4329847 ~ "MI",
   dd5$HL2[dd5$HL2 > 0] <- 1
   cols <- c("ID", "MI", "HF", "PV", "CV" , "Dementia","CPD", "Rheuma", "PUD", "MLD", "D", "DCC", "HP", 'Renal', "M", "MSLD","MST", "AIDS",'HT2','HL2','Sepsis', 'HTT')  
   dd5 <- select(dd5, all_of(cols) )
-  print("describe final disease_history: ")
-  str(dd5)
   ###################### delete intermediate file 
   rm(df)
   rm(dd)
@@ -863,47 +894,48 @@ data$value_as_number[data$value_as_number == 'None'] <-1
 
 # Before, Cr, BUN 추출 
 renal1 <- data %>% dplyr::filter(measurement_type %in% c("BUN","Creatinine") & measurement_date < cohort_start_date) %>% dplyr::distinct(ID, cohort_start_date, measurement_type, value_as_number, measurement_date, gender, age)
-renal1 <- as.data.frame(renal1) 
+setDT(renal1)
 #check n 수 
 print('renal 1: filter data')
 N1=length(unique(renal1$ID))
 print(N1)
+## pick latest data
+print("renal2 :pick latest data")
+renal2 <- renal1[,.SD[which.max(measurement_date)], by=.(ID, measurement_type)]
 
-renal2 <- renal1 %>% arrange(ID, measurement_type, desc(measurement_date)) %>% group_by(ID, measurement_type) %>% mutate(row = row_number() )
-renal2<- as.data.frame(renal2)
-print('renal 2; new column row ')
-str(renal2)   
+# renal2 <- renal1 %>% arrange(ID, measurement_type, desc(measurement_date)) %>% group_by(ID, measurement_type) %>% mutate(row = row_number() )
+# renal2<- as.data.frame(renal2)
+# print('renal 2; new column row ')
+# str(renal2)   
 N2=length(unique(renal2$ID))
 print(N2)
-print("renal 3: select row ==1")
-renal3 <- renal2 %>% dplyr::filter(row ==1)
-str(renal3)   
-N3=length(unique(renal3$ID))
+# print("renal 3: select row ==1")
+# renal3 <- renal2 %>% dplyr::filter(row ==1)
+# str(renal3)   
+# N3=length(unique(renal3$ID))
+# print(N3)
+print("start renal3; pivot ")
+renal3 <- renal2 %>% distinct(ID, measurement_type, value_as_number, age, gender) %>% tidyr::pivot_wider(names_from = measurement_type, values_from = value_as_number)
+renal3 <- as.data.frame(renal3)
+N3= length(unique(renal3$ID))
 print(N3)
-print("start renal4; pivot ")
-renal4 <- renal3 %>% distinct(ID, measurement_type, value_as_number, age, gender) %>% tidyr::pivot_wider(names_from = measurement_type, values_from = value_as_number)
-renal4 <- as.data.frame(renal4)
-N4= length(unique(renal4$ID))
-print(N4)
-print('renal4; pivot_wider')
-str(renal4)
+print('renal3; pivot_wider')
+
 print("extract before bun, cr done")
 
 #null, na 값은 1, 10 로 대체. 
-renal4$Creatinine[is.na(renal4$Creatinine)] <- 1
-renal4$BUN[is.na(renal4$BUN)] <- 10
+renal3$Creatinine[is.na(renal3$Creatinine)] <- 1
+renal3$BUN[is.na(renal3$BUN)] <- 10
 # eGFR 계산
-renal4$gender <- ifelse(renal4$gender == 'M', 0.742, 1)
-renal4$egfr <- round(175* (renal4$Creatinine^(-1.154))* (renal4$age^(-0.203))* renal4$gender, 2)
-renal4 <- unique(renal4[, c("ID", "BUN", "Creatinine",'egfr') ])
-print('describe renal::')
-str(renal4)
+renal3$gender <- ifelse(renal3$gender == 'M', 0.742, 1)
+renal3$egfr <- round(175* (renal3$Creatinine^(-1.154))* (renal3$age^(-0.203))* renal3$gender, 2)
+renal3 <- unique(renal3[, c("ID", "BUN", "Creatinine",'egfr') ])
+
 ###################### delete intermediate file 
 rm(renal1)
 rm(renal2)
-rm(renal3)
 ###################### delete intermediate file 
-return(renal4)
+return(renal3)
 }
 ## CCI 계산
 ## disease_history 결과값을 INPUT 값으로 넣기. 
@@ -911,8 +943,7 @@ cci<- function(data){
   data <- data %>% dplyr::distinct(ID, MI, HF, PV, CV, Dementia, CPD, Rheuma, PUD, MLD, D, DCC, HP, Renal, M, MSLD, MST, AIDS)
   data <- data %>% dplyr::mutate(cci = MI + HF + PV + CV + Dementia + CPD + Rheuma + PUD  + MLD + D + DCC*2 + HP*2 + Renal*2 + M*2 + MSLD*3 + MST*6 +AIDS*6)
   data <- data[,c("ID", "cci")]
-  print("describe cci:: ")
-  str(data)
+
   return(data)
 }
 
@@ -1050,21 +1081,22 @@ ruleout <- function(exposure, t1){
                   ruleout <- ruleout %>% dplyr::distinct(ID, cohort_type, measurement_type, value_as_number.before, value_as_number.after, gender, age, dose_type, drug_group, measurement_date.before, measurement_date.after)
                   ## select latest measurement_data
                   print("ruleout:: select latest data")
-                  ruleout2 <- ruleout %>% dplyr::arrange(ID, measurement_type, desc(measurement_date.after)) %>% group_by(ID, measurement_type) %>% dplyr::mutate( row = row_number())
-                  ruleout2<- as.data.frame(ruleout2)
-                  ruleout3 <- ruleout2 %>% dplyr::filter(row ==1)
-                  ruleout3 <- ruleout3 %>% select(-row)
+                  # ruleout2 <- ruleout %>% dplyr::arrange(ID, measurement_type, desc(measurement_date.after)) %>% group_by(ID, measurement_type) %>% dplyr::mutate( row = row_number())
+                  # ruleout2<- as.data.frame(ruleout2)
+                  # ruleout3 <- ruleout2 %>% dplyr::filter(row ==1)
+                  # ruleout3 <- ruleout3 %>% select(-row)
+                  setDT(ruleout)
+                  ruleout2 <- ruleout[,.SD[which.max(measurement_date.after)], by=.(ID, measurement_type)]
                   print("ruleout3:::")
-                  str(ruleout3)
+                  str(ruleout2)
                   ###################### delete intermediate file 
                   rm(dc)
                   rm(dc2)
                   rm(dcc)
                   rm(dc3)
                   rm(ruleout)
-                  rm(ruleout2)
                   ###################### delete intermediate file 
-                  return(ruleout3)
+                  return(ruleout2)
                   }
 })
 
