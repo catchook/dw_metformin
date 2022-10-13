@@ -1,3 +1,4 @@
+
 # env setting
 # install.packages("modules")
 # install.packages("dplyr")
@@ -50,6 +51,7 @@ library(modules)
 library(data.table)
 library(RPostgreSQL)
 library(lubridate)
+library(ggpubr)
 
 # ## 기본 함수
 ff <- module({
@@ -239,37 +241,41 @@ stat <- module({
   import("grDevices")
   import("nortest")
   import("tableone")
-
+  import('moonBook')
+  import('ggpubr')
+  import('data.table')
+  import('base')
 ## 시각화 , 단계별로 
-fig <- function(df, step) {
+fig <- function(df, step, a, b ) {
   df <- df %>% mutate( cohort_type2 = recode(cohort_type,  "C"="control", "T" ="target"))
   cohort_type_ = as.factor(df$cohort_type2)
-  print("options")
+  
   options(repr.plot.width=15, repr.plot.height =5)
-  print("ggplot")
-  a1 <- df %>% ggplot(aes(x=BUN, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins=100) 
-  a2 <- df %>% ggplot(aes(x=Creatinine, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins= 100)
-  a3 <- df %>% ggplot(aes(x=age, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins=100)
-  print("grid1")
-  fig <- plot_grid(a1, a2, a3, labels =c("BUN", "Creatinine", "Age"), align = "h", ncol=3)
+
+  a1 <- df %>% ggplot(aes(x=BUN, fill= cohort_type_, color = cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", binwidth= a) #초반 10 #후반 1 
+  a2 <- df %>% ggplot(aes(x=Creatinine, fill= cohort_type_ , color = cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity",binwidth= b )#초반 1 #후반 0.1
+  a3 <- df %>% ggplot(aes(x=egfr, fill= cohort_type_ , color = cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity",binwidth=10)
+  a4 <- df %>% ggplot(aes(x=age, fill= cohort_type_ ,color = cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity",binwidth=5)
+ 
+  fig <- plot_grid(a1, a2, a3,a4, labels =c("BUN", "Creatinine", 'eGFR', "Age"), align = "h", ncol=4)
   title <- ggdraw() + draw_label( paste0(step, " numeric variable") , fontface = "bold") 
-  print("grid2")
+ 
   fig <- plot_grid(title, fig, cols = 1, rel_heights = c(0.1, 1))
   print("ggsave")
   ggsave(paste0("/data/results/fig/", step ,"_numeric.png"), fig, device = "png",  dpi=300, width=15, height=5)
   options(repr.plot.width = 15, repr.plot.height = 10)
   print("b1")
-  b1=df %>% ggplot(aes(x=SU, fill= cohort_type_ )) + theme_classic() + geom_bar()
+  b1=df %>% ggplot(aes(x=SU, fill= cohort_type_ , color = cohort_type_ )) + theme_classic() + geom_bar()
   print("b2")
-  b2=df %>% ggplot(aes(x= alpha, fill= cohort_type_)) + theme_classic()+ geom_bar()
+  b2=df %>% ggplot(aes(x= alpha, fill= cohort_type_ , color = cohort_type_)) + theme_classic()+ geom_bar()
   print("b3")
-  b3=df %>% ggplot(aes(x=dpp4i, fill= cohort_type_)) + theme_classic()+ geom_bar()
+  b3=df %>% ggplot(aes(x=dpp4i, fill= cohort_type_ , color = cohort_type_)) + theme_classic()+ geom_bar()
   print("b4")
-  b4=df %>% ggplot(aes(x=gnd, fill= cohort_type_)) + theme_classic()  + geom_bar()
+  b4=df %>% ggplot(aes(x=gnd, fill= cohort_type_ , color = cohort_type_)) + theme_classic()  + geom_bar()
   print("b5")  
-  b5=df %>% ggplot(aes(x=sglt2, fill= cohort_type_)) + theme_classic()+ geom_bar()
+  b5=df %>% ggplot(aes(x=sglt2, fill= cohort_type_ , color = cohort_type_)) + theme_classic()+ geom_bar()
   print("b6")
-  b6=df %>% ggplot(aes(x=tzd, fill= cohort_type_)) + theme_classic()  + geom_bar()
+  b6=df %>% ggplot(aes(x=tzd, fill= cohort_type_ , color = cohort_type_)) + theme_classic()  + geom_bar()
   print("fig")
   fig<- plot_grid(b1, b2 ,b3, b4, b5, b6,labels=c("SU", "Alpha", "DPP-4I", "GND", "SGLT2","TZD") , ncol=3)
   title<-ggdraw() + draw_label( paste0(step, " co-medication "),  fontface = "bold") 
@@ -332,7 +338,7 @@ smd <- function( DF, step ){
   out = mytable(cohort_type~ age + gender + BUN +  Creatinine  + egfr +  SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + 
                     CV + CPD + RD+ PUD +MLD + DCC +HP + MSLD + AIDS + HT2+ HL2 + Sepsis+ HTT + cci  , data =DF)
   print("out done")
-  mycsv(out, file = paste0("/data/results/smd_", step, ".csv"))
+  mycsv(out, file = paste0("/data/results/test/smd_", step, ".csv"))
   print("mycsv done")
   ###################### delete intermediate file 
   rm(DF)
@@ -384,47 +390,155 @@ dose_smd <- function(DF, step ){
 #   return(results)
 # }
 
+test_rate2 <- function(stat){
+  #필요한 값만 추출
+  rate <- dcast(stat, ID + cohort_type ~ measurement_type, value.var = c('rate'))
+  names(rate)[names(rate) == 'Total cholesterol'] <-  c("Total_cholesterol")
+  print(colSums(!is.na(rate)))
+  #T test
+  # tb <- mytable(cohort_type ~ CRP + ESR + BUN + Triglyceride + SBP + Total_cholesterol + Hb + Glucose_Fasting + Creatinine +  HDL + AST + Albumin + insulin +
+  # BMI + HbA1c + DBP +  LDL + NT-proBNP , data = rate,  method = 3,  catMethod = 0, show.all = T)
+  tb <- mytable(cohort_type ~ AST + Albumin + BMI + BUN + CRP  + Creatinine + DBP + ESR + Glucose_Fasting + HDL  + Hb + HbA1c + LDL + NT-proBNP + SBP + Total_cholesterol + Triglyceride + insulin, data = rate, method =3, catMethod = 0, show.all =T)
+  print("rate test mytable")
+  mycsv(tb, file = '/data/results/test2/test_rate2.csv')
+  ## fig
+  print("fig start")
+  rate <- as.data.frame(rate)
+  #str(rate)
+  # rate_list <-c('CRP', 'ESR', 'BUN', 'Triglyceride', 'SBP', 'Total_cholesterol', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL', 'AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'LDL', 'NT-proBNP')
+  for( i in 3:ncol(rate)){
+    name<- colnames(rate)[i]
+    p <- ggplot(rate, aes(x= cohort_type, y= rate[ , i], color = cohort_type))+  geom_boxplot() + stat_compare_means(aes(group =cohort_type)) +
+                labs (title =paste(name, 'rate by cohort_type'),x= "cohort type" , y = name)
+    ggsave(p, file=paste0("/data/results/test2_rate_fig/rate_", name,"2.png"),  dpi=300)  
+    #########################delete intermediate data##################################
+    rm(p)
+  } #########################delete intermediate data##################################
+  print('almost finish')
+  rm(rate)
+  rm(tb)
+}
+  # tb <- mytable(cohort_type~ rate_CRP + rate_ESR +rate_BUN + rate_Triglyceride + rate_SBP +rate_Hb + rate_Glucose_Fasting + rate_Creatinine + rate_HDL + rate_AST +rate_Albumin +rate_insulin + rate_BMI + rate_HbA1c + rate_DBP + rate_Total cholesterol + rate_LDL + rate_NT-proBNP +
+  # diff_CRP + diff_ESR + diff_BUN + diff_Triglyceride + diff_SBP +diff_Hb + diff_Glucose_Fasting + diff_Creatinine + diff_HDL + diff_AST + diff_Albumin + diff_insulin + diff_BMI + diff_HbA1c + diff_DBP + diff_Total cholesterol + diff_LDL + diff_NT-proBNP
+test_diff2 <- function(stat){
+  #필요한 값만 추출
+  # stat<-setDT(stat)
+  # stat<- stat[,.(ID, cohort_type, measurement_type,  diff)]
+  # stat<- unique(stat)
+  diff <- dcast(stat, ID + cohort_type ~ measurement_type, value.var = c('diff'))
+  names(diff)[names(diff) == 'Total cholesterol'] <-  c("Total_cholesterol")
+  colSums(!is.na(diff))
+  # T test
+  tb <- mytable(cohort_type ~ AST + Albumin + BMI + BUN + CRP  + Creatinine + DBP + ESR + Glucose_Fasting + HDL  + Hb + HbA1c + LDL + NT-proBNP + SBP + Total_cholesterol + Triglyceride + insulin, data = diff, method =3, catMethod = 0, show.all =T)
+  print("diff test mytable")
+  mycsv(tb, file = '/data/results/test2/test_diff2.csv')
+  ## fig 
+  diff <- as.data.frame(diff)
+  for( i in 3:ncol(diff)){
+    name<- colnames(diff)[i]
+    p <- ggplot(diff, aes(x= cohort_type, y= diff[,i], color = cohort_type))+  geom_boxplot() + stat_compare_means(aes(group =cohort_type)) +
+  labs (title =paste(name, 'diff by cohort_type'),x= "cohort type" , y = name)
+    ggsave(p, file=paste0("/data/results/test2_diff_fig/diff_", name,"2.png"),  dpi=300)  
+  #########################delete intermediate data##################################
+    rm(p)
+  }
+  #########################delete intermediate data##################################
+  rm(diff)
+  rm(tb)
+}
+
+ptest_drug2 <- function(data1){ ##각 서브 약물군 별로 데이터가 별로 없으면 에러 발생 가능
+# target만의 데이터 생성 
+  stat<-setDT(data1)
+  target <- data1[which(data1$cohort_type=='T'),.(ID, measurement_type, value_as_number.before, value_as_number.after, drug_group)]
+  # print("ptest_drug2, unique")
+  # target<- unique(target)
+# 전체 total paired t test
+  print("ptest_drug2, split by step")
+  pre_  <- dcast(target, ID + drug_group  ~ measurement_type, value.var=c('value_as_number.before'))
+  pre_$step <-'pre'
+  post_ <- dcast(target, ID + drug_group ~ measurement_type, value.var=c('value_as_number.after'))
+  post_$step <-'post'
+  total <- rbind(pre_, post_)
+  total<- as.data.frame(total)
+  names(total)[names(total) == 'Total cholesterol'] <-  c("Total_cholesterol")
+ #########################delete intermediate data##################################
+  rm(target)
+  rm(pre_)
+  rm(post_)
+# target 전체의 paired t test
+  tb <- mytable(step ~ CRP + ESR + BUN + Triglyceride + SBP +Hb + Glucose_Fasting + Creatinine + HDL + AST +Albumin +insulin + BMI + HbA1c + DBP +
+                Total_cholesterol + LDL + NT-proBNP, data = total, method =3, catMethod=0, show.all =T)
+  mycsv(tb, file = paste0('/data/results/test2/total_ptest2.csv'))
+# drug_type별로 paried t test
+  total <- as.data.frame(total)
+  drug_list=c("alpha", "SU", "gnd","tzd","dpp4i", "sglt2")
+  for ( i in drug_list){
+    target_drug <- total[grep(i, total$drug_group), ]
+    tb <- mytable(step ~ CRP + ESR + BUN + Triglyceride + SBP +Hb + Glucose_Fasting + Creatinine + HDL + AST +Albumin +insulin + BMI + HbA1c + DBP +
+                Total_cholesterol + LDL + NT-proBNP, data = target_drug, method =3, catMethod=0, show.all =T)
+    mycsv(tb, file =paste0('/data/results/test2/',i,'_ptest2.csv'))
+    for( j in 3:ncol(target_drug)){
+      name <- colnames(target_drug)[j]
+      p <- ggplot(target_drug, aes(x=step, y=target_drug[,j], color =step )) + geom_boxplot() + stat_compare_means(aes(group = step)) +
+          labs(title = paste0(i, " ",name,' paired_test'), x= 'step', y= name)
+      ggsave(p, file = paste0('/data/results/ptest2_fig/',i, "_", name, '_ptest2.png'), dpi=300)
+    #########################delete intermediate data##################################
+      rm(p)
+    }
+    #########################delete intermediate data##################################
+    rm(target_drug)
+    rm(tb)
+}
+  #########################delete intermediate data##################################
+  rm(total)
+}
+
 # ## rate: 정규성, 등분산성, ttest, wilcox
 test_rate <- function(stat){
-  results<- data.frame( m_type= NA, normality_pvalue_target= NA, normality_pvalue_control= NA, var_pvalue= NA, ttest_pvalue = NA,  wilcoxon_pvalue = NA, target_mean = NA, control_mean = NA)
+  results<- data.frame( m_type= NA, wilcoxon_pvalue = NA, target_mean = NA, control_mean = NA)
   m_list <- unique(stat$measurement_type)
   for( j in m_list){
-      target <- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='T') %>% distinct(ID, rate) 
-      control<- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='C') %>% distinct(ID, rate) 
-      total <- stat %>% dplyr::filter(measurement_type == j ) %>% distinct(ID, cohort_type, rate)
+      target <- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='T')  %>% distinct(ID,rate) 
+      control<- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='C')  %>% distinct(ID, rate) 
+      total <- stat %>% dplyr::filter(measurement_type == j )  %>% distinct(ID, cohort_type, rate) 
       target <- as.data.frame(target)  
       control  <- as.data.frame(control) 
       total <- as.data.frame(total) 
-
       if ((nrow(target) <3 | nrow(target) >5000) | (nrow(control) <3 |nrow(control) >5000)) {
-        out<- data.frame(j,NA, NA,NA, NA,NA,NA,NA )
+        out<- data.frame(j,NA, NA,NA )
         names(out)<-names(results)
         results<- rbind(results, out)
           } else {      
-        normality_t <- shapiro.test(target$rate)
-        normality_c <- shapiro.test(control$rate)
-        variance <- levene.test(total$rate, total$cohort_type)
+        # print('normality-t')
+        # normality_t <- shapiro.test(target$rate)
+        # print('normality-c')
+        # normality_c <- shapiro.test(control$rate)
+        # print('variance')
+        # variance <- levene.test(total$rate, total$cohort_type)
+        print('ttest')
         ttest <- t.test(target$rate, control$rate)
+        print('wilcox')
         wilcox <- wilcox.test(target$rate, control$rate)
         ## 소수점 2자리에서 반올림
-        normality_t <- round(normality_t$p.value , digits = 2)
-        normality_c <- round(normality_c$p.value , digits = 2)
-        variance <- round(variance$p.value , digits = 2)
-        ttest_p <- round(ttest$p.value, digits = 2)
-        wilcox <- round(wilcox$p.value, digits = 2) 
+        # normality_t <- round(normality_t$p.value , digits = 2)
+        # normality_c <- round(normality_c$p.value , digits = 2)
+        # variance <- round(variance$p.value , digits = 2)
+        # ttest_p <- round(ttest$p.value, digits = 2)
+        wilcox <- wilcox$p.value 
         means <- as.numeric(gsub("^[a-z]","", ttest$estimate) )
         targetmean <- round(means[1], digits=2)
         controlmean <- round(means[2], digits=2)
         ## 합치기 
-        outs <- data.frame( j, normality_t, normality_c, variance, ttest_p, wilcox, targetmean, controlmean)
+        print('outs')
+        outs <- data.frame( j, wilcox, targetmean, controlmean)
         names(outs) <- names(results)
         results <- rbind(results, outs)
         ## 그림 
+        print('fig')
         bars<- tapply(total$rate, total$cohort_type, mean )
         lower<- tapply(total$rate, total$cohort_type, function(x) t.test(x)$conf.int[1])
         upper<- tapply(total$rate, total$cohort_type, function(x) t.test(x)$conf.int[2])
-        print("check test_Rate:: bars which one are control?, check bars ")
-        print(bars)
         png(file=paste0("/data/results/test_rate_fig/",j,"_rate_test.png"))
         barplot2(bars, space=0.4, xlim=c(0,3.0), plot.ci=TRUE, ci.l = lower, ci.u= upper, ci.color ="maroon", ci.lwd=4, names.arg=c("control","target"), col=c("coral", "darkkhaki"), xlab ="cohort type", ylab= "rate", 
         main=paste0(j,"Rate by cohort type with Confidence Interval" ) )
@@ -442,7 +556,7 @@ test_rate <- function(stat){
 
 ## diff: 정규성, 등분산성, ttest, wilcox, describe 
 test_diff <- function(stat){
-  results<- data.frame( m_type= NA, normality_pvalue_target= NA, normality_pvalue_control= NA, var_pvalue= NA, ttest_pvalue = NA,  wilcoxon_pvalue = NA, target_mean = NA, control_mean = NA)
+  results<- data.frame( m_type= NA, wilcoxon_pvalue = NA, target_mean = NA, control_mean = NA)
   m_list <- unique(stat$measurement_type)
   for( j in m_list){
       target <- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='T') %>% distinct(ID, diff) 
@@ -452,29 +566,27 @@ test_diff <- function(stat){
       control  <- as.data.frame(control) 
       total <- as.data.frame(total) 
       if ((nrow(target) <3 | nrow(target) >5000) | (nrow(control) <3 |nrow(control) >5000)) {
-        out<- data.frame(j,NA, NA,NA, NA,NA,NA, NA )
+        out<- data.frame(j,NA, NA,NA )
         names(out)<-names(results)
         results<- rbind(results, out)
           } else {      
-        normality_t <- shapiro.test(target$diff)
-        normality_c <- shapiro.test(control$diff)
-        variance <- levene.test(total$diff, total$cohort_type)
+        print('ttest')
         ttest <- t.test(target$diff, control$diff)
+        print('wilcox')
         wilcox <- wilcox.test(target$diff, control$diff)
         ## 소수점 2자리에서 반올림
-        normality_t = round(normality_t$p.value , digits = 2)
-        normality_c = round(normality_c$p.value , digits = 2)
-        variance = round(variance$p.value , digits = 2)
-        ttest_p<- round(ttest$p.value, digits = 2)
+    
         wilcox <-round(wilcox$p.value, digits = 2) 
         means <- as.numeric(gsub("^[a-z]","", ttest$estimate) )
         targetmean <- round(means[1], digits=2)
         controlmean <- round(means[2], digits=2)
         ## 합치기 
-        outs<- data.frame(j, normality_t, normality_c, variance, ttest_p, wilcox, targetmean, controlmean)
+        print('outs')
+        outs<- data.frame(j,wilcox, targetmean, controlmean)
         names(outs)<-names(results)
         results<- rbind(results, outs)
         ## 그림 
+        print('fig')
         bars<- tapply(total$diff, total$cohort_type, mean )
         lower<- tapply(total$diff, total$cohort_type, function(x) t.test(x)$conf.int[1])
         upper<- tapply(total$diff, total$cohort_type, function(x) t.test(x)$conf.int[2])
@@ -497,36 +609,32 @@ test_diff <- function(stat){
 ptest_drug <- function(stat){
   target <- stat %>% dplyr::filter(cohort_type == 'T') %>% dplyr::distinct(ID, value_as_number.before, value_as_number.after, drug_group, measurement_type)
   target <- as.data.frame(target)
-  results<- data.frame(d_type=NA,  m_type= NA, normality_pvalue_pre= NA, normality_pvalue_post= NA, var_pvalue= NA, ttest_pvalue = NA,  wilcoxon_pvalue = NA, pre_mean = NA, post_mean = NA, mean_diff= NA)
+  results<- data.frame(d_type=NA,  m_type= NA,  wilcoxon_pvalue = NA, pre_mean = NA, post_mean = NA, mean_diff= NA)
   drug_list=c("alpha", "SU","metformin", "gnd","tzd","dpp4i", "sglt2")
   m_list <- unique(target$measurement_type)
   for (j in m_list){  
         total_m  <- target %>% dplyr::filter(measurement_type == j)
         if (nrow(total_m) <3 | nrow(total_m) > 5000) {
-          out<- data.frame("total",j, NA, NA,NA, NA,NA, NA, NA, NA )
+          out<- data.frame("total",j, NA, NA,NA, NA )
           names(out)<-names(results)
           results<- rbind(results, out)
             } else {      
-          normality_pre <- shapiro.test(total_m$value_as_number.before)
-          normality_post <- shapiro.test(total_m$value_as_number.after)
-          variance <- var.test(total_m$value_as_number.before , total_m$value_as_number.after)
+          print('ptest')
           ptest <- t.test(total_m$value_as_number.after , total_m$value_as_number.before, paired =TRUE)
+          print('wilcox')
           wilcox <- wilcox.test(total_m$value_as_number.before , total_m$value_as_number.after, exact = FALSE)
           ## 소수점 2자리에서 반올림
-          normality_pre <- round(normality_pre$p.value , digits = 2)
-          normality_post <- round(normality_post$p.value , digits = 2)
-          variance <- round(variance$p.value, digits = 2)
-          ptest_p <- round(ptest$p.value, digits = 2)
-          wilcox <- round(wilcox$p.value, digits = 2) 
+          wilcox <- round(wilcox$p.value, digits = 2)
+          print('mean') 
           mean_diff <- round(as.numeric(gsub("^[a-z]","", ptest$estimate)), digits=2 )
           pre_mean <- round(mean(target$value_as_number.before, na.rm=TRUE), digits=2)
           post_mean <- round(mean(target$value_as_number.after, na.rm=TRUE), digits=2)
           ## 합치기 
-          outs<- data.frame("total",j, normality_pre, normality_post, variance, ptest_p, wilcox, pre_mean, post_mean, mean_diff)
+          print('outs')
+          outs<- data.frame("total",j,  wilcox, pre_mean, post_mean, mean_diff)
           names(outs)<-names(results)
           results<- rbind(results, outs)
           ## 그림 
-
           sub <- subset(total_m, select =c("value_as_number.before", "value_as_number.after"))
           bars<- sapply( sub , function(x) mean(x, na.rm=TRUE))
           lower <- sapply(sub , function(x) t.test(x)$conf.int[1])
@@ -540,22 +648,16 @@ ptest_drug <- function(stat){
     for (j in m_list){  
         target_ <-target_drug %>% dplyr::filter(measurement_type == j)
         target_ <- as.data.frame(target_)
-        
         if (nrow(target_) <3 | nrow(target_) >5000) {
-          out<- data.frame(i,j, NA, NA,NA, NA,NA, NA, NA, NA )
+          out<- data.frame(i,j, NA, NA,NA, NA )
           names(out)<-names(results)
           results<- rbind(results, out)
             } else {      
-          normality_pre <- shapiro.test(target_$value_as_number.before)
-          normality_post <- shapiro.test(target_$value_as_number.after)
-          variance <- var.test(target_$value_as_number.before , target_$value_as_number.after)
+          print('drug list:ptest')
           ptest <- t.test(target_$value_as_number.after , target_$value_as_number.before, paired =TRUE)
+          print('drug list: wilcox')
           wilcox <- wilcox.test(target_$value_as_number.before , target_$value_as_number.after, exact = FALSE)
-
           ## 소수점 2자리에서 반올림
-          normality_pre = round(normality_pre$p.value , digits = 2)
-          normality_post = round(normality_post$p.value , digits = 2)
-          variance = round(variance$p.value , digits = 2)
           ptest_p<- round(ptest$p.value, digits = 2)
           wilcox <-round(wilcox$p.value, digits = 2) 
           mean_diff <- round(as.numeric(gsub("^[a-z]","", ptest$estimate)), digits=2 )
@@ -563,7 +665,7 @@ ptest_drug <- function(stat){
           post_mean <- round(mean(target_$value_as_number.after, na.rm=TRUE), digits=2)
 
           ## 합치기 
-          outs<- data.frame(i,j, normality_pre, normality_post, variance, ptest_p, wilcox, pre_mean, post_mean, mean_diff)
+          outs<- data.frame(i,j,  wilcox, pre_mean, post_mean, mean_diff)
           names(outs) <- names(results)
           results<- rbind(results, outs)
     
@@ -572,7 +674,7 @@ ptest_drug <- function(stat){
           bars<- sapply( sub , function(x) mean(x, na.rm=TRUE))
           lower <- sapply(sub , function(x) t.test(x)$conf.int[1])
           upper<- sapply(sub, function(x) t.test(x)$conf.int[2])
-          png(file=paste0("/data/results/ptest_fig/total_",i,"_",j,"_value_ptest.png"))
+          png(file=paste0("/data/results/ptest_fig/",i,"_",j,"_value_ptest.png"))
           barplot2(bars, space=0.4, plot.ci=TRUE, ci.l= lower, ci.u= upper, ci.color="maroon", ci.lwd=4, names.arg=c("pre","post"), col=c("coral","darkkhaki"), xlab="pre vs post", ylab = "value", 
           main =paste0(i," : ",j," value with Confidence Interval"))
           dev.off()
@@ -582,7 +684,6 @@ ptest_drug <- function(stat){
             ###################### delete intermediate file 
             rm(target)
             rm(target_drug)
-            rm(out)
             ######################
             return(results)
           }
@@ -780,10 +881,10 @@ drug_history <- function(data, t1){
   dc3 <- sapply(dc2$type, function(x) table(factor(x, levels= columns)))
   dc3 <-t(dc3)
   dc4<-cbind(dc2, dc3)  #id, type(all drug list ), dummmies variable SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd
-  print("describe drug_history ")
+
   columns = c("ID","SU", "alpha", "dpp4i", "gnd", "metformin", "sglt2", "tzd")
   dc4 <- dplyr::select(dc4, all_of(columns))
-  str(dc4)
+
   ###################### delete intermediate file 
   rm(dc)
   rm(dc2)
@@ -793,43 +894,43 @@ drug_history <- function(data, t1){
 }
 
 disease_history <- function(df, data2, data3){
-df$condition_type  <-  case_when(df$ancestor_concept_id == 4329847 ~ "MI",
-                                                df$ancestor_concept_id == 316139  ~ "HF",
-                                                df$ancestor_concept_id == 321052  ~ "PV",
-                                                df$ancestor_concept_id %in% c(381591, 434056)  ~ "CV",
-                                                df$ancestor_concept_id == 4182210 ~ 'Dementia',
-                                                df$ancestor_concept_id == 4063381 ~ 'CPD',
-                                                df$ancestor_concept_id %in% c(257628, 134442, 80800, 80809, 256197, 255348) ~ 'Rheuma',
-                                                df$ancestor_concept_id == 4247120 ~ 'PUD',
-                                                df$ancestor_concept_id %in% c(4064161, 4212540) ~ 'MLD',
-                                                df$ancestor_concept_id == 201820 ~ 'D',
-                                                df$ancestor_concept_id %in% c(443767,442793) ~ 'DCC',
-                                                df$ancestor_concept_id %in% c(192606, 374022) ~ 'HP',
-                                                df$ancestor_concept_id %in% c(4030518,	4239233, 4245042) ~ 'Renal',
-                                                df$ancestor_concept_id == 443392  ~ 'M',
-                                                df$ancestor_concept_id %in% c(4245975, 4029488, 192680, 24966) ~ 'MSLD',
-                                                df$ancestor_concept_id == 432851  ~ 'MST',
-                                                df$ancestor_concept_id == 439727  ~ 'AIDS',
-                                                df$ancestor_concept_id == 316866  ~ 'HT',
-                                                df$ancestor_concept_id == 432867  ~ 'HL',
-                                                df$ancestor_concept_id == 132797  ~ 'Sepsis',
-                                                df$ancestor_concept_id == 4254542 ~ 'HTT',
-                                                TRUE ~ 'error')
+# df$condition_type  <-  case_when(df$ancestor_concept_id == 4329847 ~ "MI",
+#                                                 df$ancestor_concept_id == 316139  ~ "HF",
+#                                                 df$ancestor_concept_id == 321052  ~ "PV",
+#                                                 df$ancestor_concept_id %in% c(381591, 434056)  ~ "CV",
+#                                                 df$ancestor_concept_id == 4182210 ~ 'Dementia',
+#                                                 df$ancestor_concept_id == 4063381 ~ 'CPD',
+#                                                 df$ancestor_concept_id %in% c(257628, 134442, 80800, 80809, 256197, 255348) ~ 'Rheuma',
+#                                                 df$ancestor_concept_id == 4247120 ~ 'PUD',
+#                                                 df$ancestor_concept_id %in% c(4064161, 4212540) ~ 'MLD',
+#                                                 df$ancestor_concept_id == 201820 ~ 'D',
+#                                                 df$ancestor_concept_id %in% c(443767,442793) ~ 'DCC',
+#                                                 df$ancestor_concept_id %in% c(192606, 374022) ~ 'HP',
+#                                                 df$ancestor_concept_id %in% c(4030518,	4239233, 4245042) ~ 'Renal',
+#                                                 df$ancestor_concept_id == 443392  ~ 'M',
+#                                                 df$ancestor_concept_id %in% c(4245975, 4029488, 192680, 24966) ~ 'MSLD',
+#                                                 df$ancestor_concept_id == 432851  ~ 'MST',
+#                                                 df$ancestor_concept_id == 439727  ~ 'AIDS',
+#                                                 df$ancestor_concept_id == 316866  ~ 'HT',
+#                                                 df$ancestor_concept_id == 432867  ~ 'HL',
+#                                                 df$ancestor_concept_id == 132797  ~ 'Sepsis',
+#                                                 df$ancestor_concept_id == 4254542 ~ 'HTT',
+#                                                 TRUE ~ 'error')
 # # disease history 
   dd <- reshape2::melt(df[,c("ID", "condition_type")], id.vars = "ID" , measure.vars="condition_type") 
 
   #l <- unique(dd$value)
   dd2 <-dd %>% group_by(ID) %>% summarise(dtype = list(unique(value)))
+  print("renal::dd2")
   cols = c("MI", "HF", "PV", "CV" , "Dementia","CPD", "Rheuma", "PUD", "MLD", "D", "DCC", "HP", 'Renal', "M", "MSLD","MST", "AIDS",'HT','HL','Sepsis', 'HTT')
   dd3 <- sapply(dd2$dtype ,function(x) table(factor(x, levels = cols)) )
   dd4 <- t(dd3)
   dd4 <- cbind(dd2, dd4)
-  print("describe disease_history : ")
-  str(dd4)
+  dd4 <-dd4 %>% select(-dtype)
+  print("renal::dd4")
 ## 고혈압 데이터랑 합치기 
   d_hp <- left_join(dd4, data2, by = 'ID')
   d_hp$hypertension_drug[is.na(d_hp$hypertension_drug)] <-0
-
 ## 합친 데이터가 0이상이면 1로 변경. 
   d_hp <- d_hp %>% mutate( HT2 = HT + hypertension_drug )
   d_hp$HT2[d_hp$HT2 > 0] <- 1
@@ -842,8 +943,6 @@ df$condition_type  <-  case_when(df$ancestor_concept_id == 4329847 ~ "MI",
   dd5$HL2[dd5$HL2 > 0] <- 1
   cols <- c("ID", "MI", "HF", "PV", "CV" , "Dementia","CPD", "Rheuma", "PUD", "MLD", "D", "DCC", "HP", 'Renal', "M", "MSLD","MST", "AIDS",'HT2','HL2','Sepsis', 'HTT')  
   dd5 <- select(dd5, all_of(cols) )
-  print("describe final disease_history: ")
-  str(dd5)
   ###################### delete intermediate file 
   rm(df)
   rm(dd)
@@ -863,47 +962,48 @@ data$value_as_number[data$value_as_number == 'None'] <-1
 
 # Before, Cr, BUN 추출 
 renal1 <- data %>% dplyr::filter(measurement_type %in% c("BUN","Creatinine") & measurement_date < cohort_start_date) %>% dplyr::distinct(ID, cohort_start_date, measurement_type, value_as_number, measurement_date, gender, age)
-renal1 <- as.data.frame(renal1) 
+setDT(renal1)
 #check n 수 
 print('renal 1: filter data')
 N1=length(unique(renal1$ID))
 print(N1)
+## pick latest data
+print("renal2 :pick latest data")
+renal2 <- renal1[,.SD[which.max(measurement_date)], by=.(ID, measurement_type)]
 
-renal2 <- renal1 %>% arrange(ID, measurement_type, desc(measurement_date)) %>% group_by(ID, measurement_type) %>% mutate(row = row_number() )
-renal2<- as.data.frame(renal2)
-print('renal 2; new column row ')
-str(renal2)   
+# renal2 <- renal1 %>% arrange(ID, measurement_type, desc(measurement_date)) %>% group_by(ID, measurement_type) %>% mutate(row = row_number() )
+# renal2<- as.data.frame(renal2)
+# print('renal 2; new column row ')
+# str(renal2)   
 N2=length(unique(renal2$ID))
 print(N2)
-print("renal 3: select row ==1")
-renal3 <- renal2 %>% dplyr::filter(row ==1)
-str(renal3)   
-N3=length(unique(renal3$ID))
+# print("renal 3: select row ==1")
+# renal3 <- renal2 %>% dplyr::filter(row ==1)
+# str(renal3)   
+# N3=length(unique(renal3$ID))
+# print(N3)
+print("start renal3; pivot ")
+renal3 <- renal2 %>% distinct(ID, measurement_type, value_as_number, age, gender) %>% tidyr::pivot_wider(names_from = measurement_type, values_from = value_as_number)
+renal3 <- as.data.frame(renal3)
+N3= length(unique(renal3$ID))
 print(N3)
-print("start renal4; pivot ")
-renal4 <- renal3 %>% distinct(ID, measurement_type, value_as_number, age, gender) %>% tidyr::pivot_wider(names_from = measurement_type, values_from = value_as_number)
-renal4 <- as.data.frame(renal4)
-N4= length(unique(renal4$ID))
-print(N4)
-print('renal4; pivot_wider')
-str(renal4)
+print('renal3; pivot_wider')
+
 print("extract before bun, cr done")
 
 #null, na 값은 1, 10 로 대체. 
-renal4$Creatinine[is.na(renal4$Creatinine)] <- 1
-renal4$BUN[is.na(renal4$BUN)] <- 10
+renal3$Creatinine[is.na(renal3$Creatinine)] <- 1
+renal3$BUN[is.na(renal3$BUN)] <- 10
 # eGFR 계산
-renal4$gender <- ifelse(renal4$gender == 'M', 0.742, 1)
-renal4$egfr <- round(175* (renal4$Creatinine^(-1.154))* (renal4$age^(-0.203))* renal4$gender, 2)
-renal4 <- unique(renal4[, c("ID", "BUN", "Creatinine",'egfr') ])
-print('describe renal::')
-str(renal4)
+renal3$gender <- ifelse(renal3$gender == 'M', 0.742, 1)
+renal3$egfr <- round(175* (renal3$Creatinine^(-1.154))* (renal3$age^(-0.203))* renal3$gender, 2)
+renal3 <- unique(renal3[, c("ID", "BUN", "Creatinine",'egfr') ])
+
 ###################### delete intermediate file 
 rm(renal1)
 rm(renal2)
-rm(renal3)
 ###################### delete intermediate file 
-return(renal4)
+return(renal3)
 }
 ## CCI 계산
 ## disease_history 결과값을 INPUT 값으로 넣기. 
@@ -911,8 +1011,7 @@ cci<- function(data){
   data <- data %>% dplyr::distinct(ID, MI, HF, PV, CV, Dementia, CPD, Rheuma, PUD, MLD, D, DCC, HP, Renal, M, MSLD, MST, AIDS)
   data <- data %>% dplyr::mutate(cci = MI + HF + PV + CV + Dementia + CPD + Rheuma + PUD  + MLD + D + DCC*2 + HP*2 + Renal*2 + M*2 + MSLD*3 + MST*6 +AIDS*6)
   data <- data[,c("ID", "cci")]
-  print("describe cci:: ")
-  str(data)
+
   return(data)
 }
 
@@ -1050,25 +1149,24 @@ ruleout <- function(exposure, t1){
                   ruleout <- ruleout %>% dplyr::distinct(ID, cohort_type, measurement_type, value_as_number.before, value_as_number.after, gender, age, dose_type, drug_group, measurement_date.before, measurement_date.after)
                   ## select latest measurement_data
                   print("ruleout:: select latest data")
-                  ruleout2 <- ruleout %>% dplyr::arrange(ID, measurement_type, desc(measurement_date.after)) %>% group_by(ID, measurement_type) %>% dplyr::mutate( row = row_number())
-                  ruleout2<- as.data.frame(ruleout2)
-                  ruleout3 <- ruleout2 %>% dplyr::filter(row ==1)
-                  ruleout3 <- ruleout3 %>% select(-row)
+                  # ruleout2 <- ruleout %>% dplyr::arrange(ID, measurement_type, desc(measurement_date.after)) %>% group_by(ID, measurement_type) %>% dplyr::mutate( row = row_number())
+                  # ruleout2<- as.data.frame(ruleout2)
+                  # ruleout3 <- ruleout2 %>% dplyr::filter(row ==1)
+                  # ruleout3 <- ruleout3 %>% select(-row)
+                  setDT(ruleout)
+                  ruleout2 <- ruleout[,.SD[which.max(measurement_date.after)], by=.(ID, measurement_type)]
                   print("ruleout3:::")
-                  str(ruleout3)
+                  str(ruleout2)
                   ###################### delete intermediate file 
                   rm(dc)
                   rm(dc2)
                   rm(dcc)
                   rm(dc3)
                   rm(ruleout)
-                  rm(ruleout2)
                   ###################### delete intermediate file 
-                  return(ruleout3)
+                  return(ruleout2)
                   }
 })
-
-
 
 
 
