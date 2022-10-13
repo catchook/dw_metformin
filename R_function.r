@@ -251,13 +251,13 @@ fig <- function(df, step, a, b ) {
   cohort_type_ = as.factor(df$cohort_type2)
   
   options(repr.plot.width=15, repr.plot.height =5)
-
   a1 <- df %>% ggplot(aes(x=BUN, fill= cohort_type_, color = cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", binwidth= a) #초반 10 #후반 1 
   a2 <- df %>% ggplot(aes(x=Creatinine, fill= cohort_type_ , color = cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity",binwidth= b )#초반 1 #후반 0.1
   a3 <- df %>% ggplot(aes(x=egfr, fill= cohort_type_ , color = cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity",binwidth=10)
   a4 <- df %>% ggplot(aes(x=age, fill= cohort_type_ ,color = cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity",binwidth=5)
  
   fig <- plot_grid(a1, a2, a3,a4, labels =c("BUN", "Creatinine", 'eGFR', "Age"), align = "h", ncol=4)
+
   title <- ggdraw() + draw_label( paste0(step, " numeric variable") , fontface = "bold") 
  
   fig <- plot_grid(title, fig, cols = 1, rel_heights = c(0.1, 1))
@@ -395,17 +395,15 @@ test_rate2 <- function(stat){
   rate <- dcast(stat, ID + cohort_type ~ measurement_type, value.var = c('rate'))
   names(rate)[names(rate) == 'Total cholesterol'] <-  c("Total_cholesterol")
   print(colSums(!is.na(rate)))
-  #T test
-  # tb <- mytable(cohort_type ~ CRP + ESR + BUN + Triglyceride + SBP + Total_cholesterol + Hb + Glucose_Fasting + Creatinine +  HDL + AST + Albumin + insulin +
-  # BMI + HbA1c + DBP +  LDL + NT-proBNP , data = rate,  method = 3,  catMethod = 0, show.all = T)
+  
   tb <- mytable(cohort_type ~ AST + Albumin + BMI + BUN + CRP  + Creatinine + DBP + ESR + Glucose_Fasting + HDL  + Hb + HbA1c + LDL + NT-proBNP + SBP + Total_cholesterol + Triglyceride + insulin, data = rate, method =3, catMethod = 0, show.all =T)
   print("rate test mytable")
   mycsv(tb, file = '/data/results/test2/test_rate2.csv')
   ## fig
   print("fig start")
   rate <- as.data.frame(rate)
-  #str(rate)
-  # rate_list <-c('CRP', 'ESR', 'BUN', 'Triglyceride', 'SBP', 'Total_cholesterol', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL', 'AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'LDL', 'NT-proBNP')
+  rate <- dcast(stat, ID + cohort_type ~ measurement_type, value.var = c('rate'))
+  names(rate)[names(rate) == 'Total cholesterol'] <-  c("Total_cholesterol")
   for( i in 3:ncol(rate)){
     name<- colnames(rate)[i]
     p <- ggplot(rate, aes(x= cohort_type, y= rate[ , i], color = cohort_type))+  geom_boxplot() + stat_compare_means(aes(group =cohort_type)) +
@@ -417,27 +415,33 @@ test_rate2 <- function(stat){
   print('almost finish')
   rm(rate)
   rm(tb)
+
+    ggsave(p, file=paste0("/data/results/test_rate_fig/rate_", name,"2.png"),  dpi=300)  
+    #########################delete intermediate data##################################
+  } #########################delete intermediate data##################################
+  print('almost finish')
 }
   # tb <- mytable(cohort_type~ rate_CRP + rate_ESR +rate_BUN + rate_Triglyceride + rate_SBP +rate_Hb + rate_Glucose_Fasting + rate_Creatinine + rate_HDL + rate_AST +rate_Albumin +rate_insulin + rate_BMI + rate_HbA1c + rate_DBP + rate_Total cholesterol + rate_LDL + rate_NT-proBNP +
   # diff_CRP + diff_ESR + diff_BUN + diff_Triglyceride + diff_SBP +diff_Hb + diff_Glucose_Fasting + diff_Creatinine + diff_HDL + diff_AST + diff_Albumin + diff_insulin + diff_BMI + diff_HbA1c + diff_DBP + diff_Total cholesterol + diff_LDL + diff_NT-proBNP
 test_diff2 <- function(stat){
   #필요한 값만 추출
-  # stat<-setDT(stat)
-  # stat<- stat[,.(ID, cohort_type, measurement_type,  diff)]
-  # stat<- unique(stat)
   diff <- dcast(stat, ID + cohort_type ~ measurement_type, value.var = c('diff'))
   names(diff)[names(diff) == 'Total cholesterol'] <-  c("Total_cholesterol")
   colSums(!is.na(diff))
   # T test
-  tb <- mytable(cohort_type ~ AST + Albumin + BMI + BUN + CRP  + Creatinine + DBP + ESR + Glucose_Fasting + HDL  + Hb + HbA1c + LDL + NT-proBNP + SBP + Total_cholesterol + Triglyceride + insulin, data = diff, method =3, catMethod = 0, show.all =T)
+  tb <- mytable(cohort_type ~ CRP + ESR + BUN + Triglyceride +  Total_cholesterol+ SBP +Hb + Glucose_Fasting + Creatinine + HDL + AST +Albumin +insulin + BMI + HbA1c + DBP  + LDL + NT-proBNP , data = diff,   method = 3, catMethod = 0,   show.all = T)
+  # performs a Shapiro-Wilk test to decide between normal or non-normal
+  # Perform chisq.test first. If warning present, perform fisher test
   print("diff test mytable")
-  mycsv(tb, file = '/data/results/test2/test_diff2.csv')
+  mycsv(tb, file = '/data/results/test/test_diff2.csv')
+
   ## fig 
   diff <- as.data.frame(diff)
   for( i in 3:ncol(diff)){
     name<- colnames(diff)[i]
     p <- ggplot(diff, aes(x= cohort_type, y= diff[,i], color = cohort_type))+  geom_boxplot() + stat_compare_means(aes(group =cohort_type)) +
   labs (title =paste(name, 'diff by cohort_type'),x= "cohort type" , y = name)
+
     ggsave(p, file=paste0("/data/results/test2_diff_fig/diff_", name,"2.png"),  dpi=300)  
   #########################delete intermediate data##################################
     rm(p)
@@ -451,8 +455,6 @@ ptest_drug2 <- function(data1){ ##각 서브 약물군 별로 데이터가 별�
 # target만의 데이터 생성 
   stat<-setDT(data1)
   target <- data1[which(data1$cohort_type=='T'),.(ID, measurement_type, value_as_number.before, value_as_number.after, drug_group)]
-  # print("ptest_drug2, unique")
-  # target<- unique(target)
 # 전체 total paired t test
   print("ptest_drug2, split by step")
   pre_  <- dcast(target, ID + drug_group  ~ measurement_type, value.var=c('value_as_number.before'))
@@ -477,12 +479,14 @@ ptest_drug2 <- function(data1){ ##각 서브 약물군 별로 데이터가 별�
     target_drug <- total[grep(i, total$drug_group), ]
     tb <- mytable(step ~ CRP + ESR + BUN + Triglyceride + SBP +Hb + Glucose_Fasting + Creatinine + HDL + AST +Albumin +insulin + BMI + HbA1c + DBP +
                 Total_cholesterol + LDL + NT-proBNP, data = target_drug, method =3, catMethod=0, show.all =T)
+
     mycsv(tb, file =paste0('/data/results/test2/',i,'_ptest2.csv'))
     for( j in 3:ncol(target_drug)){
       name <- colnames(target_drug)[j]
       p <- ggplot(target_drug, aes(x=step, y=target_drug[,j], color =step )) + geom_boxplot() + stat_compare_means(aes(group = step)) +
           labs(title = paste0(i, " ",name,' paired_test'), x= 'step', y= name)
       ggsave(p, file = paste0('/data/results/ptest2_fig/',i, "_", name, '_ptest2.png'), dpi=300)
+
     #########################delete intermediate data##################################
       rm(p)
     }
@@ -496,8 +500,10 @@ ptest_drug2 <- function(data1){ ##각 서브 약물군 별로 데이터가 별�
 
 # ## rate: 정규성, 등분산성, ttest, wilcox
 test_rate <- function(stat){
+
   results<- data.frame( m_type= NA, wilcoxon_pvalue = NA, target_mean = NA, control_mean = NA)
   m_list <- unique(stat$measurement_type)
+
   for( j in m_list){
       target <- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='T')  %>% distinct(ID,rate) 
       control<- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='C')  %>% distinct(ID, rate) 
@@ -521,10 +527,6 @@ test_rate <- function(stat){
         print('wilcox')
         wilcox <- wilcox.test(target$rate, control$rate)
         ## 소수점 2자리에서 반올림
-        # normality_t <- round(normality_t$p.value , digits = 2)
-        # normality_c <- round(normality_c$p.value , digits = 2)
-        # variance <- round(variance$p.value , digits = 2)
-        # ttest_p <- round(ttest$p.value, digits = 2)
         wilcox <- wilcox$p.value 
         means <- as.numeric(gsub("^[a-z]","", ttest$estimate) )
         targetmean <- round(means[1], digits=2)
@@ -556,8 +558,10 @@ test_rate <- function(stat){
 
 ## diff: 정규성, 등분산성, ttest, wilcox, describe 
 test_diff <- function(stat){
+
   results<- data.frame( m_type= NA, wilcoxon_pvalue = NA, target_mean = NA, control_mean = NA)
   m_list <- unique(stat$measurement_type)
+
   for( j in m_list){
       target <- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='T') %>% distinct(ID, diff) 
       control<- stat %>% dplyr::filter(measurement_type == j  & cohort_type =='C') %>% distinct(ID, diff) 
@@ -611,7 +615,9 @@ ptest_drug <- function(stat){
   target <- as.data.frame(target)
   results<- data.frame(d_type=NA,  m_type= NA,  wilcoxon_pvalue = NA, pre_mean = NA, post_mean = NA, mean_diff= NA)
   drug_list=c("alpha", "SU","metformin", "gnd","tzd","dpp4i", "sglt2")
-  m_list <- unique(target$measurement_type)
+ # m_list <- unique(target$measurement_type)
+  #m_list <-c( 'CRP', "AST", "BUN" )
+  m_list <-c("CRP", "Albumin", "BUN" ,"Creatinine")
   for (j in m_list){  
         total_m  <- target %>% dplyr::filter(measurement_type == j)
         if (nrow(total_m) <3 | nrow(total_m) > 5000) {

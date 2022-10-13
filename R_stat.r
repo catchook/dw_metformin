@@ -24,6 +24,7 @@ print("library done")
 source("R_function.r")
 #print("read function module ")
 ##############################데이터 합치기:: combine data############################################################################################ 
+
 setwd('/home/syk/data')
 filenames <- list.files(path = getwd())
 numfiles <- length(filenames)
@@ -134,6 +135,7 @@ print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success propensity 
 # # ### paired t-test (t vs c)
 # print("start paired_test")
 # paired_test <- stat$ptest_drug(data2)
+
 # # ##############check memory 3 #########################
 print("check memory::: stat")
 rm(data2)
@@ -191,15 +193,17 @@ print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!success target vs control stat
 # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  HIGH VS LOW ::: SUCCESS dose stat !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 # #################################################################### 4. save ############################################################################
 
+
 # write.csv(test_rate, paste0("/data/results/test1/test_rate1.csv")) 
 # write.csv(test_diff, paste0("/data/results/test1/test_diff1.csv")) 
 # write.csv(paired_test, paste0("/data/results/test1/paired_test1.csv")) 
 # print('success good job!')
+
 # write.csv(dose_diff_rate, paste0("/data/results/dose_diff_rate.csv")) 
 # write.csv(dose_paired_test, paste0("/data/results/dose_paired_test.csv")) 
-# print("rbind count ")
-# count <- rbind(N1, N2, N3, N4)
-# write.csv(count, paste0("/data/results/stat_count.csv")) 
+print("rbind count ")
+count <- rbind(N1, N2, N3, N4)
+write.csv(count, paste0("/data/results/stat_count.csv")) 
 # print("rbind count_t")
 # N1_t <- subset(N1_t, select = c(C, T, step))
 # N2_t <- subset(N2_t, select = c(C, T, step))
@@ -211,8 +215,8 @@ print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!success target vs control stat
 # str(N3_t)
 # print("N4_t")
 # str(N4_t)
-# count_t <- rbind(N1_t, N2_t, N3_t, N4_t)
-# write.csv(count_t, paste0("/data/results/stat_count_t.csv")) 
+count_t <- rbind(N1_t, N2_t, N3_t, N4_t)
+write.csv(count_t, paste0("/data/results/stat_count_t.csv")) 
 # ##dose type
 # write.csv(N5, paste0("/data/results/dose_stat_count.csv")) 
 # write.csv(N5_t, paste0("/data/results/dose_stat_count_t.csv")) 
