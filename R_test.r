@@ -27,6 +27,7 @@ library(MatchIt)
 library(modules)
 library(purrr)
 library(tidyr)
+library(ggpubr)
 
 # ## 접속 정보 
 # # (1) DB 접속

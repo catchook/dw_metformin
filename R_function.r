@@ -50,6 +50,7 @@ library(modules)
 library(data.table)
 library(RPostgreSQL)
 library(lubridate)
+library(ggpubr)
 
 # ## 기본 함수
 ff <- module({
@@ -239,7 +240,9 @@ stat <- module({
   import("grDevices")
   import("nortest")
   import("tableone")
-
+  import('moonBook')
+  import('ggpubr')
+  import('data.table')
 ## 시각화 , 단계별로 
 fig <- function(df, step) {
   df <- df %>% mutate( cohort_type2 = recode(cohort_type,  "C"="control", "T" ="target"))
@@ -247,9 +250,9 @@ fig <- function(df, step) {
   print("options")
   options(repr.plot.width=15, repr.plot.height =5)
   print("ggplot")
-  a1 <- df %>% ggplot(aes(x=BUN, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins=100) 
-  a2 <- df %>% ggplot(aes(x=Creatinine, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins= 100)
-  a3 <- df %>% ggplot(aes(x=age, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins=100)
+  a1 <- df %>% ggplot(aes(x=BUN, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins=1000) 
+  a2 <- df %>% ggplot(aes(x=Creatinine, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins= 1000)
+  a3 <- df %>% ggplot(aes(x=age, fill= cohort_type_)) + theme_classic() + geom_histogram(color="gray80", alpha=0.2, position = "identity", bins=1000)
   print("grid1")
   fig <- plot_grid(a1, a2, a3, labels =c("BUN", "Creatinine", "Age"), align = "h", ncol=3)
   title <- ggdraw() + draw_label( paste0(step, " numeric variable") , fontface = "bold") 
@@ -332,7 +335,7 @@ smd <- function( DF, step ){
   out = mytable(cohort_type~ age + gender + BUN +  Creatinine  + egfr +  SU + alpha+ dpp4i + gnd + sglt2 +tzd + MI + HF +PV + 
                     CV + CPD + RD+ PUD +MLD + DCC +HP + MSLD + AIDS + HT2+ HL2 + Sepsis+ HTT + cci  , data =DF)
   print("out done")
-  mycsv(out, file = paste0("/data/results/smd_", step, ".csv"))
+  mycsv(out, file = paste0("/data/results/test/smd_", step, ".csv"))
   print("mycsv done")
   ###################### delete intermediate file 
   rm(DF)
@@ -384,28 +387,121 @@ dose_smd <- function(DF, step ){
 #   return(results)
 # }
 
-test_rate_diff <- function(stat){
+test_rate2 <- function(stat){
   #필요한 값만 추출
-  stat<- stat[,.(ID, cohort_type,   =)]
-dt1 <- dcast(dt1, V1+cohort_type~measurement_type, value.var = c('diff','rate'))
+  #stat<-setDT(stat)
+  #stat<- stat[,.(ID, cohort_type, measurement_type,  rate)]
+  #stat<- unique(stat)
+  rate <- dcast(stat, ID + cohort_type ~ measurement_type, value.var = c('rate'))
+  names(rate)[names(rate) == 'Total cholesterol'] <-  c("Total_cholesterol")
+  print(colSums(!is.na(rate)))
+  rate_c<- rate[which(cohort_type=='C'),]
+  rate_t <- rate[which(cohort_type =='T'),]
+  print(" ")
+  print(colSums(!is.na(rate_c)))
+  print(" ")
+  print(colSums(!is.na(rate_t)))
 
-colSums(!is.na(dt1))
 
-# T test
-tb <- mytable(cohort_type~diff_AST+diff_Albumin+diff_BMI+diff_BUN+diff_CRP+diff_Creatinine+diff_DBP+diff_HDL+diff_Hb+diff_HbA1c+diff_SBP+diff_Triglyceride+
-          rate_AST+rate_Albumin+rate_BMI+rate_BUN+rate_CRP+rate_Creatinine+rate_DBP+rate_HDL+rate_Hb+rate_HbA1c+rate_SBP+rate_Triglyceride, data = dt1,
-        method = 3, # performs a Shapiro-Wilk test to decide between normal or non-normal
-        catMethod = 0, # Perform chisq.test first. If warning present, perform fisher test
-        show.all = T)
-print(tb)
-mycsv(tb, file = 'tb.csv')
+  # T test
+  # tb <- mytable(cohort_type ~ CRP + ESR + BUN + Triglyceride + SBP + Total_cholesterol + Hb + Glucose_Fasting + Creatinine +  HDL + AST + Albumin + insulin +
+  # BMI + HbA1c + DBP +  LDL + NT-proBNP , data = rate,  method = 3,  catMethod = 0, show.all = T)
 
-
+  # tb <- mytable(cohort_type ~ AST + Albumin + BMI + BUN + CRP  + Creatinine + DBP + ESR + Glucose_Fasting + HDL  + Hb + HbA1c + LDL + NT-proBNP + SBP + Total_cholesterol + Triglyceride + insulin, data = rate, method =3, catMethod = 0, show.all =T)
+  # print("rate test mytable")
+  ## fig
+  print("fig start") 
+  rate <- as.data.frame(rate)
+  # rate_list <-c('CRP', 'ESR', 'BUN', 'Triglyceride', 'SBP', 'Total_cholesterol', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL', 'AST', 'Albumin', 'insulin', 'BMI', 'HbA1c', 'DBP', 'LDL', 'NT-proBNP')
+  for( i in 3:ncol(rate)){
+    name<- colnames(rate)[i]
+    p <- ggplot(rate, aes(x= cohort_type, y= rate[ , i], color = cohort_type))+  geom_boxplot() + stat_compare_means(aes(group =cohort_type)) +
+                labs (title =paste(name, 'rate by cohort_type'),x= "cohort type" , y = name)
+    ggsave(p, file=paste0("/data/results/test_rate_fig/rate_", name,"2.png"),  dpi=300)  
+    #########################delete intermediate data##################################
+  } #########################delete intermediate data##################################
+  print('almost finish')
 
 }
+  # tb <- mytable(cohort_type~ rate_CRP + rate_ESR +rate_BUN + rate_Triglyceride + rate_SBP +rate_Hb + rate_Glucose_Fasting + rate_Creatinine + rate_HDL + rate_AST +rate_Albumin +rate_insulin + rate_BMI + rate_HbA1c + rate_DBP + rate_Total cholesterol + rate_LDL + rate_NT-proBNP +
+  # diff_CRP + diff_ESR + diff_BUN + diff_Triglyceride + diff_SBP +diff_Hb + diff_Glucose_Fasting + diff_Creatinine + diff_HDL + diff_AST + diff_Albumin + diff_insulin + diff_BMI + diff_HbA1c + diff_DBP + diff_Total cholesterol + diff_LDL + diff_NT-proBNP
+test_diff2 <- function(stat){
+  #필요한 값만 추출
+  stat<-setDT(stat)
+  stat<- stat[,.(ID, cohort_type, measurement_type,  diff)]
+  stat<- unique(stat)
+  diff <- dcast(stat, ID + cohort_type ~ measurement_type, value.var = c('diff'))
+  names(diff)[names(diff) == 'Total cholesterol'] <-  c("Total_cholesterol")
+  colSums(!is.na(diff))
+  # T test
+  tb <- mytable(cohort_type ~ CRP + ESR + BUN + Triglyceride +  Total_cholesterol+ SBP +Hb + Glucose_Fasting + Creatinine + HDL + AST +Albumin +insulin + BMI + HbA1c + DBP  + LDL + NT-proBNP , data = diff,   method = 3, catMethod = 0,   show.all = T)
+  # performs a Shapiro-Wilk test to decide between normal or non-normal
+  # Perform chisq.test first. If warning present, perform fisher test
+       
+  print("diff test mytable")
+  mycsv(tb, file = '/data/results/test/test_diff2.csv')
+  ## fig 
+  diff <- as.data.frame(diff)
+  for( i in 3:ncol(diff)){
+    name<- colnames(diff)[i]
+    p <- ggplot(diff, aes(x= cohort_type, y= diff[,i], color = cohort_type))+  geom_boxplot() + stat_compare_means(aes(group =cohort_type)) +
+  labs (title =paste(name, 'diff by cohort_type'),x= "cohort type" , y = name)
+    ggsave(p, file=paste0("/data/results/test_diff_fig/diff_", name,"2.png"),  dpi=300)  
+  #########################delete intermediate data##################################
+    rm(p)
+  }
+  #########################delete intermediate data##################################
+  rm(diff)
+  rm(tb)
+  rm(stat)
+}
 
-
-
+ptest_drug2 <- function(data1){ ##각 서브 약물군 별로 데이터가 별로 없으면 에러 발생 가능
+# target만의 데이터 생성 
+  stat<-setDT(data1)
+  target <- data1[which(data1$cohort_type=='T'),.(ID, measurement_type, value_as_number.before, value_as_number.after, drug_group)]
+  print("ptest_drug2, unique")
+  target<- unique(target)
+# 전체 total paired t test
+  print("ptest_drug2, split by step")
+  pre_  <- dcast(target, ID + drug_group  ~ measurement_type, value.var=c('value_as_number.before'))
+  pre_$step <-'pre'
+  post_ <- dcast(target, ID + drug_group ~ measurement_type, value.var=c('value_as_number.after'))
+  post_$step <-'post'
+  total <- rbind(pre_, post_)
+  total<- as.data.frame(total)
+  names(total)[names(total) == 'Total cholesterol'] <-  c("Total_cholesterol")
+ #########################delete intermediate data##################################
+  rm(target)
+  rm(pre_)
+  rm(post_)
+# target 전체의 paired t test
+  tb <- mytable(step ~ CRP + ESR + BUN + Triglyceride + SBP +Hb + Glucose_Fasting + Creatinine + HDL + AST +Albumin +insulin + BMI + HbA1c + DBP +
+                Total_cholesterol + LDL + NT-proBNP, data = total, method =3, catMethod=0, show.all =T)
+  mycsv(tb, file = paste0('/data/results/test/total_ptest2.csv'))
+# drug_type별로 paried t test
+  total <- as.data.frame(total)
+  drug_list=c("alpha", "SU", "gnd","tzd","dpp4i", "sglt2")
+  for ( i in drug_list){
+    target_drug <- total[grep(i, total$drug_group), ]
+    tb <- mytable(step ~ CRP + ESR + BUN + Triglyceride + SBP +Hb + Glucose_Fasting + Creatinine + HDL + AST +Albumin +insulin + BMI + HbA1c + DBP +
+                Total_cholesterol + LDL + NT-proBNP, data = target_drug, method =3, catMethod=0, show.all =T)
+    mycsv(tb, file =paste0('/data/results/test/',i,'_ptest2.csv'))
+    for( j in 3:ncol(target_drug)){
+      name <- colnames(target_drug)[j]
+      p <- ggplot(target_drug, aes(x=step, y=target_drug[,j], color =step )) + geom_boxplot() + stat_compare_means(aes(group = step)) +
+          labs(title = paste0(i, " ",name,'paired_test'), x= 'step', y= name)
+      ggsave(p, file = paste0('/data/results/ptest_fig/',i, "_", name, '_ptest2.png'), dpi=300)
+    #########################delete intermediate data##################################
+      rm(p)
+    }
+    #########################delete intermediate data##################################
+    rm(target_drug)
+    rm(tb)
+}
+  #########################delete intermediate data##################################
+  rm(total)
+}
 
 # ## rate: 정규성, 등분산성, ttest, wilcox
 test_rate <- function(stat){
