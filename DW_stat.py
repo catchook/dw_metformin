@@ -82,7 +82,7 @@ if __name__=='__main__' :
     rd1 =  st.renal_describe(EGFR, 'before_trim')
     ####################################################################################
     fig, axs = plt.subplots(1,3, figsize=(15,5))
-    fig.suptitle('Before 2.5% Cr Trim')
+    fig.suptitle('Before 3% Cr Trim')
     sns.distplot(EGFR[EGFR['cohort_type'] ==0]['Creatinine'], ax= axs[0], bins =100, color='#ffd966', kde=False)
     sns.distplot(EGFR[EGFR['cohort_type'] ==1]['Creatinine'],  ax= axs[0],bins =100, color='#6aa84f', kde=False)
  
@@ -97,9 +97,9 @@ if __name__=='__main__' :
     fig.savefig("/home/syk/before_trim.png")
     ####################################################################################
         
-    ## 2.5% trim Cr  
-    high_limit= EGFR['Creatinine'].quantile(0.975)
-    low_limit = EGFR['Creatinine'].quantile(0.025)
+    ## 3% trim Cr  
+    high_limit= EGFR['Creatinine'].quantile(0.970)
+    low_limit = EGFR['Creatinine'].quantile(0.030)
     condition = ( low_limit < EGFR['Creatinine'] ) &  (EGFR['Creatinine']< high_limit)
     EGFR2= EGFR.loc[condition, :]
     EGFR2.drop_duplicates(inplace = True)
@@ -116,7 +116,7 @@ if __name__=='__main__' :
     ####################################################################################    
     m2 = pd.merge(EGFR2[['subject_id', 'egfr']], m1, on= 'subject_id', how='left')
     m2.drop_duplicates(inplace=True) 
-    n2 = ff.count_measurement(m2, '2: trim 2.5% Cr')
+    n2 = ff.count_measurement(m2, '2: trim 3% Cr')
     print(n2.head()) 
     print("after trim")
     print(m2['Creatinine'].describe())
@@ -124,7 +124,7 @@ if __name__=='__main__' :
     print(m2['egfr'].describe())
     ##################################################################################
     fig, axs = plt.subplots(1,3, figsize=(15,5))
-    fig.suptitle('After 2.5% Cr Trim')
+    fig.suptitle('After 3% Cr Trim')
     sns.distplot(EGFR2[EGFR2['cohort_type'] ==0]['Creatinine'], ax= axs[0], bins =100, color='#f1c232', kde=False)
     sns.distplot(EGFR2[EGFR2['cohort_type'] ==1]['Creatinine'],  ax= axs[0],bins =100, color='#6aa84f', kde=False)
 
@@ -161,6 +161,8 @@ if __name__=='__main__' :
 # # ###########################################SMD표준화된 평균차#########################################
     lists = ['age', 'gender', 'egfr', 'Creatinine', 'BUN', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd','MI','HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']
     smd_test = st.describe_pvalue(m3, lists)
+    
+    smd_test.to_csv("/home/syk/smd_test.csv")
     ##ps매칭 후  smd 
     variable = ['age', 'gender', 'egfr', 'BUN', 'SU', 'alpha', 'dpp4i', 'gnd', 'sglt2', 'tzd',  'Creatinine', 'MI', 'HF', 'PV', 'CV',  'CPD', 'RD', 'PUD', 'MLD', 'DCC', 'HP','Renal',  'MSLD', 'AIDS', 'HT', 'HL', 'Sepsis', 'HTT']
     smd2=ff.smd (m3, variable, 'after ps') 

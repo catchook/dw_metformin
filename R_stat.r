@@ -1,3 +1,4 @@
+
 # 0. setting env.
 
 library(data.table)
@@ -21,123 +22,120 @@ library(moonBook)
 print("library done")
 # source("/home/syk/R_function.r")
 source("R_function.r")
-print("read function module ")
+#print("read function module ")
 ##############################데이터 합치기:: combine data############################################################################################ 
-# setwd('/home/syk/data')
-# filenames <- list.files(path = getwd())
-# numfiles <- length(filenames)
-# #data <- fread("/home/syk/data.csv", fill =TRUE)
-# total <- do.call(rbind, lapply(filenames, read.csv))
-# #write.csv(total, '/home/syk/total.csv')
-# print("data read done ")
-# str(total)
+
+setwd('/home/syk/data')
+filenames <- list.files(path = getwd())
+numfiles <- length(filenames)
+#data <- fread("/home/syk/data.csv", fill =TRUE)
+data <- do.call(rbind, lapply(filenames, read.csv))
+#write.csv(total, '/home/syk/total.csv')
+print("data read done ")
+file_size <- object.size(data)
+print("original data size is ")
+print(file_size, units = "auto")
+
 # # ##############check memory 4 #########################
-# print("check memory::: combine data")
-# mem_used()
-################## SELECT LATEST DATA 
-#  ## select latest measurement_data
-# data2 <- data2 %>% dplyr::arrange( ID, measurement_type, desc(measurement_date.after)) %>% dplyr::group_by(ID, measurement_type) %>% dplyr::mutate( row = row_number())
-# print("1")
-# data2<- as.data.frame(data2)
-# data2 <- data2 %>% dplyr::filter(row == 1)
-# print("2")
-# data2 <- as.data.frame(data2)
-# data2 <- subset(data2, select = -c(row))
-# print("select latest data")
-# str(data2)
+print("check memory::: combine data")
+mem_used()
 ##################################################################### 1. delete outlier #################################################################### 
 ## before trim 
 # ### check_n: original N / figure / smd  
-# N1 <- ff$count_n( total, '1. before trim')
-# N1_t <- ff$count_total( total, '1. before trim')
-# stat$fig(total,  '1_before_trim')
-# stat$smd(total, '1_before_trim')
-# print("check original::")
-# # ## trim n%
-# # ### check_n: trim N / figure / smd
-# data <- ff$trim(total, 3)
-# print("trim done")
+N1 <- ff$count_n( data, '1. before trim')
+N1_t <- ff$count_total( data, '1. before trim')
+stat$fig(data,  '1_before_trim', 5, 0.1)
+stat$smd(data, '1_before_trim')
+print("check original::")
+# ## trim n%
+# ### check_n: trim N / figure / smd
+data <- ff$trim(data, 4.5)
+print("trim done")
 
-# N2 <- ff$count_n( data, "2. trim 3%")
-# N2_t <- ff$count_total( data, '2. trim 3%')
-# print("check_n2:: trim 3%")
-# stat$fig(data, "2_trim")
-# stat$smd(data, "2_trim")
+N2 <- ff$count_n( data, "2. trim 3%")
+N2_t <- ff$count_total( data, '2. trim 3%')
+print("check_n2:: trim 3%")
+stat$fig(data, "2_trim", 1, 0.05)
+stat$smd(data, "2_trim")
 
 # # ## delete value_as_number.before 0 values
-# data1 <- data %>% filter(value_as_number.before != 0)
-# print("delete value_as_number.before 0 values")
-# N3 <- ff$count_n( data1, "3. delete outlier")
-# N3_t <- ff$count_total( data1, "3. delete outlier")
-# stat$fig(data1, "3_delete_outlier")
-# stat$smd(data1, "3_delte_outlier")
-# ## new columns: rate, diff
-# data1$diff <- data1$value_as_number.after - data1$value_as_number.before
-# data1$rate <- data1$diff/ data1$value_as_number.before  
+data <- data %>% filter(value_as_number.before != 0)
+file_size <- object.size(data)
+print("delete outlier data size is ")
+print(file_size, units = "auto")
+print("delete value_as_number.before 0 values")
+N3 <- ff$count_n( data, "3. delete outlier")
+N3_t <- ff$count_total( data, "3. delete outlier")
+stat$fig(data, "3_delete_outlier", 1, 0.05)
+stat$smd(data, "3_delte_outlier")
+## new columns: rate, diff
+data$diff <- data$value_as_number.after - data$value_as_number.before
+data$rate <- data$diff/ data$value_as_number.before  
 # # # ##############check memory 2 #########################
-# print("check memory::: delete outlier")
+print("check memory::: delete outlier")
 # rm(total)
 # rm(data)
-# mem_used()
-# print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success delete outlier  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+file_size <- object.size(data)
+print("data step 2, size is ")
+print(file_size, units = "auto")
+mem_used()
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success delete outlier  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 # #################################################################### 2. propensity score matching  ######################################
-# ## select columsn for ps matching
-# ps <-  unique(data1[, c("cohort_type", "age",  "gender", "SU", "alpha"   ,"dpp4i", "gnd", "sglt2" ,  "tzd" ,  
-#                   "BUN",  "Creatinine" ,  "MI"   , "HF"   ,   "PV"     ,   "CV"    ,   "CPD" ,   "Rheuma" , 
-#                   "PUD",    "MLD"      ,   "DCC" ,  "HP"  ,  "Renal",  "MSLD"  ,  "AIDS"   ,   "HT2" ,   "HL2",   
-#                   "Sepsis" ,  "HTT"    ,      "ID"      ,    "egfr",  'cci' )])   
-# ps$egfr[is.na(ps$egfr)] <- 90
-# colSums(is.na(ps))
-# ps[is.na(ps)] <- 0
+## select columsn for ps matching
+ps <-  unique(data[, c("cohort_type", "age",  "gender", "SU", "alpha"   ,"dpp4i", "gnd", "sglt2" ,  "tzd" ,  
+                  "BUN",  "Creatinine" ,  "MI"   , "HF"   ,   "PV"     ,   "CV"    ,   "CPD" ,   "Rheuma" , 
+                  "PUD",    "MLD"      ,   "DCC" ,  "HP"  ,  "Renal",  "MSLD"  ,  "AIDS"   ,   "HT2" ,   "HL2",   
+                  "Sepsis" ,  "HTT"    ,      "ID"      ,    "egfr",  'cci' )])   
+ps$egfr[is.na(ps$egfr)] <- 90
+ps[is.na(ps)] <- 0
 # ## convert cohort_Type, age; chr to numeric
-# ps$cohort_type <- ifelse(ps$cohort_type =='C', 1, 0)
-# ps$gender <- ifelse(ps$gender =='M', 0, 1)
+ps$cohort_type <- ifelse(ps$cohort_type =='C', 1, 0)
+ps$gender <- ifelse(ps$gender =='M', 0, 1)
 # # ## 2:1 matching
-# m.out <- matchit(cohort_type ~ cci + age + gender + Creatinine + BUN + egfr + SU + alpha+ dpp4i + gnd + sglt2 + tzd + MI + HF +PV + CV + CPD + Rheuma + PUD + MLD + DCC + HP + Renal + MSLD + AIDS + HT2+ HL2 + Sepsis+ HTT , data = ps, method ='nearest', distance ='logit',  ratio =2)
-# summary(m.out)
-# m.data <- match.data(m.out, data = ps, distance = 'prop.score')
-# id <- m.data %>% distinct(ID)
-# data2 <- left_join(id, data1, by = 'ID')
+m.out <- matchit(cohort_type ~ cci + age + gender + Creatinine + BUN + egfr + SU + alpha+ dpp4i + gnd + sglt2 + tzd + MI + HF +PV + CV + CPD + Rheuma + PUD + MLD + DCC + HP + Renal + MSLD + AIDS + HT2+ HL2 + Sepsis+ HTT , data = ps, method ='nearest', distance ='logit',  ratio =2)
+summary(m.out)
+m.data <- match.data(m.out, data = ps, distance = 'prop.score')
+id <- m.data %>% distinct(ID)
+data2 <- left_join(id, data, by = 'ID')
 # ## check n / figure /smd 
-# N4 <- ff$count_n(data2, "4. ps_matching")
-# N4_t <- ff$count_total(data2, "4. ps_matching")
-# stat$fig(data2, "4_psmatch")
-# stat$smd(data2, "4_psmatch")
+N4 <- ff$count_n(data2, "4. ps_matching")
+N4_t <- ff$count_total(data2, "4. ps_matching")
+stat$fig(data2, "4_psmatch" , 1, 0.025)
+stat$smd(data2, "4_psmatch")
 # # ##############check memory 2 #########################
-# print("check memory::: ps matching")
-# rm(ps)
-# rm(m.out)
-# rm(m.data)
-# mem_used()
-# print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+print("check memory::: ps matching")
+file_size <- object.size(ps)
+print("ps, size is ")
+print(file_size, units = "auto")
+file_size <- object.size(data2)
+print("ps + data , size is ")
+print(file_size, units = "auto")
+rm(ps)
+rm(m.out)
+rm(m.data)
+mem_used()
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 #################################################################### 3. stat  ############################################################################
-data2 <- fread("./data/data.csv", fill =TRUE)
-print("check stat data:::")
-str(data2)
-## 3-1) target vs control  
-### normality, var, t-test, wilcox
-print("start test rate ")
-stat$test_rate2(data2)
-# data2 <- setDT(data2)
-# stat<- data2[,.(ID, cohort_type, measurement_type,  rate)]
-# stat<- unique(stat)
-# rate <- dcast(stat, ID + cohort_type ~ measurement_type, value.var = c('rate'))
-# names(rate)[names(rate) == 'Total cholesterol'] <-  c("Total_cholesterol")
-# colSums(!is.na(rate))
-# tb <- mytable(cohort_type ~ CRP + ESR + BUN + Triglyceride + SBP + Total_cholesterol + Hb + Glucose_Fasting + Creatinine +  HDL + AST + Albumin + insulin +
-# BMI + HbA1c + DBP +  LDL + NT-proBNP , data = rate,  method = 3,  catMethod = 0, show.all = T) 
-# print("rate test mytable")
-# print(tb)
-# mycsv(tb, file='test2.csv')
+# #data2 <- fread("data.csv", fill =TRUE)
+# print("check stat data:::")
+# str(data2)
+# ## 3-1) target vs control  
+# ### normality, var, t-test, wilcox
+# print("start test rate2 ")
+# stat$test_rate2(data2)
+# print("start test diff2 ")
+# stat$test_diff2(data2)
+# print("start ptest2 ")
+# stat$ptest_drug2(data2)
 
-test_rate <- stat$test_rate(data2)
-print("start test diff")
-stat$test_diff2(data2)
-test_diff <- stat$test_diff(data2)
-### paired t-test (t vs c)
-print("start paired_test")
-stat$ptest_drug2(data2)
-paired_test <- stat$ptest_drug(data2)
+# print('start test rate')
+# test_rate <- stat$test_rate(data2)
+# print("start test diff")
+# test_diff<- stat$test_diff(data2)
+# # ### paired t-test (t vs c)
+# print("start paired_test")
+# paired_test <- stat$ptest_drug(data2)
+
 # # ##############check memory 3 #########################
 print("check memory::: stat")
 rm(data2)
@@ -195,9 +193,12 @@ print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!success target vs control stat
 # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  HIGH VS LOW ::: SUCCESS dose stat !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 # #################################################################### 4. save ############################################################################
 
-write.csv(test_rate, paste0("/data/results/test_rate1.csv")) 
-write.csv(test_diff, paste0("/data/results/test_diff1.csv")) 
-write.csv(paired_test, paste0("/data/results/paired_test1.csv")) 
+
+# write.csv(test_rate, paste0("/data/results/test1/test_rate1.csv")) 
+# write.csv(test_diff, paste0("/data/results/test1/test_diff1.csv")) 
+# write.csv(paired_test, paste0("/data/results/test1/paired_test1.csv")) 
+# print('success good job!')
+
 # write.csv(dose_diff_rate, paste0("/data/results/dose_diff_rate.csv")) 
 # write.csv(dose_paired_test, paste0("/data/results/dose_paired_test.csv")) 
 print("rbind count ")
