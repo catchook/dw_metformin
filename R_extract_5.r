@@ -60,46 +60,47 @@ print(c(schema, db_target, db_control))
 print(c(database, user, pw, url, dbhost, port, schema))
 print(paste("target : ", db_target, "control :", db_control, "hospital: ", db_hospital))
 ######################################################################### NEW column: PERIOD  ######################################################################
-# add year function 생성
-print("sql::: add period")
-sql4 <-" SELECT a.subject_id,
-      a.cohort_start_date,
-      B.drug_concept_id,
-      B.drug_exposure_start_date,
-      B.drug_exposure_end_date, 
-      (B.drug_exposure_end_date - B.drug_exposure_start_date + 1) as period
-      FROM cdm_hira_2017_results_fnet_v276.cohort as a      
-      JOIN       
-      ( select a.person_id as person_id, a.drug_concept_id, a.drug_exposure_start_date, a.drug_exposure_end_date
-        from cdm_hira_2017.drug_exposure as a
-        join (SELECT descendant_concept_id, ancestor_concept_id
-              FROM cdm_hira_2017.concept_ancestor
-              WHERE ancestor_concept_id IN (1503297,43009032,19122137,35198118,1502855,1502809,43009070,1580747,
-                                        793143,40166035,1547504,1516766,1525215,35197921,1502826,43009094,1510202,
-                                        43009055,44506754,40170911,40239216,43009020,1559684,19097821,1560171,
-                                        1597756,19059796,19001409,43009089,1583722,43009051, 793293,45774751,45774435,
-                                        44785829,1594973,19033498,43526465,43008991,43013884,44816332,1530014,1529331 )) as b 
-        on a.drug_concept_id = b.descendant_concept_id ) as B 
-      on a.subject_id = B.person_id           
-      WHERE a.cohort_definition_id in (target, control)
-      and b.drug_exposure_start_date between a.cohort_start_date  and (a.cohort_start_date + 455)
-       "
+# # add year function 생성
+# print("sql::: add  drug period")
+# sql4 <-" SELECT a.subject_id,
+#       a.cohort_start_date,
+#       B.drug_concept_id,
+#       B.drug_exposure_start_date,
+#       B.drug_exposure_end_date, 
+#       (B.drug_exposure_end_date - B.drug_exposure_start_date + 1) as period
+#       FROM cdm_hira_2017_results_fnet_v276.cohort as a      
+#       JOIN       
+#       ( select a.person_id as person_id, a.drug_concept_id, a.drug_exposure_start_date, a.drug_exposure_end_date
+#         from cdm_hira_2017.drug_exposure as a
+#         join (SELECT descendant_concept_id, ancestor_concept_id
+#               FROM cdm_hira_2017.concept_ancestor
+#               WHERE ancestor_concept_id IN (1503297,43009032,19122137,35198118,1502855,1502809,43009070,1580747,
+#                                         793143,40166035,1547504,1516766,1525215,35197921,1502826,43009094,1510202,
+#                                         43009055,44506754,40170911,40239216,43009020,1559684,19097821,1560171,
+#                                         1597756,19059796,19001409,43009089,1583722,43009051, 793293,45774751,45774435,
+#                                         44785829,1594973,19033498,43526465,43008991,43013884,44816332,1530014,1529331 )) as b 
+#         on a.drug_concept_id = b.descendant_concept_id ) as B 
+#       on a.subject_id = B.person_id           
+#       WHERE a.cohort_definition_id in (target, control)
+#       and b.drug_exposure_start_date between a.cohort_start_date  and (a.cohort_start_date + 455)
+#        "
 
-# save query 
-## female ='1' , male =0
-data4 <- ff$save_query(sql4, schema, db_target, db_control, con)
-print(" sql4 data(add period) file size is ")
-file_size <- object.size(data4)
-print(file_size, units = "auto")
-names(data4)[names(data4)== 'subject_id' ] <-  c("ID")
-print("sql1(add period) add period columns")
-#data4$period <- data4$drug_exposure_end_date - data4$drug_exposure_start_date +1 \
-str(data4)
-head(data4)
+# # save query 
+# ## female ='1' , male =0
+# data4 <- ff$save_query(sql4, schema, db_target, db_control, con)
+# print(" sql4 data(add period) file size is ")
+# file_size <- object.size(data4)
+# print(file_size, units = "auto")
+# names(data4)[names(data4)== 'subject_id' ] <-  c("ID")
+# print("sql1(add period) add period columns")
+# #data4$period <- data4$drug_exposure_end_date - data4$drug_exposure_start_date +1 \
+# str(data4)
+# head(data4)
 
 # input-- t1, data4, ruleout  output--id, measurement_
-drug_period <- ff$drug_period(data4, t1)
+#drug_period <- ff$drug_period(data4, t1)
 ####################################################################### SQL ############################################################################# 
+# 약물 코드 
 sql1 <-" SELECT distinct (case when a.cohort_definition_id = target then 'T'
                                when a.cohort_definition_id = control then 'C' else 'error' end) as cohort_type,
       a.subject_id,
@@ -137,7 +138,7 @@ file_size <- object.size(data1)
 print(file_size, units = "auto")
 names(data1)[names(data1)== 'subject_id' ] <-  c("ID")
 head(data1)
-
+# 검사 수치 
 sql2 <- "SELECT a.subject_id,
 (case        when c.measurement_concept_id in (3020460, 3010156) then 'CRP'
                     when c.measurement_concept_id in (3015183, 3013707) then 'ESR'
@@ -174,7 +175,7 @@ print(" sql2 (measurement_date) data file size is ")
 print(file_size, units = "auto")
 names(data2)[names(data2)== 'subject_id' ] <-  c("ID")
 head(data2)
-
+# 인구학적 정보 데이터 
 sql3 <- " SELECT a.subject_id,
                (case when d.gender_concept_id = 8507 then 'M' 
                      when d.gender_concept_id = 8532 then 'F' 
@@ -202,7 +203,7 @@ print("check memory::: sql ")
 rm(data1)
 rm(data2)
 rm(data3)
-rm(data4)
+#rm(data4)
 rm(sql1)
 rm(sql2)
 rm(sql3)
@@ -219,6 +220,7 @@ check_n1 <- ff$count_n(data, '1. total')
 check_n1_t <- ff$count_total(data, '1. total')
 print('check n : 1. total N  ')
 
+######### 성향 점수 매칭 변수 ##
 ## 고혈압 약제 추가 
 sql2 = "SELECT  a.subject_id , count(b.drug_concept_id) as hypertension_drug 
        FROM cdm_hira_2017_results_fnet_v276.cohort as a
@@ -379,10 +381,9 @@ print('check n : 3. exposure N  ')
 ruleout <- simplify$ruleout(exposure, t1)
 print("ruleout")
 ###check n 
-check_n4<- ff$count_n( ruleout$earliest, '4. ruleout_early') 
-check_n4_t<- ff$count_total( ruleout$earliest, '4. ruleout_early') 
-check_n5<- ff$count_n( ruleout$latest, '4. ruleout_late') 
-check_n5_t<- ff$count_total( ruleout$latest, '4. ruleout_late') 
+check_n4<- ff$count_n( ruleout, '4. ruleout') 
+check_n4_t<- ff$count_total( ruleout, '4. ruleout') 
+
 print('check n : 4. ruleout N  ')
 #############check memory 2 #########################
 print("check memory::: simplify")
@@ -392,61 +393,41 @@ rm(data)
 mem_used()
 ######################################################################### 2-2  NEW columns: drug_period ######################################################################
 ## ruleout data와 합치기. 
-print("merge drug_period")
-total <- ff$drug_period_merge(ruleout, drug_period)
-total_early <- total$earliest
-total_late <- total$latest
-#############check memory 2 #########################
-print("check memory:::merge drug_period")
-rm(total)
+#print("merge drug_period")
+#total <- ff$drug_period_merge(ruleout, drug_period)
 
-mem_used()
+#############check memory 2 #########################
+#print("check memory:::merge drug_period")
+#rm(total)
+#mem_used()
 ######################################################################### 3. combine data ######################################################################
-final_early  <- left_join( ps, total_early, by= "ID")
-final_late <- left_join( ps, total_late, by= "ID")
+final  <- left_join( ps, ruleout, by= "ID")
 print("final")
 
-final_early1   <-ff$no_error_id(final_early, db_hospital)
-final_late1   <-ff$no_error_id(final_late, db_hospital)
+final1   <-ff$no_error_id(final, db_hospital)
 print('no error id :: done')
 # ## file 내보내기 
-print('final_early1')
-file_size <- object.size(final_early1)
+print('final')
+file_size <- object.size(final1)
 print(file_size, units = "auto")
-print('final_late1')
-file_size <- object.size(final_late1)
-print(file_size, units = "auto")
-
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success extract step !!!!!!!!!!!!!!!!!!!!!!!  sql data file size is  ")
 # ##############check memory 3 #########################
 print("check memory::: combine")
-rm(final_early)
-rm(final_late)
+rm(final)
 mem_used()
 ######################################################################### 4. save ######################################################################
 # # ##sample 
-
 print("rbind count_n")
-count <- rbind(check_n1, check_n2, check_n3, check_n4, check_n5)
+count <- rbind(check_n1, check_n2, check_n3, check_n4)
 print("rbind count_total")
-count_t <- rbind(check_n1_t, check_n2_t, check_n3_t, check_n4_t, check_n5_t)
+count_t <- rbind(check_n1_t, check_n2_t, check_n3_t, check_n4_t)
 ##############check memory 3 #########################
 print("check memory::: combine")
 mem_used()
 
 write.csv(count, paste0("/data/results/count_", db_hospital ,".csv")) 
 write.csv(count_t, paste0("/data/results/count_t_", db_hospital ,".csv")) 
-write.csv(final_early1, paste0("/data/results/final_early_", db_hospital ,".csv")) 
-write.csv(final_late1, paste0("/data/results/final_late_", db_hospital ,".csv")) 
-sample_drug_period <- drug_period[1:1000,]
-sample_total_early <- total_early[1:1000,]
-sample_total_late <- total_late[1:1000,]
-sample_final_early <- final_early1[1:1000,]
-sample_final_late <- final_late1[1:1000,]
-
-write.csv(sample_drug_period, paste0("/data/results/sample_drug_period_", db_hospital ,".csv"))
-write.csv(sample_total_early, paste0("/data/results/sample_total_early_", db_hospital ,".csv")) 
-write.csv(sample_total_late, paste0("/data/results/sample_total_late_", db_hospital ,".csv")) 
-write.csv(sample_final_early, paste0("/data/results/sample_final_early_", db_hospital ,".csv")) 
-write.csv(sample_final_late, paste0("/data/results/sample_final_late_", db_hospital ,".csv")) 
+write.csv(final1, paste0("/data/results/final_", db_hospital ,".csv")) 
+sample_final <- final1[1:1000,]
+write.csv(sample_final, paste0("/data/results/sample_final_", db_hospital ,".csv")) 
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success extract step  good job !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
