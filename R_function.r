@@ -291,8 +291,8 @@ drug_period_merge <- function(ruleout, drug_data){
                       print('merge data:: drug_data')
                       rm(ruleout_sub1)
                       rm(drug_data2)
-                      total <- left_join(ruleout, drug_data3[,c('ID',"cum_metformin", 'cum.met', 'cum.su', 'cum.sglt', 'cum.dpp', 'cum.tzd', 'cum.alpha', 'cum.gnd',
-                       "drug_exposure_start_date",  'measurement_date.after','measurement_type')], by=c("ID", 'measurement_date.after','measurement_type', 'drug_exposure_start_date') )
+                      total <- left_join(ruleout, drug_data3[,c('ID','cum.met', 'cum.su', 'cum.sglt', 'cum.dpp', 'cum.tzd', 'cum.alpha', 'cum.gnd',
+                         'measurement_date.after','measurement_type')], by=c("ID", 'measurement_date.after','measurement_type') )
                       rm(drug_data2)
                       print('total')
                       str(total)
@@ -1421,6 +1421,7 @@ simplify <- module({
   import('stats')
   import('base')
   import('utils')
+  import('lubridate')
 pair<- function(data){
                     # pair 
                     before <- data %>% dplyr::filter(measurement_date < cohort_start_date) %>% dplyr::distinct(ID, measurement_type, value_as_number, measurement_date, cohort_start_date)
@@ -1470,15 +1471,30 @@ exposure <- function(pair){
                     }
 # # # rule out 
 ruleout <- function(exposure, t1){
-          # # # 1) ingredient 3 out 
+         ##### 0) 측정 날짜에 복용한 약물 중. 첫 복용 시작 날짜가 max 인것을 추출 --> 잔류기간으로 중복되어 ruleout 되는 경우 줄이고, max dose over 되는 경우 줄이고자함.  
+                  print("choose max drug_start date")
+                  d <- exposure %>% dplyr::distinct(ID, measurement_date.after, drug_exposure_start_date)
+                  d1 <- d %>% group_by(ID, measurement_date.after) %>% summarise(drug_list = list(unique(drug_exposure_start_date))) 
+                  d1 <- d1 %>% group_by(ID, measurement_date.after) %>% mutate(drug_exposure_start_date2 = max(unlist(drug_list))) 
+                  d1$drug_exposure_start_date <- as_date( d1$drug_exposure_start_date2,  origin = lubridate::origin)
+                  d1 <- as.data.frame(d1)
+                  print("change join to merge !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                  d2 <- merge(x= d1[,c('ID', 'measurement_date.after', 'drug_exposure_start_date')], y= exposure, by = c("ID", "measurement_date.after", "drug_exposure_start_date"))
+                  print("show me d2")
+                  str(d2)
+                  rm(d)
+                  rm(d1)
+                  rm(exposure)
+         # # # 1) ingredient 3 out 
                   print("start join exposure, and t1")
-                  dc <- left_join(exposure, t1[,c("drug_concept_id","Name","type1","type2","dose")], by = c("drug_concept_id") ) 
+                  dc <- left_join(d2, t1[,c("drug_concept_id","Name","type1","type2","dose")], by = c("drug_concept_id") ) 
                   print("delete error drug")
                   dc <- dc[which(dc$type1 != 'error' & dc$type2 != 'error'), ]
                   print("start unique join data")
                   dc<- unique(dc) 
                   print("check dc ")
                   str(dc)
+                  rm(d2)
           # 2) 3제 요법 제외, target 임에도 불구하고 metformin 없는 경우 제외 
                   ## 성분 만 추출
                   print("start:::extract ingredient")
@@ -1512,24 +1528,34 @@ ruleout <- function(exposure, t1){
                   print("how about dc4?????")
                   str(dc4)
            # 3) 용량군 정의  
+                  # drug concep id 별 Total dose 계산  
+                  print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! calculate total dose by drug concept id !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                  dc4$id_dose <- ( dc4$dose * (as.numeric(dc4$quantity)/ as.numeric(dc4$days_supply))) 
                   # 측정 날짜를 기준으로 용량 list 생성하기.  (metformin 갯수에 상관없이 sum 적용)
                   print(" make dose_list, dose columns")
-                  dc5 <- dc4 %>% group_by(ID, measurement_date.after) %>% summarise( dose_list = list((dose))) %>% mutate(dose2 = sum(unlist(dose_list)))
+                  dc5 <- dc4 %>% group_by(ID, measurement_date.after) %>% summarise( dose_list2 = list(unique(id_dose))) 
+                  dc5 <- dc5 %>% group_by(ID, measurement_date.after) %>% mutate(total_dose = sum(unlist(dose_list2)))
+                  dc51 <- dc4 %>% group_by(ID, measurement_date.after) %>% summarise( dose_list1 = list(unique(dose))) 
+      
                   print("how about dc5???")
                   str(dc5)
+                  print("how about dc51????")
+                  str(dc51)
                   print("put dose columns in data frame ")
                   #합치기 
-                  dc6 <- left_join(dc4, dc5[,c("ID", "measurement_date.after",  "dose2")], by=c("ID", "measurement_date.after"))
+                  dc6 <- left_join(dc4, dc5[,c("ID", "measurement_date.after",  "dose_list2", "total_dose")], by=c("ID", "measurement_date.after"))
+                  dc6 <- left_join(dc6, dc51[,c("ID", "measurement_date.after",  "dose_list1")], by=c("ID", "measurement_date.after"))
                   print("how about dc6?")
                   str(dc6)
                   rm(dc5)       
                   rm(dc4)
+                  rm(dc51)
             #4) 계산       
                   # #   ##계산
-                  dc6$total_dose <- (dc6$dose2 * as.numeric(dc6$quantity)) / as.numeric(dc6$days_supply)
-                  print("complete put total_dose columns in data frame")
+                  # dc6$total_dose <- (dc6$dose2 * as.numeric(dc6$quantity)) / as.numeric(dc6$days_supply)
+                  # print("complete put total_dose columns in data frame")
                   #   ## 용량군 정의 
-                  dc6$dose_type1 <- ifelse(dc6$total_dose >= 1000, 
+                  dc6$dose_type <- ifelse(dc6$total_dose >= 1000, 
                                              ifelse(dc6$total_dose >=1500, "high", "middle"), "low")
                   print("complete put dose_type columns in data frame")
                   print("!!!!!!!!!!!!!!! show me dose_Type 1 column !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -1556,8 +1582,8 @@ ruleout <- function(exposure, t1){
                   rm(dc6)
                   print("show me dc8")
                   str(dc8)
-                  ruleout <- dc8 %>% dplyr::distinct(ID, cohort_type, year,  measurement_type, value_as_number.before, value_as_number.after, measurement_date.before, measurement_date.after, drug_exposure_start_date,
-                   gender, age, id_list , drug_group, dose2, quantity, days_supply, total_dose, dose_type1 )
+                  ruleout <- dc8 %>% dplyr::distinct(ID, cohort_type, year,  measurement_type, value_as_number.before, value_as_number.after, measurement_date.before, measurement_date.after,
+                   gender, age, id_list , drug_group, dose_list1, dose_list2, total_dose, dose_type )
                   rm(dc8)
                   ## select latest measurement_data
                   print("ruleout:: select latest data")
@@ -1572,7 +1598,8 @@ ruleout <- function(exposure, t1){
                   #ruleout <- list( earliest = ruleout_min, latest = ruleout_max)
                   print("flatten list column ")
                   ruleout$id_list <- vapply(ruleout$id_list, paste, collapse = ", ", character(1L)) 
-                  print("show me final  ruleout")
+                  ruleout$dose_list1 <- vapply(ruleout$dose_list1, paste, collapse = ", ", character(1L)) 
+                  ruleout$dose_list2 <- vapply(ruleout$dose_list2, paste, collapse = ", ", character(1L)) 
                   str(ruleout)
                   return(ruleout) #min, max 
                   }
