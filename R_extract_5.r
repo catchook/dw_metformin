@@ -51,54 +51,57 @@ db_info <- cohort_inform[IP == dbhost]
 db_hospital <- db_info$HOSPITAL
 db_target <- db_info$T
 db_control <- db_info$C1
-t1 <- as.data.table(read.csv(file = "home/syk/total.csv", header = TRUE))
-t1 <- t1[, c("drug_concept_id", "Name", "type1", "type2")]
+t1 <- as.data.table(read.csv(file = "home/syk/total2.csv", header = TRUE))
+## metformin 군에서 용량 미표시는 최소용량 250 mg으로 갈음  
+t1 <- t1[, c("drug_concept_id", "Name", "type1", "type2", "dose")]
 print(paste("hospital : ", db_hospital, "schema: ", schema))
 setDTthreads(percent = 100)
 source("home/syk/R_function.r")
 print(c(schema, db_target, db_control))
+
+
 print(c(database, user, pw, url, dbhost, port, schema))
 print(paste("target : ", db_target, "control :", db_control, "hospital: ", db_hospital))
 ######################################################################### NEW column: PERIOD  ######################################################################
 # # add year function 생성
-# print("sql::: add  drug period")
-# sql4 <-" SELECT a.subject_id,
-#       a.cohort_start_date,
-#       B.drug_concept_id,
-#       B.drug_exposure_start_date,
-#       B.drug_exposure_end_date, 
-#       (B.drug_exposure_end_date - B.drug_exposure_start_date + 1) as period
-#       FROM cdm_hira_2017_results_fnet_v276.cohort as a      
-#       JOIN       
-#       ( select a.person_id as person_id, a.drug_concept_id, a.drug_exposure_start_date, a.drug_exposure_end_date
-#         from cdm_hira_2017.drug_exposure as a
-#         join (SELECT descendant_concept_id, ancestor_concept_id
-#               FROM cdm_hira_2017.concept_ancestor
-#               WHERE ancestor_concept_id IN (1503297,43009032,19122137,35198118,1502855,1502809,43009070,1580747,
-#                                         793143,40166035,1547504,1516766,1525215,35197921,1502826,43009094,1510202,
-#                                         43009055,44506754,40170911,40239216,43009020,1559684,19097821,1560171,
-#                                         1597756,19059796,19001409,43009089,1583722,43009051, 793293,45774751,45774435,
-#                                         44785829,1594973,19033498,43526465,43008991,43013884,44816332,1530014,1529331 )) as b 
-#         on a.drug_concept_id = b.descendant_concept_id ) as B 
-#       on a.subject_id = B.person_id           
-#       WHERE a.cohort_definition_id in (target, control)
-#       and b.drug_exposure_start_date between a.cohort_start_date  and (a.cohort_start_date + 455)
-#        "
+print("sql::: add  drug period")
+sql4 <-" SELECT a.subject_id,
+      a.cohort_start_date,
+      B.drug_concept_id,
+      B.drug_exposure_start_date,
+      B.drug_exposure_end_date,
+      (B.drug_exposure_end_date + 30) as drug_exposure_end_date2,
+      (B.drug_exposure_end_date - B.drug_exposure_start_date + 1) as period
+      FROM cdm_hira_2017_results_fnet_v276.cohort as a      
+      JOIN       
+      ( select a.person_id as person_id, a.drug_concept_id, a.drug_exposure_start_date, a.drug_exposure_end_date
+        from cdm_hira_2017.drug_exposure as a
+        join (SELECT descendant_concept_id, ancestor_concept_id
+              FROM cdm_hira_2017.concept_ancestor
+              WHERE ancestor_concept_id IN (1503297,43009032,19122137,35198118,1502855,1502809,43009070,1580747,
+                                        793143,40166035,1547504,1516766,1525215,35197921,1502826,43009094,1510202,
+                                        43009055,44506754,40170911,40239216,43009020,1559684,19097821,1560171,
+                                        1597756,19059796,19001409,43009089,1583722,43009051, 793293,45774751,45774435,
+                                        44785829,1594973,19033498,43526465,43008991,43013884,44816332,1530014,1529331 )) as b 
+        on a.drug_concept_id = b.descendant_concept_id ) as B 
+      on a.subject_id = B.person_id           
+      WHERE a.cohort_definition_id in (target, control)
+      and b.drug_exposure_start_date between a.cohort_start_date  and (a.cohort_start_date + 455)
+       "
 
-# # save query 
-# ## female ='1' , male =0
-# data4 <- ff$save_query(sql4, schema, db_target, db_control, con)
-# print(" sql4 data(add period) file size is ")
-# file_size <- object.size(data4)
-# print(file_size, units = "auto")
-# names(data4)[names(data4)== 'subject_id' ] <-  c("ID")
-# print("sql1(add period) add period columns")
-# #data4$period <- data4$drug_exposure_end_date - data4$drug_exposure_start_date +1 \
-# str(data4)
-# head(data4)
-
-# input-- t1, data4, ruleout  output--id, measurement_
-#drug_period <- ff$drug_period(data4, t1)
+# save query 
+## female ='1' , male =0
+data4 <- ff$save_query(sql4, schema, db_target, db_control, con)
+print(" sql4 data(add period) file size is ")
+file_size <- object.size(data4)
+print(file_size, units = "auto")
+names(data4)[names(data4)== 'subject_id' ] <-  c("ID")
+print("sql1(add period) add period columns")
+#data4$period <- data4$drug_exposure_end_date - data4$drug_exposure_start_date +1 \
+str(data4)
+head(data4)
+#input-- t1, data4, ruleout  output--id, measurement_
+drug_period <- ff$drug_period(data4, t1)
 ####################################################################### SQL ############################################################################# 
 # 약물 코드 
 sql1 <-" SELECT distinct (case when a.cohort_definition_id = target then 'T'
@@ -203,10 +206,11 @@ print("check memory::: sql ")
 rm(data1)
 rm(data2)
 rm(data3)
-#rm(data4)
+rm(data4)
 rm(sql1)
 rm(sql2)
 rm(sql3)
+rm(sql4)
 mem_used()
 ####################################################################################################
 ####change chr to date class
@@ -393,15 +397,16 @@ rm(data)
 mem_used()
 ######################################################################### 2-2  NEW columns: drug_period ######################################################################
 ## ruleout data와 합치기. 
-#print("merge drug_period")
-#total <- ff$drug_period_merge(ruleout, drug_period)
+print("merge drug_period")
+total <- ff$drug_period_merge(ruleout, drug_period)
 
 #############check memory 2 #########################
-#print("check memory:::merge drug_period")
+print("check memory:::merge drug_period")
 #rm(total)
-#mem_used()
+rm(ruleout)
+mem_used()
 ######################################################################### 3. combine data ######################################################################
-final  <- left_join( ps, ruleout, by= "ID")
+final  <- left_join( ps, total, by= "ID")
 print("final")
 
 final1   <-ff$no_error_id(final, db_hospital)
@@ -428,6 +433,9 @@ mem_used()
 write.csv(count, paste0("/data/results/count_", db_hospital ,".csv")) 
 write.csv(count_t, paste0("/data/results/count_t_", db_hospital ,".csv")) 
 write.csv(final1, paste0("/data/results/final_", db_hospital ,".csv")) 
+write.csv(drug_period,paste0("/data/results/drug_period_", db_hospital ,".csv"))
 sample_final <- final1[1:1000,]
+sample_drug_period <- drug_period[1:5000,]
 write.csv(sample_final, paste0("/data/results/sample_final_", db_hospital ,".csv")) 
+write.csv(sample_drug_period, paste0("/data/results/sample_drug_period_", db_hospital ,".csv")) 
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success extract step  good job !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")

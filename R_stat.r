@@ -26,23 +26,21 @@ print("library done")
 source("R_function.r")
 print("read function module ")
 #####argument#######
-trim_n = 4
+trim_n = 1.65
 print("trim_n %")
 print(trim_n)
-print("4 d ")
-# a : BUN  + Creatinine
-# b: Creatinine
-# c : hospital + BUN  + Creatinine
-# d : hospital + Creatinine
-formula <-  cohort_type ~  hospital +  Creatinine + year + cci + age + gender + SU + alpha+ dpp4i + gnd + sglt2 + tzd + MI + HF +PV + CV + CPD + Rheuma + PUD + MLD + DCC + HP + Renal + MSLD + AIDS + HT2+ HL2 + Sepsis+ HTT 
-##############################데이터 합치기:: combine data############################################################################################ 
 
+# a : BUN + Creatinine
+# b:  BUN + eGFR
+# c : Creatinine
+# d : eGFR
+formula  <-  cohort_type ~ BUN + Creatinine + year + cci + age + gender + SU + alpha+ dpp4i + gnd + sglt2 + tzd + MI + HF +PV + CV + CPD + Rheuma + PUD + MLD + DCC + HP + Renal + MSLD + AIDS + HT2+ HL2 + Sepsis+ HTT 
+#############################데이터 합치기:: combine data############################################################################################ 
 setwd('/home/syk/data')
 filenames <- list.files(path = getwd())
 numfiles <- length(filenames)
 #data <- fread("/home/syk/data.csv", fill =TRUE)
 data <- do.call(rbind, lapply(filenames, read.csv))
-#write.csv(total, '/home/syk/total.csv')
 print("data read done ")
 file_size <- object.size(data)
 print("original data size is ")
@@ -56,11 +54,11 @@ mem_used()
 ##################################################################### 1. delete outlier #################################################################### 
 ## before trim 
 # ### check_n: original N / figure / smd  
-N1 <- ff$count_n( data, '1. before trim')
-N1_t <- ff$count_total( data, '1. before trim')
-stat$fig(data,  '1_before_trim', 5, 0.5)
-stat$smd(data, '1_before_trim')
-print("check original::")
+# N1 <- ff$count_n( data, '1. before trim')
+# N1_t <- ff$count_total( data, '1. before trim')
+# stat$fig(data,  '1_before_trim', 5, 0.5)
+# stat$smd(data, '1_before_trim')
+# print("check original::")
 # ## trim n%
 # ### check_n: trim N / figure / smd
 data <- ff$trim(data, trim_n)
@@ -88,7 +86,6 @@ data$rate <- data$diff/ data$value_as_number.before
 ## delete drug_group; error & NA
 data <- data %>% filter(!grepl('error', drug_group))
 data <- data[!is.na(data$drug_group),]
-
 # # # ##############check memory 2 #########################
 print("check memory::: delete outlier")
 # rm(total)
@@ -97,153 +94,162 @@ file_size <- object.size(data)
 print("data step 2, size is ")
 print(file_size, units = "auto")
 mem_used()
+write.csv(data, '/home/syk/data.csv')
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success delete outlier :: good job!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 # #################################################################### 2. propensity score matching  ######################################
-## select columsn for ps matching
-ps <-  unique(data[, c("cohort_type", "age",  "gender", "SU", "alpha"   ,"dpp4i", "gnd", "sglt2" ,  "tzd" ,  
-                  "BUN",  "Creatinine" ,  "MI"   , "HF"   ,   "PV"     ,   "CV"    ,   "CPD" ,   "Rheuma" , 
-                  "PUD",    "MLD"      ,   "DCC" ,  "HP"  ,  "Renal",  "MSLD"  ,  "AIDS"   ,   "HT2" ,   "HL2",   
-                  "Sepsis" ,  "HTT"    ,      "ID"      ,    "egfr",  'cci', 'year', 'hospital' )])   
-ps$egfr[is.na(ps$egfr)] <- 90
-ps[is.na(ps)] <- 0
-# ## convert cohort_Type, age; chr to numeric
-ps$cohort_type <- ifelse(ps$cohort_type =='C', 1, 0)
-ps$gender <- ifelse(ps$gender =='M', 0, 1)
-# # ## 2:1 matching
-print("test:: matchit :::: formla version")
-m.out <- matchit(formula , data = ps, method ='nearest', distance ='logit',  ratio =2)
-summary(m.out)
-m.data <- match.data(m.out, data = ps, distance = 'prop.score')
-id <- m.data %>% distinct(ID)
-data2 <- left_join(id, data, by = 'ID')
-# ## check n / figure /smd 
-N4 <- ff$count_n(data2, "4. ps_matching")
-N4_t <- ff$count_total(data2, "4. ps_matching")
-# stat$fig(data2, "4_psmatch" , 1, 0.01)
-stat$smd(data2, "4_psmatch")
-# # ##############check memory 2 #########################
-print("check memory::: ps matching")
-file_size <- object.size(ps)
-print("ps, size is ")
-print(file_size, units = "auto")
-file_size <- object.size(data2)
-print("ps + data , size is ")
-print(file_size, units = "auto")
-rm(ps)
-rm(m.out)
-rm(m.data)
-mem_used()
-print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-#################################################################### 3. stat  ############################################################################
-#data2 <- fread("data.csv", fill =TRUE)
-## remove na
-data2 <- data2[!is.na(data2$drug_exposure_end_date),]
-data2 <- data2[!is.na(data2$drug_exposure_start_date),] 
-data2 <- data2[!is.na(data2$measurement_date.after),]
-data2 <- data2[!is.na(data2$measurement_date.before),]
-print("check stat data:::")
-str(data2)
-## 3-1) target vs control  
-print("start cum drug period")
-stat$cum_period(data2)
-### normality, var, t-test, wilcox
-print("start test rate2 ")
-stat$test_rate2(data2)
-print("start test diff2 ")
-stat$test_diff2(data2)
-print("start ptest2 ")
-stat$ptest_drug2(data2)
-
-print('start test rate:: :: add cum_period:: automatic save')
-stat$test_rate(data2)
-print("start test diff")
-stat$test_diff(data2)
-# ### paired t-test (t vs c)
-print("start paired_test")
-stat$ptest_drug(data2)
-
-print("start cum drug period")
-stat$cum_period(data2)
-
-print('success good job!')
-# # ##############check memory 3 #########################
-print("check memory::: stat")
-rm(data2)
-mem_used()
-print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!success target vs control stat!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
-# ## 3-2) high vs low 
-# ###################### ps matching
-# ## select only target 
-# target <- data1 %>% dplyr::filter(cohort_type=='T') 
-# rm(data1)
-# ps <-  unique(target[, c( "age",  "gender", "SU", "alpha"   ,"dpp4i", "gnd", "sglt2" ,  "tzd" ,  
+# # ## select columsn for ps matching
+# ps <-  unique(data[, c("cohort_type", "age",  "gender", "SU", "alpha"   ,"dpp4i", "gnd", "sglt2" ,  "tzd" ,  
 #                   "BUN",  "Creatinine" ,  "MI"   , "HF"   ,   "PV"     ,   "CV"    ,   "CPD" ,   "Rheuma" , 
 #                   "PUD",    "MLD"      ,   "DCC" ,  "HP"  ,  "Renal",  "MSLD"  ,  "AIDS"   ,   "HT2" ,   "HL2",   
-#                   "Sepsis" ,  "HTT"    ,   "ID"  ,    "egfr",  'cci' , 'dose_type' )])   
+#                   "Sepsis" ,  "HTT"    ,      "ID"      ,    "egfr",  'cci', 'year', 'hospital' )])   
 # ps$egfr[is.na(ps$egfr)] <- 90
-# colSums(is.na(ps))
 # ps[is.na(ps)] <- 0
-# ## convert cohort_Type, age; chr to numeric
-# #ps$cohort_type <- ifelse(ps$cohort_type =='C', 1, 0)
+
+# # ## convert cohort_Type, age; chr to numeric
+# ps$cohort_type <- ifelse(ps$cohort_type =='C', 1, 0)
 # ps$gender <- ifelse(ps$gender =='M', 0, 1)
-# ps$dose_type <- ifelse(ps$dose_type =='high', 1 , 0)
-# ## 1 : 1 matching
-# m.out <- matchit(dose_type ~ cci + age + gender + Creatinine + BUN + egfr + SU + alpha+ dpp4i + gnd + sglt2 + tzd + MI + HF +PV + CV + CPD + Rheuma + PUD + MLD + DCC + HP + Renal + MSLD + AIDS + HT2+ HL2 + Sepsis+ HTT , data = ps, method ='nearest', distance ='logit',  ratio =1)
+
+# # # ## 2:1 matching
+# print("test:: matchit :::: formla version")
+# m.out <- matchit(formula , data = ps, method ='nearest', distance ='logit',  ratio =2)
 # summary(m.out)
 # m.data <- match.data(m.out, data = ps, distance = 'prop.score')
 # id <- m.data %>% distinct(ID)
-# data3 <- left_join(id, target, by = 'ID')
-# # ##############check memory 3 #########################
-# print("check memory:::high vs low psmatching")
+# data2 <- left_join(id, data, by = 'ID')
+
+# # ## check n / figure /smd 
+# # N4 <- ff$count_n(data2, "4. ps_matching")
+# # N4_t <- ff$count_total(data2, "4. ps_matching")
+# # stat$fig(data2, "4_psmatch" , 1, 0.01)
+# # stat$smd(data2, "4_psmatch")
+
+# # # # ##############check memory 2 #########################
+# print("check memory::: ps matching")
+# file_size <- object.size(ps)
+# print("ps, size is ")
+# print(file_size, units = "auto")
+# file_size <- object.size(data2)
+# print("ps + data , size is ")
+# print(file_size, units = "auto")
 # rm(ps)
 # rm(m.out)
 # rm(m.data)
-# rm(target)
+# rm(data)
 # mem_used()
-# print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  HIGH VS LOW ::: success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-# ## check n / figure /smd 
-# N5 <- ff$dose_count_n( data3, "1. dose_type_psmatch")
-# N5_t <- ff$dose_count_total( data3, "1. dose_type_psmatch")
-# print("N5_t")
-# str(N5_t)
-# stat$dose_fig(data3, "1_dose_type_psmatch")
-# stat$dose_smd(data3, "1_dose_type_psmatch")
-# print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  HIGH VS LOW ::: SUCCESS check N , FIG, SMD  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-# ###################### dose stat 
-# print("check dose data:::")
-# str(data3)
-# ### normality, var, t-test, wilcox (all:: rate, diff)
-# dose_diff_rate <- stat$dose_diff_rate(data3)
-# ### paired t-test (sub analysis by dose type)
-# dose_paired_test <- stat$dose_ptest(data3)
-# # ##############check memory 3 #########################
+# print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+# # #################################################################### 3. stat  ############################################################################
+# # ## remove na
+# data2<- data2[ !is.na(data2$measurement_date.after) & !is.na(data2$measurement_date.before) ,]  %>% mutate(dose_type2 = ifelse(total_dose >=1000, ifelse(total_dose>=1500, "high", "middle"), "low"))
+# print("check stat data:::")
+# str(data2)
+# write.csv(data2, "/home/syk/data.csv") 
+# # ## 3-1) target vs control  
+# # print("start cum drug period")
+# # stat$cum_period(data2)
+# # ### normality, var, t-test, wilcox
+# # print("start test rate2 ")
+# # stat$test_rate2(data2)
+# # N5 <- ff$count_n(data2, "5. test_rate")
+# # N5_t <- ff$count_total(data2, "5. test_rate")
+# # print("start test diff2 ")
+# # stat$test_diff2(data2)
+# # print("start ptest2 ")
+# # stat$ptest_drug2(data2)
+
+# # print('start test rate:: :: add cum_period:: automatic save')
+# # stat$test_rate(data2)
+# # print("start test diff")
+# # stat$test_diff(data2)
+# # # ### paired t-test (t vs c)
+# # print("start paired_test")
+# # stat$ptest_drug(data2)
+
+# # print("start cum drug period")
+# # stat$cum_period(data2)
+
+# # print('success good job!')
+# # # # ##############check memory 3 #########################
+# # print("check memory::: stat")
+# # rm(data2)
+# # mem_used()
+# # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!success target vs control stat!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
+# print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start dose sub analysis !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+# ### 용량별 분포 확인 
+# target <- data2 %>% filter(cohort_type =='T')
+# fig1<-ggplot(target, aes(x = total_dose )) + geom_histogram( color ='gray80', alpha=0.2, position="identity", binwidth=100) +  geom_density() + xlim(0, 10000)
+# dose_summary<-as.array(summary(target$total_dose))
+# control <- data2 %>% dplyr::filter(cohort_type=='C')
+# ### 용량 군 정의 
+# high <- target[which(target$dose_type2 =='high'), ]
+# middle <- target[which(target$dose_type2 =='middle'), ]
+# low <- target[which(target$dose_type2 =='low'), ]
+# n1 <- length(unique(target$ID) )
+# n2 <- length(unique( target[which(target$dose_type2 =='high'), 'ID' ] ))
+# n3 <- length(unique(target[ which(target$dose_type2 =='middle'), 'ID' ]))
+# n4 <- length(unique(target[ which(target$dose_type2 =='low'), 'ID' ]))
+# print( paste("total N: ", n1, "high dose :", n2, "middle dose :", n3, "low dose :", n4) )
+# # n1 <- length(unique(high$ID) )
+# # n2 <- length(unique(middle$ID) )
+# # n3 <- length(unique(low$ID) )
+# # print( paste("high dose :", n1, "middle dose :", n2, "low dose :", n3) )
+# print("##################################################################### 3-1) high vs low / middle vs low  #############################################################") 
+# stat1 <- rbind(high, low)
+# stat2 <- rbind(middle, low)
+# stat$dose_rate2(stat1, "high")
+# stat$dose_rate2(stat2, "middle")
+# print("##################################################################### 3-2) high vs control / middle vs control / low vs control #################################################################")
+# ## 실험군 vs 대조군의 실험군을 사용해서 고용량, 중용량,  저용량 비교. 
+# high_c <- rbind(high, control)
+# middle_c <- rbind(middle, control)
+# low_c <- rbind(low, control)
+# print("start test rate2")
+# ### dose_rate 
+# print("high")
+# stat$test_rate2(high_c, "high")
+# print("middle")
+# stat$test_rate2(middle_c, "middle")
+# print("low")
+# stat$test_rate2(low_c, "low")
+# print("start ptest2 ")
+# stat$ptest_drug2(high, "high")
+# stat$ptest_drug2(middle, "middle")
+# stat$ptest_drug2(low, "low")
+# # print('start test rate:: :: add cum_period:: automatic save')
+# # stat$test_rate(high, "high")
+# # stat$test_rate(middle, "middle")
+# # stat$test_rate(low, "low")
+# # print("##################################################################### 3-3) by dose, ptest ##################################################################### #####################################################################") 
+# # print("start dose ptest2 ")
+# # stat$dose_ptest_drug2(target)
+# ##############check memory 3 #########################
 # print("check memory:::high vs low dose stat")
-# rm(data3)
+# rm(data2)
+# rm(target)
+# rm(control)
+# rm(stat1)
+# rm(stat2)
+# rm(high_c)
+# rm(middle_c)
+# rm(low_c)
 # mem_used()
-# print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  HIGH VS LOW ::: SUCCESS dose stat !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-# #################################################################### 4. save ############################################################################
-
-
-print('success good job!')
-# write.csv(dose_diff_rate, paste0("/data/results/dose_diff_rate.csv")) 
-# write.csv(dose_paired_test, paste0("/data/results/dose_paired_test.csv")) 
-# print("rbind count ")
-count <- rbind(N1, N4)
-write.csv(count, paste0("/data/results/stat_count.csv")) 
-# print("rbind count_t")
-# N1_t <- subset(N1_t, select = c(C, T, step))
-# N2_t <- subset(N2_t, select = c(C, T, step))
-# print("N1_T")
-# str(N1_t)
-# print("N2_t")
-# str(N2_t)
-# print("N3_t")
-# str(N3_t)
-# print("N4_t")
-# str(N4_t)
-count_t <- rbind(N1_t,N4_t)
-write.csv(count_t, paste0("/data/results/stat_count_t.csv")) 
-# ##dose type
-# write.csv(N5, paste0("/data/results/dose_stat_count.csv")) 
-# write.csv(N5_t, paste0("/data/results/dose_stat_count_t.csv")) 
-
+# # # #################################################################### 4. save ############################################################################
+# ggsave("/data/results/dose_fig.png", fig1, device="png", dpi=300, width=15, height =5)
+# write.csv(dose_summary, "/data/results/dose_summary.csv")
+# print('success good job!')
+# # write.csv(dose_diff_rate, paste0("/data/results/test1/dose_diff_rate.csv")) 
+# #write.csv(dose_paired_test, paste0("/data/results/test1/dose_paired_test.csv")) 
+# # print("rbind count ")
+# # count <- rbind(N1,N2,N3)
+# # write.csv(count, paste0("/data/results/high_stat_count.csv")) 
+# # rm(count)
+# # count <- rbind(n1,n2, n3)
+# # write.csv(count, paste0("/data/results/low_stat_count.csv")) 
+# # # print("rbind count_t")
+# # count_t <- rbind(N1_t, N2_t, N3_t)
+# # write.csv(count_t, paste0("/data/results/high_stat_count_t.csv")) 
+# # rm(count_t)
+# # count_t <- rbind(n1_t,n2_t, n3_t)
+# # write.csv(count_t, paste0("/data/results/low_stat_count_t.csv")) 
+# # ##dose type
+# # write.csv(N5, paste0("/data/results/dose_stat_count.csv")) 
+# # write.csv(N5_t, paste0("/data/results/dose_stat_count_t.csv")) 

@@ -224,78 +224,78 @@ data <- subset(data, cr_low <= Creatinine & Creatinine <= cr_high )
 data <- subset(data, bun_low <= BUN & BUN <= bun_high )
 return(data)
 }
-
 drug_period <- function(data4, t1){
                         ## t1 데이터 합치기.
                         print("start:: merge t1  & drug_data") 
                         drug_data <- left_join(data4, t1[,c("drug_concept_id","Name","type1","type2")], by = c("drug_concept_id") ) 
                         rm(data4)
-                        ##  누적 합 구하기 
-                        # value : drug type1, type2 
-                        print('start:: cumsum -melt')
-                        drug_data1 <- melt(drug_data, id.vars=c('ID', 'drug_exposure_start_date', 'drug_exposure_end_date', 'period'), measure.vars =c('type1', 'type2'))
-                        drug_data1 <- drug_data1 %>% select(-variable)
-                        rm(drug_data)
-                        #na.omit & blank =none
-                        print('start::cumsum - na omit') 
-                        drug_data1 <- drug_data1[!is.na(drug_data1$value), ]
-                        drug_data1 <- drug_data1[!(drug_data1$value == ''),]
-                        drug_data1 <- drug_data1[!(drug_data1$value == 'error'),]
-                        drug_data1 <- unique(drug_data1)
+                        # 1. error 는 불포함 
+                        print("start:: delete error")
+                        drug_data <- drug_data[drug_data$type1 !='error'& drug_data$type2 != 'error', ]
+                        # 2. melt 
+                        print("start:: arrange & melt")
+                        drug_data <- drug_data %>% arrange(ID, drug_exposure_start_date, drug_exposure_end_date2) %>% melt( id.vars= c("ID", "drug_exposure_start_date", "drug_exposure_end_date2","period") , measure.vars = c('type1' ,'type2')) 
+                        drug_data <- drug_data %>% select(-variable)
+
+                        # '빈칸'은 삭제 
+                        print("start:: delete blank")
+                        drug_data <- drug_data[drug_data$value != '' & !(is.na(drug_data$value)),]
+                        drug_data <- unique(drug_data)
+                        print("!!!!!!!!!!!!!!!show me melt!!!!!!!!!!!!!!!!!!!! ")
+                        str(drug_data)
+                        print("how many na?")
+                        print(colSums(is.na(drug_data)) )
                         # # pivot wider 
-                        print("start::cumsum - pivot wider")
-                        drug_data2 <- drug_data1 %>% tidyr::pivot_wider(names_from = value, values_from = period , values_fill = 0)
+                        print("start:: - pivot wider")
+                        drug_data2 <- drug_data %>% tidyr::pivot_wider(names_from = value, values_from = period , values_fill = 0)
                         drug_data2 <- as.data.frame(drug_data2)
-                        rm(drug_data1)
-
+                        rm(drug_data)        
+                        print("!!!!!!!!!!!!!!!show me pivot wider !!!!!!!!!!!!!!!!!!!! ")
+                        str(drug_data2)
+                        print("how many na?")
+                        print(colSums(is.na(drug_data2)))
                         ## need full drug variable
-                        cols <- c('metformin', 'SU','sglt2','dpp4i','tzd','alpha', 'gnd')
+                        cols <- c( 'metformin', 'SU','sglt2','dpp4i','tzd','alpha', 'gnd')
                         drug_data2[ cols[ !(cols %in% colnames(drug_data2)) ] ] <-0
-
+                        print("show me drug_data2")
+                        str(drug_data2)
+                        print("how many na?")
+                        print( colSums(is.na(drug_data2)) )
                         # ## cumsum ..ID, start date, end date , drug 7
-                        print("start:: cumsum - columns ")
-                        print("drug_data2 colnames")
-                        colnames(drug_data2)
-                        print('start::')
-                        drug_data3<-drug_data2  %>% arrange(ID, drug_exposure_start_date, drug_exposure_end_date) %>%
-                                    group_by(ID, drug_exposure_start_date) %>% 
-                                    group_by(ID) %>%
-                                    mutate_at( vars(metformin, sglt2, SU, gnd, dpp4i, tzd, alpha),cumsum) %>%
-                                    dplyr::distinct(ID, drug_exposure_start_date,drug_exposure_end_date,metformin, sglt2, SU, gnd, dpp4i, tzd, alpha )
-                        drug_data3 <- as.data.frame(drug_data3)
-                        names(drug_data3) <-c("ID", "drug_exposure_start_date", 'drug_exposure_end_date', "cum_metformin", "cum_sglt2","cum_SU", "cum_gnd", "cum_dpp4i", "cum_tzd", "cum_alpha")
-                        print("drug period str")
-                        str(drug_data3)
+                        print("start:: cumsum - using data.table new version ~!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
+                        dt <- data.table(drug_data2)
                         rm(drug_data2)
-                        
-                        return(drug_data3)
+                        setorder(dt, ID, drug_exposure_start_date, drug_exposure_end_date2)[,c('cum.met', 'cum.su', 'cum.sglt', 'cum.dpp', 'cum.tzd', 'cum.alpha', 'cum.gnd')
+                                                                                            :=.(cumsum(metformin), cumsum(SU), cumsum(sglt2), cumsum(dpp4i), cumsum(tzd), cumsum(alpha), cumsum(gnd)), by = ID ]
+
+                        # drug_data3<-drug_data2  %>% arrange(ID, drug_exposure_start_date, drug_exposure_end_date2) %>%
+                        #             group_by(ID, drug_exposure_start_date) %>% 
+                        #             group_by(ID) %>%
+                        #             mutate_at( vars(metformin, sglt2, SU, gnd, dpp4i, tzd, alpha),cumsum) %>%
+                        #             dplyr::distinct(ID, drug_exposure_start_date,drug_exposure_end_date2,metformin, sglt2, SU, gnd, dpp4i, tzd, alpha )
+                        # drug_data3 <- as.data.frame(drug_data3)
+                        # names(drug_data3) <-c("ID", "drug_exposure_start_date", 'drug_exposure_end_date2', "cum_metformin", "cum_sglt2","cum_SU", "cum_gnd", "cum_dpp4i", "cum_tzd", "cum_alpha")
+                        # print("drug period str")
+#                        str(drug_data3)
+#                        rm(drug_data2)
+                        return(dt)
+
 }
 drug_period_merge <- function(ruleout, drug_data){
-                      earliest_ruleout<-ruleout$earliest
-                      latest_ruleout<-ruleout$latest
                       print("start::cumsum - subset1")
-                      ruleout_sub1 <- subset(earliest_ruleout, select =c(ID, measurement_type, measurement_date.after))
-                      ruleout_sub2 <- subset(latest_ruleout, select =c(ID, measurement_type, measurement_date.after))
+                      ruleout_sub1 <- subset(ruleout, select = c(ID, measurement_type, measurement_date.after))
                       ruleout_sub1 <- unique(ruleout_sub1)
-                      ruleout_sub2 <- unique(ruleout_sub2)
                       print("start::cumsum - merge ruleout subset")
-                      drug_data_early <- drug_data %>% left_join(ruleout_sub1, by = 'ID') %>% filter(drug_exposure_start_date <= measurement_date.after & measurement_date.after <= drug_exposure_end_date)
-                      drug_data_late  <- drug_data %>% left_join(ruleout_sub2, by = 'ID') %>% filter(drug_exposure_start_date <= measurement_date.after & measurement_date.after <= drug_exposure_end_date)
-                      print('merge data:: drug_data4')
+                      drug_data2 <- left_join(drug_data, ruleout_sub1, by = c('ID')) 
+                      drug_data3 <- drug_data2 %>% filter(drug_exposure_start_date <= measurement_date.after & measurement_date.after <= drug_exposure_end_date2)
+                      print('merge data:: drug_data')
                       rm(ruleout_sub1)
-                      rm(ruleout_sub2)
-
-                      ##### test ruleout min, drug_data 4 show
-                      total_earliest <- left_join(earliest_ruleout, drug_data_early, by = c('ID', 'measurement_date.after','measurement_type'))
-                      total_latest   <- left_join(latest_ruleout, drug_data_late, by = c('ID', 'measurement_date.after','measurement_type'))
-                      rm(earliest_ruleout)
-                      rm(latest_ruleout)
-                      print("merge ruleout_min, drug_data")
-                      print('total earliest')
-                      str(total_earliest)
-                      print('total_latest')
-                      str(total_latest)
-                      total <- list( earliest = total_earliest, latest = total_latest)
+                      rm(drug_data2)
+                      total <- left_join(ruleout, drug_data3[,c('ID',"cum_metformin", 'cum.met', 'cum.su', 'cum.sglt', 'cum.dpp', 'cum.tzd', 'cum.alpha', 'cum.gnd',
+                       "drug_exposure_start_date",  'measurement_date.after','measurement_type')], by=c("ID", 'measurement_date.after','measurement_type', 'drug_exposure_start_date') )
+                      rm(drug_data2)
+                      print('total')
+                      str(total)
                       return(total)
 
 }
@@ -626,7 +626,7 @@ ptest_drug2 <- function(data1, dose){ ##각 서브 약물군 별로 데이터가
                 scale_y_continuous(limits=quantile(gnd[,j], c(0.1, 0.9), na.rm=TRUE))+
                 labs(title =paste0("gnd ", j, " paired_test"), x= "step", y= j) +
                 scale_x_discrete(limits=c("pre", "post")) 
-    ggsave(p, file = paste0('/data/results/test2/fig_ptest/',dose,'gnd_', j, '_ptest.png'), dpi=300)
+    ggsave(p, file = paste0('/data/results/test2/fig_ptest/',dose,'_gnd_', j, '_ptest.png'), dpi=300)
     rm(p)
          } 
   for ( i in drug_list){
@@ -966,12 +966,12 @@ cum_period  <- function(stat,dose){
 # 용량별 t-test, paired t-test
 # high dose vs low dose  ttest 
 
-dose_rate2 <- function(stat){
+dose_rate2 <- function(stat, dose){
   #필요한 값만 추출
   stat<-setDT(stat)
-  stat<- stat[,.(ID, dose_type, measurement_type,  rate)]
+  stat<- stat[,.(ID, dose_type2, measurement_type,  rate)]
   stat<- unique(stat)
-  rate <- dcast(stat, ID + dose_type ~ measurement_type, value.var = c('rate'))
+  rate <- dcast(stat, ID + dose_type2 ~ measurement_type, value.var = c('rate'))
   names(rate)[names(rate) == 'Total cholesterol'] <-  c("Total_cholesterol")
   names(rate)[names(rate) == 'NT-proBNP'] <-  c("NTproBNP")
   print("show me the rate::dose_Rate2::dcast")
@@ -981,21 +981,24 @@ dose_rate2 <- function(stat){
     require('ggpubr')
     name<-  colnames(rate)[i]
     rate <- subset(rate, !is.na(i))
-    p <- ggplot(rate, aes(x= dose_type, y=rate[,i], color = dose_type))+
-         ggpubr::stat_compare_means(aes(group= dose_type)) + geom_boxplot() +
+    print("1")
+    p <- ggplot(rate, aes(x= dose_type2, y=rate[,i], color = dose_type2))+
+         ggpubr::stat_compare_means(aes(group= dose_type2)) + geom_boxplot() +
   #   ggpubr::stat_compare_means(aes(group =as.factor(cohort_type) )) +
      labs (title =paste(name,' rate by dose_type'), x= "dose type" , y = name) +
-     scale_x_discrete(limits =c("high", "low")) +
+     scale_x_discrete(limits =c( "dose", "low")) +
      scale_y_continuous(limits=c(-1,1))
-    ggsave(p, file=paste0("/data/results/test2/fig_rate/dose/", name," rate.png"),  dpi=300)  
+    print("2")
+    ggsave(p, file=paste0("/data/results/test2/fig_rate/",dose ,"_dose_", name," rate.png"),  dpi=300)  
+    print("3")
     rm(p)
   }
 
   # T test
-  tb <- mytable(dose_type ~ CRP + ESR + BUN + Triglyceride + SBP + Total_cholesterol + Hb + Glucose_Fasting + Creatinine +  HDL + AST + Albumin + insulin +
+  tb <- mytable(dose_type2 ~ CRP + ESR + BUN + Triglyceride + SBP + Total_cholesterol + Hb + Glucose_Fasting + Creatinine +  HDL + AST + Albumin + insulin +
       BMI + HbA1c + DBP +  LDL +  NTproBNP , data = rate,  method = 3,  catMethod = 0, show.all = T, max.ylev =2, digits =3)
 
-  mycsv(tb, file = '/data/results/test2/dose_rate2.csv')
+  mycsv(tb, file = paste0('/data/results/test2/',dose, '_dose_rate2.csv'))
   rm(tb)
 
     #########################delete intermediate data##################################
@@ -1005,15 +1008,15 @@ dose_rate2 <- function(stat){
 dose_ptest_drug2 <- function(data1){ ##각 서브 약물군 별로 데이터가 별로 없으면 에러 발생 가능
 # target만의 데이터 생성 
   stat<-setDT(data1)
-  dose_list =c("high", 'low')
+  dose_list =c("high", "middle", 'low')
   m_list <-c('CRP', 'ESR', 'BUN', 'Triglyceride', 'SBP', 'Total_cholesterol', 'Hb', 'Glucose_Fasting', 'Creatinine', 'HDL', 'AST', 'Albumin', 'insulin', 'HbA1c', 'DBP', 'LDL' ,'NTproBNP')
   for( i in dose_list){
-    target_dose <- data1[grep(i, data1$dose_type),.(ID, measurement_type, value_as_number.before, value_as_number.after, dose_type)]
+    target_dose <- data1[grep(i, data1$dose_type2),.(ID, measurement_type, value_as_number.before, value_as_number.after, dose_type2)]
     target_dose <- unique(target_dose)
     print("1")
-      pre_  <- dcast(target_dose, ID + dose_type  ~ measurement_type, value.var=c('value_as_number.before'))
+      pre_  <- dcast(target_dose, ID + dose_type2  ~ measurement_type, value.var=c('value_as_number.before'))
       pre_$step <-'pre'
-      post_ <- dcast(target_dose, ID + dose_type ~ measurement_type, value.var=c('value_as_number.after'))
+      post_ <- dcast(target_dose, ID + dose_type2 ~ measurement_type, value.var=c('value_as_number.after'))
       post_$step <-'post'
       total <- rbind(pre_, post_)
       total<- as.data.frame(total)
@@ -1027,7 +1030,7 @@ dose_ptest_drug2 <- function(data1){ ##각 서브 약물군 별로 데이터가 
 
       tb <- mytable(step ~ CRP + ESR + BUN + Triglyceride + SBP +Hb + Glucose_Fasting + Creatinine + HDL + AST +Albumin +insulin + BMI + HbA1c + DBP +
                 Total_cholesterol + LDL + NTproBNP, data = total, method =3, catMethod=0, show.all =T, digits =3)
-      mycsv(tb, file = paste0('/data/results/test2/',i, ' dose_rate_ptest2.csv'))
+      mycsv(tb, file = paste0('/data/results/test2/',i, '_dose_rate_ptest2.csv'))
       rm(tb)
       print("4")
     for (j in m_list){  
@@ -1043,7 +1046,7 @@ dose_ptest_drug2 <- function(data1){ ##각 서브 약물군 별로 데이터가 
           scale_y_continuous(limits=quantile(target_[,j], c(0.1, 0.9), na.rm=TRUE))+
           labs(title =paste0(i," ", j, " paired_test"), x= "step", y= j) +
           scale_x_discrete(limits=c("pre", "post"))
-        ggsave(p, file = paste0('/data/results/test2/fig_ptest/dose/',i," ", j, '_ptest.png'), dpi=300)
+        ggsave(p, file = paste0('/data/results/test2/fig_ptest/dose/',i,"_dose_", j, '_ptest.png'), dpi=300)
         rm(p)
         rm(target_dose)
     } 
@@ -1454,14 +1457,14 @@ exposure <- function(pair){
                     print("start exposure, filter latest") 
                     exposure <- pair %>% dplyr::filter(drug_exposure_start_date <= measurement_date.after & measurement_date.after <= drug_exposure_end_date) 
                     exposure <- as.data.frame(exposure)      
-                    exposure2 <- exposure %>% arrange(ID, measurement_type, desc(measurement_date.after)) %>% group_by(ID, measurement_type) %>% mutate(row= row_number())
-                    exposure <- as.data.frame(exposure2)               
+#                    exposure2 <- exposure %>% arrange(ID, measurement_type, desc(measurement_date.after)) %>% group_by(ID, measurement_type) %>% mutate(row= row_number())
+#                   exposure <- as.data.frame(exposure2)               
                     print("start unique exposure")
                     exposure <- unique(exposure)
                     print("check exposure")
                     str(exposure)
                     ###################### delete intermediate file 
-                    rm(exposure2)
+#                    rm(exposure2)
                     ###################### delete intermediate file 
                     return(exposure)
                     }
@@ -1469,63 +1472,22 @@ exposure <- function(pair){
 ruleout <- function(exposure, t1){
           # # # 1) ingredient 3 out 
                   print("start join exposure, and t1")
-                  dc <- left_join(exposure, t1[,c("drug_concept_id","Name","type1","type2")], by = c("drug_concept_id") ) 
+                  dc <- left_join(exposure, t1[,c("drug_concept_id","Name","type1","type2","dose")], by = c("drug_concept_id") ) 
+                  print("delete error drug")
+                  dc <- dc[which(dc$type1 != 'error' & dc$type2 != 'error'), ]
                   print("start unique join data")
-                  dc<- unique(dc)
+                  dc<- unique(dc) 
                   print("check dc ")
                   str(dc)
-                  # ## 측정날짜 기준으로 약물 취합. 
-                  # ## 용량군 정의 
-                  print("fill NA of Name to  error_" )
-                  dc$Name[is.na(dc$Name)] <- "no name"
-                  print("start:: define dose group")
-                  #fun<- function(x){strex::str_extract_numbers(x, decimals =TRUE)}
-                  dose_list <- sapply(dc$Name, function(x) {strex::str_extract_numbers(x, decimals =TRUE)})
-                  n= length(dose_list)
-                  results <- vector(length = n)
-                  print("complete extract dose from Name")
-                  for( i in 1:n) {
-                      num <- length(dose_list[[i]])
-                      if(num == 1){
-                        results[[i]] <- dose_list[[i]]
-                      } else if(num == 2){ 
-                        results[[i]] <- max(dose_list[[i]])
-                      }else{
-                        results[[i]] <- 1 
-                      }  
-                      }
-                    print("complete extract only one dose  ")
-                  dc$dose <- results
-                  print("put dose columns in data frame ")
-                  #   ##계산
-                  dc$total_dose <- (dc$dose * as.numeric(dc$quantity)) / as.numeric(dc$days_supply)
-                  print("complete put total_dose columns in data frame")
-            
-                    ## 용량군 정의 
-                  dc$dose_type1 <- ifelse(dc$total_dose >= 1000, 
-                                            ifelse(dc$total_dose >=1500, "high", "middle"), "low")
-                  print("complete put dose_type columns in data frame")
-                  print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! show me how to drug dose define !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
-                  #dc <- dc[, -c('dose')]
-                  dc <- subset(dc, select=-c(dose))
-                  print("delete dose columns ")
-                  str(dc)
-                  head(dc)  
-                    ## select only one dose_Type 
-                    # print("select only one dose_Type")
-                    # dcc <- reshape2::melt(data= dc[,c("ID", "measurement_date.after","dose_type1")], id.vars =c("ID", "measurement_date.after"), measure.vars = "dose_type1")
-                    # dcc <-dcc %>% group_by(ID, measurement_date.after) %>% summarise( dose_list = list(unique(value))) %>% mutate(dose_type = case_when(
-                    #      any(dose_list =='high') ~'high', 
-                    #      TRUE ~'low'))
-                    ## 성분 만 추출
-                    print("start:::extract ingredient")
-                    dc2 <- as.data.frame(dc) # error 방지용 
-                    print("start reshpae2::melt")
-                    dc2 <- reshape2::melt(data= dc[,c("ID", "measurement_date.after","type1","type2")], id.vars =c("ID", "measurement_date.after"), measure.vars = c("type1", "type2"))
-                    print("start making drug_list")
-                    dc2 <- dc2 %>% group_by(ID, measurement_date.after) %>% summarise( drug_list = list(unique(value)))
-                  
-                    #성분 / metformin 갯수/ 병용 약물군 정의  
+          # 2) 3제 요법 제외, target 임에도 불구하고 metformin 없는 경우 제외 
+                  ## 성분 만 추출
+                  print("start:::extract ingredient")
+#                  dc2 <- as.data.frame(dc) # error 방지용 
+                  print("start reshpae2::melt")
+                  dc2 <- reshape2::melt(data= dc[,c("ID", "measurement_date.after","type1","type2")], id.vars =c("ID", "measurement_date.after"), measure.vars = c("type1", "type2"))
+                  print("start making drug_list")
+                  dc2 <- dc2 %>% group_by(ID, measurement_date.after) %>% summarise( drug_list = list(unique(value)))
+                  #성분 / metformin 갯수/ 병용 약물군 정의  
                   print("count ingredient")
                   fun <- function(x){
                     x1 = x[x !='']
@@ -1540,13 +1502,63 @@ ruleout <- function(exposure, t1){
                   print("put drug_group")
                   dc2$drug_group <- sapply(dc2$drug_list, function(x) paste(x, collapse="/"))
                   #합치기. 
-        #          dc3 <- left_join(dc, dcc[,c("ID", "measurement_date.after", 'dose_type')], by =c("ID", "measurement_date.after"))
+                  #dc3 <- left_join(dc, dcc[,c("ID", "measurement_date.after", 'dose_type')], by =c("ID", "measurement_date.after"))
                   dc3 <- left_join(dc, dc2[,c("ID","measurement_date.after","ingredient_count","metformin_count","drug_group")], by=c("ID", "measurement_date.after"))
-                      ## 필터링.
-                  ruleout <- dc3 %>% dplyr::filter(ingredient_count < 3 )
-                  ruleout <- ruleout %>% dplyr::filter((cohort_type=='T' & metformin_count !=0) | cohort_type=='C') 
+                  rm(dc2)
+                  rm(dc)
+                  ## 필터링.
+                  dc4 <- dc3 %>% dplyr::filter(ingredient_count < 3 ) %>% dplyr::filter((cohort_type=='T' & metformin_count !=0) | cohort_type=='C') 
+                  rm(dc3)        
+                  print("how about dc4?????")
+                  str(dc4)
+           # 3) 용량군 정의  
+                  # 측정 날짜를 기준으로 용량 list 생성하기.  (metformin 갯수에 상관없이 sum 적용)
+                  print(" make dose_list, dose columns")
+                  dc5 <- dc4 %>% group_by(ID, measurement_date.after) %>% summarise( dose_list = list((dose))) %>% mutate(dose2 = sum(unlist(dose_list)))
+                  print("how about dc5???")
+                  str(dc5)
+                  print("put dose columns in data frame ")
+                  #합치기 
+                  dc6 <- left_join(dc4, dc5[,c("ID", "measurement_date.after",  "dose2")], by=c("ID", "measurement_date.after"))
+                  print("how about dc6?")
+                  str(dc6)
+                  rm(dc5)       
+                  rm(dc4)
+            #4) 계산       
+                  # #   ##계산
+                  dc6$total_dose <- (dc6$dose2 * as.numeric(dc6$quantity)) / as.numeric(dc6$days_supply)
+                  print("complete put total_dose columns in data frame")
+                  #   ## 용량군 정의 
+                  dc6$dose_type1 <- ifelse(dc6$total_dose >= 1000, 
+                                             ifelse(dc6$total_dose >=1500, "high", "middle"), "low")
+                  print("complete put dose_type columns in data frame")
+                  print("!!!!!!!!!!!!!!! show me dose_Type 1 column !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                  str(dc6)
+                    ## select only one dose_Type 
+                    # print("select only one dose_Type")
+                    # dcc <- reshape2::melt(data= dc[,c("ID", "measurement_date.after","dose_type1")], id.vars =c("ID", "measurement_date.after"), measure.vars = "dose_type1")
+                    # dcc <-dcc %>% group_by(ID, measurement_date.after) %>% summarise( dose_list = list(unique(value))) %>% mutate(dose_type = case_when(
+                    #       any(dose_list =='high') ~'high',
+                    #       any(dose_list == 'middle') ~'middle', 
+                    #       TRUE ~'low'))
+                  # print("show me dcc ")
+                  # str(dcc)
+
                   #                  unique(dc3[which(dc3$ingredient_count<3) & ((dc3$cohort_type=='T')& (dc3$metformin_count !=0 )) ],)
-                  ruleout <- ruleout %>% dplyr::distinct(ID, cohort_type, year,  measurement_type, value_as_number.before, value_as_number.after, gender, age, dose_type, drug_group, measurement_date.before, measurement_date.after)
+                  # id_list 추가 
+                  print("start3:: add id_list")
+                  dc7 <- reshape2::melt(data = dc6[,c("ID", "measurement_date.after", "drug_concept_id")], id.vars =c("ID",  "measurement_date.after"), measure.vars= c("drug_concept_id"))
+                  print("start3:: melt id list")
+                  dc7 <- dc7%>% group_by(ID, measurement_date.after) %>% summarise( id_list = list(unique(value)) )
+                  ## 합치기                   
+                  dc8 <- left_join(dc6, dc7[,c("ID", "measurement_date.after", "id_list")], by=c("ID",  "measurement_date.after"))
+                  rm(dc7)
+                  rm(dc6)
+                  print("show me dc8")
+                  str(dc8)
+                  ruleout <- dc8 %>% dplyr::distinct(ID, cohort_type, year,  measurement_type, value_as_number.before, value_as_number.after, measurement_date.before, measurement_date.after, drug_exposure_start_date,
+                   gender, age, id_list , drug_group, dose2, quantity, days_supply, total_dose, dose_type1 )
+                  rm(dc8)
                   ## select latest measurement_data
                   print("ruleout:: select latest data")
                   # ruleout2 <- ruleout %>% dplyr::arrange(ID, measurement_type, desc(measurement_date.after)) %>% group_by(ID, measurement_type) %>% dplyr::mutate( row = row_number())
@@ -1558,12 +1570,10 @@ ruleout <- function(exposure, t1){
                   #ruleout_min <- ruleout[,.SD[which.min(measurement_date.after)], by=.(ID, measurement_type)]
                   #print("ruleout_max, min:::")
                   #ruleout <- list( earliest = ruleout_min, latest = ruleout_max)
-                  ###################### delete intermediate file 
-                  rm(dc)
-                  rm(dc2)
-                  rm(dcc)
-                  rm(dc3)
-                  ###################### delete intermediate file 
+                  print("flatten list column ")
+                  ruleout$id_list <- vapply(ruleout$id_list, paste, collapse = ", ", character(1L)) 
+                  print("show me final  ruleout")
+                  str(ruleout)
                   return(ruleout) #min, max 
                   }
 })
