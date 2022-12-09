@@ -316,27 +316,27 @@ trim4 <- function(data){
    data<-data[-which(data$BUN>summary(data$BUN)[5] + 1.5*IQR(data$BUN)),]
    data<-data[-which(data$Creatinine> summary(data$Creatinine)[5] + 1.5*IQR(data$Creatinine)),]
   # print("select only crp")
-  data <- as.data.table(data)
-  data <- data[!is.na(data$value_as_number.after),]
-  data <- data[!is.na(data$value_as_number.before),]
-  data1<- data[measurement_type =='CRP',]
-  target_c <-data1[ cohort_type =="T",]
-  control_c <-data1[cohort_type =="C",]
-  data2<- data[measurement_type !='CRP',]
+  # data <- as.data.table(data)
+  # data <- data[!is.na(data$value_as_number.after),]
+  # data <- data[!is.na(data$value_as_number.before),]
+  # data1<- data[measurement_type =='CRP',]
+  # target_c <-data1[ cohort_type =="T",]
+  # control_c <-data1[cohort_type =="C",]
+  # data2<- data[measurement_type !='CRP',]
 
   print("1")
   #data_c <-data_c[-which(data_c$value_as_number.before>summary(data_c$value_as_number.before)[5] + 1.5*IQR(data_c$value_as_number.before)),]
-  target_c <- target_c[-which(target_c$value_as_number.after>summary(target_c$value_as_number.after)[5] + 1.5*IQR(target_c$value_as_number.after)),]
+  #target_c <- target_c[-which(target_c$value_as_number.after>summary(target_c$value_as_number.after)[5] + 1.5*IQR(target_c$value_as_number.after)),]
   #crp_max <- max(data_c$value_as_number.before)
   #crp_max2 <- max(target_c$value_as_number.after)
   print("2")
   #data_c <- subset(data_c,  value_as_number.before < crp_max )
   #target_c <- subset(target_c,  value_as_number.after < crp_max2 )
-  rm(data)
-  rm(data1)
-  data <- rbind(data2, target_c, control_c)
-  print(summary(data[data$measurement_type =='CRP', data$value_as_number.before]))
-  print(summary(data[data$measurement_type =='CRP', data$value_as_number.after]))
+  # rm(data)
+  # rm(data1)
+  # data <- rbind(data2, target_c, control_c)
+  # print(summary(data[data$measurement_type =='CRP', data$value_as_number.before]))
+  # print(summary(data[data$measurement_type =='CRP', data$value_as_number.after]))
 
 return(data)
 }
@@ -632,6 +632,176 @@ dose_smd <- function(DF ){
 #   }
 #   return(results)
 # }
+test_stat <- function(stat){
+ stat <- setDT(stat)
+ stat <- stat[,.(ID, cohort_type, measurement_type, rate, diff, value_as_number.before, value_as_number.after)]
+ stat <- unique(stat)
+ stat<- na.omit(stat)
+ print("!!!!!!!!!!!!!!!!!!!!!!!create sumamry results table")
+ baseline <-as.data.table(describeBy(value_as_number.before  ~measurement_type +cohort_type, data = stat, mat =TRUE, digits =2, quant=c(.25,.75)))
+ followup <-as.data.table(describeBy(value_as_number.after  ~measurement_type +cohort_type, data = stat, mat =TRUE, digits =2, quant=c(.25,.75)))
+ diff <-as.data.table(describeBy(diff ~measurement_type +cohort_type, data = stat, mat =TRUE, digits =2, quant=c(.25,.75)))
+ rate <-as.data.table(describeBy(rate ~measurement_type +cohort_type, data = stat, mat =TRUE, digits =2, quant=c(.25,.75)))
+ baseline$class <- "baseline"
+ followup$class <- "F/U"
+ diff$class <-"diff"
+ rate$class <- "rate"
+ total <- rbind(baseline, followup, diff, rate)
+ total[order(group1, group2)]
+ print(str(total))
+ print("split target, control ")
+ rt <- total[group2 =='T', .(class, group1,  n, mean, sd, min, Q0.25, median, Q0.75, max)]
+ rt[order(group1)] 
+ rc <- total[group2 =='C', .(class, group1, n, mean, sd, min, Q0.25, median, Q0.75, max)]
+ rc[order(group1)]
+ print("combind target, control ")
+ r_sum <- cbind(rt, rc)
+# colnames(r_sum) <- c("group1",  "t_n", "t_mean", "t_sd", "t_min", "t_1q", "t_median", "t_3q", "t_max", "group2","c_n","c_mean", "c_sd", "c_min", "c_1q", "c_median", "c_3q", "c_max")
+  # 복용군 먼저 
+ print("!!!!!!!!!!!!!!create p-vale table")
+ rate <- stat[,.(ID, cohort_type, measurement_type, rate)]
+ rate <- unique(rate)
+ diff <- stat[,.(ID, cohort_type, measurement_type, diff)]
+ diff <- unique(diff)
+ print("start decast")
+ rate <- dcast(rate, ID+cohort_type ~ measurement_type, value.var = c("rate"))
+ diff <- dcast(diff, ID+cohort_type ~ measurement_type, value.var = c("diff"))
+ print("rate")
+ str(rate)
+ rate<-  rate %>% rename('Total_cholesterol' = 'Total cholesterol',
+                         'NTproBNP'= "NT-proBNP")
+ diff<-  diff %>% rename('Total_cholesterol' = 'Total cholesterol',
+                         'NTproBNP'= "NT-proBNP")
+
+ print(" create summary result table")
+ tb_rate <- mytable(cohort_type ~ CRP + ESR + BUN + Triglyceride + SBP + Total_cholesterol + Hb + Glucose_Fasting + Creatinine +  HDL + AST + Albumin + insulin + BMI + HbA1c + DBP +  LDL +  NTproBNP , data = rate,  method = 3,  catMethod = 0, show.all = T, max.ylev =2, digits = 2)
+ tb_diff <- mytable(cohort_type ~ CRP + ESR + BUN + Triglyceride + SBP + Total_cholesterol + Hb + Glucose_Fasting + Creatinine +  HDL + AST + Albumin + insulin + BMI + HbA1c + DBP +  LDL +  NTproBNP , data = diff,  method = 3,  catMethod = 0, show.all = T, max.ylev =2, digits = 2)
+ tb_rate2 <-tb_rate$res
+ tb_rate2<- tb_rate2[c("cohort_type", "p2", "p3", "N")]
+ colnames(tb_rate2) <- c("group1", "rate_ttest", "rate_wilcox")
+ tb_diff2 <-tb_diff$res
+ tb_diff2<- tb_diff2[c("cohort_type", "p2", "p3", "N")]
+ colnames(tb_diff2) <- c("group1", "diff_ttest", "diff_wilcox") 
+ tb_diff2 <- as.data.table(tb_diff2)
+ tb_rate2 <- as.data.table(tb_rate2)
+ tb <- merge(tb_rate2, tb_diff2, by ="group1")
+ tb[order(group1)]
+ print("r_sum")
+ head(r_sum)
+ print("tb")
+ head(tb)
+
+ #result <- merge(r_sum, tb, by = "group1")
+ # output 
+  write.csv(r_sum, "/data/results/test2/main_summary.csv")
+  write.csv(tb, "/data/results/test2/main_stat.csv")
+#write.csv(result, "/data/results/test2/main_stat.csv")
+}
+
+test_sub1 <- function(data){
+  data <- setDT(data)
+  stat <- data[cohort_type =='T',.(ID, drug_group, measurement_type, value_as_number.before, value_as_number.after)]
+  stat2 <- data[,.(ID, cohort_type, measurement_type, value_as_number.before, value_as_number.after)]
+  stat <- unique(stat)
+  stat2 <- unique(stat2)
+  stat2<- na.omit(stat2)
+  # 전체 실험군 및 대조군 비교 
+    r_pre <- describeBy(value_as_number.before ~ cohort_type + measurement_type , data =stat2, mat= TRUE, digits =2, quant=c(.25, .75))
+    r_post <- describeBy(value_as_number.after ~ cohort_type + measurement_type , data =stat2, mat= TRUE, digits =2, quant=c(.25, .75))
+    r_pre$step <- "pre"
+    r_post$step <- "post"
+    r <- rbind(r_pre, r_post)
+    r<- as.data.table(r)
+    r1<- r[,.(group1, group2, step, n, mean, sd, min, Q0.25, median, Q0.75, max )]
+    r1[order(group2, step, group1 )]
+    write.csv(r1, "/data/results/test2/sub1_total_summary.csv")
+    target <- stat2[cohort_type =='T',]
+    control <- stat2[cohort_type =="C",]
+     # t.test result: p.value, conf.int, mean of difference
+    ttest <- by(target, target$measurement_type, function(x) 
+             t.test(x$value_as_number.before, x$value_as_number.after, mu=0, alt="two.sided", 
+             paired=TRUE, conf.level=0.95)[c(3,5)])
+    ttest2<- rbindlist(ttest)
+    ttest2$type <- rownames(ttest)
+    # wilcox test: p.value, 
+    wilcox <- by(target, target$measurement_type, function(x) 
+             wilcox.test(x$value_as_number.before, x$value_as_number.after,
+             paired=TRUE)[3])
+    wilcox2 <- data.frame(wilcox_pvalue = unlist(wilcox))
+    wilcox2$type<- rownames(wilcox2)
+    print("rbind stat ")
+    r2 <- merge(ttest2, wilcox2, by = "type")
+    colnames(r2) <-c("type", "t_test_pvalue", "mean_diff", "wilcox_pvalue")
+    r2$group <-"target"
+    write.csv(r2, "/data/results/test2/sub1_target_summary.csv")
+    rm(ttest)
+    rm(ttest2)
+    rm(wilcox)
+    rm(wilcox2)
+    ttest <- by(control, control$measurement_type, function(x) 
+             t.test(x$value_as_number.before, x$value_as_number.after, mu=0, alt="two.sided", 
+             paired=TRUE, conf.level=0.95)[c(3,5)])
+    ttest2<- rbindlist(ttest)
+    ttest2$type <- rownames(ttest)
+    # wilcox test: p.value, 
+    wilcox <- by(control, control$measurement_type, function(x) 
+             wilcox.test(x$value_as_number.before, x$value_as_number.after,
+             paired=TRUE)[3])
+    wilcox2 <- data.frame(wilcox_pvalue = unlist(wilcox))
+    wilcox2$type<- rownames(wilcox2)
+    print("rbind stat ")
+    r3 <- merge(ttest2, wilcox2, by = "type")
+    colnames(r3) <-c("type", "t_test_pvalue", "mean_diff", "wilcox_pvalue")
+    r3$group <-"control"
+    write.csv(r3, "/data/results/test2/sub1_control_summary.csv")
+
+  #실험군내 비교 정의 다시 한번 
+  stat <- stat %>% mutate(drug_group2 = case_when(grepl('SU', drug_group) ~ 'SU', 
+                         grepl('alpha', drug_group) ~ 'alpha', 
+                         grepl('gnd', drug_group) ~ 'gnd', 
+                         grepl('tzd', drug_group) ~ 'tzd', 
+                         grepl('dpp4i', drug_group) ~ 'dpp4i', 
+                         grepl('sglt2', drug_group) ~ 'sglt2', 
+                         TRUE  ~ 'metformin'))
+  ###########################
+ # 갹 약물 군 마다, summary, stat table 생성
+ drug_list=c("alpha", "SU", "dpp4i", "sglt2", 'metformin', "gnd",  "tzd") #gnd, tzd 는 모든 컬럼에 대해 값이 많이 없기 때문에 따로 예외 사항
+ for ( i in drug_list){
+    print(paste0("what drug?", i))
+    drug <- stat[grep(i, stat$drug_group2), .(ID, drug_group2, measurement_type, value_as_number.before, value_as_number.after)]
+    print(paste0(i, "summary table"))
+    r_pre <- describeBy(value_as_number.before ~ measurement_type + drug_group2, data = drug, mat= TRUE, digits =2, quant=c(.25, .75))
+    r_post <- describeBy(value_as_number.after ~ measurement_type + drug_group2, data = drug, mat= TRUE, digits =2, quant=c(.25, .75))
+    r_pre$step <- "pre"
+    r_post$step <- "post"
+    r <- rbind(r_pre, r_post)
+    r<- as.data.table(r)
+    r1<- r[,.(group2, group1, step, n, mean, sd, min, Q0.25, median, Q0.75, max )]
+    r1[order(group1)]
+    print(paste0(i, "stat table"))
+    # mytable 을 사용할 수 없음
+    # t.test result: p.value, conf.int, mean of difference
+    ttest <- by(drug, drug$measurement_type, function(x) 
+             t.test(x$value_as_number.before, x$value_as_number.after, mu=0, alt="two.sided", 
+             paired=TRUE, conf.level=0.95)[c(3,5)])
+    ttest2<- rbindlist(ttest)
+    ttest2$type <- rownames(ttest)
+    # wilcox test: p.value, 
+    wilcox <- by(drug, drug$measurement_type, function(x) 
+             wilcox.test(x$value_as_number.before, x$value_as_number.after,
+             paired=TRUE)[3])
+    wilcox2 <- data.frame(wilcox_pvalue = unlist(wilcox))
+    wilcox2$type<- rownames(wilcox2)
+    print("rbind stat ")
+    r2 <- merge(ttest2, wilcox2, by = "type")
+    colnames(r2) <-c("type", "t_test_pvalue", "mean_diff", "wilcox_pvalue")
+    R <- merge(r1, r2, by.x= "group1", by.y ="type")
+    write.csv(R, paste0("/data/results/test2/", i,"_paried_test.csv"))
+
+ }
+
+
+}
 
 test_rate2 <- function(stat, dose){
   #필요한 값만 추출
@@ -748,7 +918,7 @@ ptest_drug2 <- function(data1, dose){ ##각 서브 약물군 별로 데이터가
 # target 전체의 paired t test
   print('tb')
   tb <- mytable(step ~ CRP + ESR + BUN + Triglyceride + SBP +Hb + Glucose_Fasting + Creatinine + HDL + AST +Albumin +insulin + BMI + HbA1c + DBP +
-                Total_cholesterol + LDL + NTproBNP, data = total, method =3, catMethod=0, show.all =T, digits =5)
+                Total_cholesterol + LDL + NTproBNP, data = total, method =3, catMethod=0, show.all = F, digits =5)
   mycsv(tb, file = paste0('/data/results/test2/total_',dose,'_ptest2.csv'))
   rm(tb)
 
@@ -1010,7 +1180,6 @@ test_diff <- function(stat){
 # ## paired ttest rate test: 등분산성, 정규성, t-test, wilcox test 
 # ## target +  병용 약물 별  
 ptest_drug <- function(stat, dose){
-#  target <- stat %>% dplyr::filter(cohort_type == 'T') %>% dplyr::distinct(ID, value_as_number.before, value_as_number.after, drug_group, measurement_type, cum_metformin, cum_sglt2, cum_SU, cum_gnd, cum_dpp4i, cum_tzd, cum_alpha)
   target <- stat %>% dplyr::filter(cohort_type == 'T') %>% dplyr::distinct(ID, value_as_number.before, value_as_number.after, drug_group, measurement_type)
   ########################### drug_group 대신 drug_group2 새로운 변수 생성  
   target <- target %>% mutate(drug_group2 = case_when(grepl('SU', drug_group) ~ 'SU', grepl('alpha', drug_group) ~ 'alpha', grepl('gnd', drug_group) ~ 'gnd', grepl('tzd', drug_group) ~ 'tzd', grepl('dpp4i', drug_group) ~ 'dpp4i', grepl('sglt2', drug_group) ~ 'sglt2', TRUE  ~ 'metformin') )
