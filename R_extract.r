@@ -169,7 +169,7 @@ data2 <- data2 %>% mutate(measurement_type = case_when(measurement_concept_id %i
                     measurement_concept_id ==  3016723 ~ 'Creatinine',
                     measurement_concept_id ==  3007070 ~ 'HDL'       ,
                     measurement_concept_id ==  3013721 ~ 'AST'       ,
-                    measurement_concept_id ==  3013721 ~ 'ALT'       ,
+                    measurement_concept_id ==  3006923 ~ 'ALT'       ,
                     measurement_concept_id ==  3024561 ~ 'Albumin'   ,
                     measurement_concept_id %in% c(3015089, 3012064, 3016244) ~ 'insulin',
                     measurement_concept_id ==  3038553 ~ 'BMI'       ,
