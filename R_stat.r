@@ -29,14 +29,7 @@ source("/home/syk/R_function.r")
 #source("R_function.r")
 print("read function module ")
 #####argument#######
-# trim_n = 1.585
-# print("trim_n %")
-# print(trim_n)
 
-# a : BUN + Creatinine
-# b:  BUN + eGFR
-# c : Creatinine
-# d : eGFR
 formula  <-  cohort_type ~ BUN + Creatinine + year + cci + age + gender + SU + alpha+ dpp4i + gnd + sglt2 + tzd + MI + HF +PV + CV + CPD + Rheuma + PUD + MLD + DCC + HP + Renal + MSLD + AIDS + HT2+ HL2 + Sepsis+ HTT 
 #############################데이터 합치기:: combine data############################################################################################ 
 ##파일 변경 
@@ -46,34 +39,31 @@ formula  <-  cohort_type ~ BUN + Creatinine + year + cci + age + gender + SU + a
 # data <- do.call(rbind, lapply(filenames, read.csv))
 # print("data read done ")
 # file_size <- object.size(data)
-# print("original data size is ")
-# print(file_size, units = "auto")
-# #write.csv(data, paste0('/home/syk/data_1206.csv'))
+#  print("original data size is ")
+#  print(file_size, units = "auto")
+ #write.csv(data, paste0('/home/syk/data_1206.csv'))
 #  print("check data")
 #  str(data)
 # # # ##############check memory 4 #########################
-#  print("check memory::: combine data")
-#  mem_used()
+  print("check memory::: combine data")
+  mem_used()
 
 #  ##################################################################### 1. delete outlier #################################################################### 
-# print("# # ## delete value_as_number.before 0 values & delete error & NA")
-# data <- data %>% filter(value_as_number.before != 0)
-# data <- data %>% filter(!grepl('error', drug_group))
-# data$diff <- data$value_as_number.after - data$value_as_number.before
-# data$rate <- data$diff/ data$value_as_number.before  
-# # # ## delete drug_group; error & NA
-#  #data<- ff$trim(data, trim_n)
-# data<- ff$trim4(data)
+#  print("# # ## delete value_as_number.before 0 values & delete error & NA")
+#     data <- data %>% filter(value_as_number.before != 0)
+#     data <- data %>% filter(!grepl('error', drug_group))
+#     data$diff <- data$value_as_number.after - data$value_as_number.before
+#     data$rate <- data$diff/ data$value_as_number.before  
+#     data<- ff$trim4(data)
 
 # # # # ##############check memory 2 #########################
-# # print("check memory::: delete outlier")
-# # # rm(total)
-# # # rm(data)
-# # file_size <- object.size(data)
-# # print("data step 2, size is ")
-# # print(file_size, units = "auto")
-# # mem_used()
-# print("trim done")
+#  print("check memory::: delete outlier")
+#  rm(total)
+#  file_size <- object.size(data)
+#  print("data step 2, size is ")
+#  print(file_size, units = "auto")
+#  mem_used()
+#  print("trim done")
 # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success delete outlier :: good job!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 # # # #################################################################### 2. propensity score matching  ######################################
 # # # # ## select columsn for ps matching
@@ -82,7 +72,7 @@ formula  <-  cohort_type ~ BUN + Creatinine + year + cci + age + gender + SU + a
 #                   "PUD",    "MLD"  , "D"    ,   "DCC" ,  "HP"  ,  "Renal",  "M"  , "MSLD", "MST",  "AIDS"  ,
 #                  "HT2" ,   "HL2",  "Sepsis" ,  "HTT"    ,      "ID"      ,   'cci', 'year' )])   
 # ps[is.na(ps)] <- 0
-# # # ## convert cohort_Type, age; chr to numeric
+# # # # ## convert cohort_Type, age; chr to numeric
 # ps$cohort_type <- ifelse(ps$cohort_type =='C', 1, 0)
 # ps$gender <- ifelse(ps$gender =='M', 0, 1)
 
@@ -107,54 +97,31 @@ formula  <-  cohort_type ~ BUN + Creatinine + year + cci + age + gender + SU + a
 #  rm(m.data)
 #  rm(data)
 #  mem_used()
-#  print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-# # # #################################################################### 3. stat  ############################################################################
-# # # ## remove na
+#   print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! success propensity score matching  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+# # # # #################################################################### 3. stat  ############################################################################
+# # # # ## remove na
 # print("remove na ")
 # data2<- data2[ !is.na(data2$measurement_date.after) & !is.na(data2$measurement_date.before) ,] 
 #write.csv(data2, "/home/syk/data_1209.csv")
-data2 <- read.csv("/home/syk/data_1209.csv")
-print("main stat")
-stat$test_stat(data2)
-print("sub1 anaysis")
-stat$test_sub1(data2)
-#print("start ptest2 ")
-#stat$ptest_drug2(data2, "total")
-
-# print("#####################################용량군, 비용량군 crp 전후 비교 ####################################################")
-
-# # # ##############check memory 3 #########################
-# print("check memory::: stat")
-# mem_used()
-# print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!success target vs control stat!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
-# print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEfine  dose_type  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-# # ### 용량별 분포 확인
-# print(" define dose group seperately")
-# print("dose group change")
-# data2$dose_type <- ifelse(data2$total_dose > 1500,  "high", "low") #메일 요청사항 , ifelse(dat1$total_dose >= 1500, "high" , "low") #추가 요청사항
-# ## 용량군 재정의 
-# ## 3개 병원은 dose 로 정의. 나머지 병원은 그대로. 
-# dat1 <- data2 %>% filter(hospital %in% c("CHAMC", "KHMC"))%>% select(-c(total_dose, dose_type, dose_list2))
-# #  print("show me dat1") #
-# dat1$dose_list2 <- lapply(dat1$dose_list1, function(x) strsplit(unlist(x), ","))
-# dat1$total_dose <- sapply(dat1$dose_list2, function(x) sum(as.numeric(unlist(x))))
-# # data2$dose_type <- ifelse(data2$total_dose > 1000, ifelse(data2$total_dose ) "high", "low") #메일 요청사항 
-# # print("start cum drug period")
-# # stat$cum_period(data2)
-# print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! grouping dose type !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-# # #####
-# target <- data2 %>% filter(cohort_type =='T')
-#  #fig1<-ggplot(target, aes(x = total_dose )) + geom_histogram( color ='gray80', alpha=0.2, position="identity", binwidth=10) +  geom_density() + xlim(0, 3000)
-# # dose_summary <-as.array(summary(target$total_dose))
-# stat$dose_smd(target)
-# control <- data2 %>% dplyr::filter(cohort_type=='C')
-# # ### 용량 군 정의 
-# print("start 2 dose group define ")
-# high2 <- target[which(target$dose_type == 'high'),]
-# low2  <- target[which(target$dose_type == 'low'),]
-# n5 <- length(unique(high2$ID) )
-# n7 <- length(unique(low2$ID) )
-# print( paste("high dose :", n5, "low dose:", n7) )
+data2 <- read.csv("/home/syk/data_1207.csv")
+# print("main stat")
+# stat$test_stat(data2)
+# #stat$test_rate2(data2, "total")
+# print("sub1 anaysis")
+# stat$test_sub1(data2)
+print("sub2 analysis")
+print("define dose group")
+#data3 <-stat$dosegroup(data2, 1000, 2) # dose_type1 : >= 1000, dose_type2 : > 1000
+#data4 <- stat$dosegroup(data2, 1500, 2)
+data5 <- stat$dosegroup(data2, 1500, 3)
+rm(data2)
+#str(data3)
+print(" compare dose group")
+#stat$test_dose(data3, 1000,  2 )
+#stat$test_dose(data4, 1500,  2 )
+stat$test_dose(data5, 1500,  3 )
+print("compare dose group vs control")
+stat$test_sub2(data5, 1500, 3)
 # print("##################################################################### 3-1) high vs low / middle vs low  #############################################################") 
 # stat1 <- rbind(high2, low2)
 # #stat2 <- rbind(middle2, low2)
